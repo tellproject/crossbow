@@ -1,10 +1,10 @@
-# Crossbow
-
+Crossbow
+========
 Crossbow is a collection of C++ library used in the Tell system. It contains
 several libraries, some of them are header only.
 
-## Install instructions
-
+Install instructions
+--------------------
 Crossbow uses CMake and requires a C++ compiler that supports C++11. If nothing
 else is written here, the libraries are tested on Linux with gcc and Mac OS X
 with clang and libc++.
@@ -27,8 +27,8 @@ If a library has some additional depenedencies, cmake with only build and instal
 if it can find the dependencies installed on your system. Please look into the sections
 for each library to find out, what kind of dependencies the library has (if any).
 
-## string (header only)
-
+string (header only)
+--------------------
 crossbow::string is a replacememnt for std::string. crossbow::string allocates a
 32 byte buffer on the stack when it is constructed. It can store up to 30 (for
 char strings) or 15 (for wchar strings) characters on the stack space. If the string
@@ -39,8 +39,8 @@ additional performance, since it might prevent a lot of calls to malloc/free.
 
 **Dependencies**: This library does not have any dependencies.
 
-## singleton (header only)
-
+singleton (header only)
+-----------------------
 crossbow::singleton is a thread safe, easy to use implementation of the singleton
 pattern. It is highly configurable and easy to use. The easiest way to use the
 singleton class is as follows:
@@ -64,28 +64,28 @@ singleton class is as follows:
 
 The singleton class can be configured with several parameters. These are:
 
-### Create policy
+__**Create policy**__
 The default create policy is create_static. This will use a statically allocated block
 to store the singleton. Others are:
-+  *create_using_new*: Will use new and delete to allocate the memory for the singleton object.
-+  *create_using_malloc*: Uses malloc/free
-+  *create_using*: This takes another teamplate argument which has to be an allocator. This allocator will be used to create and delete the object.
-+  You can also create your own lifetime policy.
+-  //create_using_new//: Will use new and delete to allocate the memory for the singleton object.
+-  //create_using_malloc//: Uses malloc/free
+-  //create_using//: This takes another teamplate argument which has to be an allocator. This allocator will be used to create and delete the object.
+-  You can also create your own lifetime policy.
 
-### Lifetime Policy
+__**Lifetime Policy**__
 The lifetime policy controls how long the object lives. Options are:
-+ *default_lifetime*: Will destroy the object as soon as the program quits.
-+ *phoenix_lifetime*: Same as default_lifetime, but this one will recreate
+- *default_lifetime*: Will destroy the object as soon as the program quits.
+- *phoenix_lifetime*: Same as default_lifetime, but this one will recreate
 the object if it gets referenced again. This might be useful, if you have
 singletons referencing other singletons. But be careful: if your singleton
 uses other resources (like files), this might not be unproblematic.
-+ *infinite_lifetime*: As it says: the singleton object will never be destroyed.
+- *infinite_lifetime*: As it says: the singleton object will never be destroyed.
 Leak detection tools like valgrind might complain about a memory leak if
 you use this lifetime policy. Usually this can be ignored, since a singleton
 lives until the end of program execution anyway. But be carefull with file
 descriptors etc.
 
-### Mutex
+__**Mutex**__
 The singleton class is thread safe and uses a mutex to assure thread safety.
 The Mutex class has to implement the lock/unlock methods from std::mutex
 (which is also the default mutex the singleton uses). CAUTION: thread safe
