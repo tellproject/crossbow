@@ -1,0 +1,6 @@
+file(GLOB files *.cpp)
+foreach(f ${files})
+    GET_FILENAME_COMPONENT(fname ${f} NAME_WE)
+    add_executable(${fname} ${f})
+    add_test("${fname}_test" ${fname})
+endforeach()
