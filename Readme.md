@@ -116,3 +116,23 @@ insertion. The function passed to ##exec_on## is required to return a boolean. I
 it returns false, the value will be left in the map, otherwise it will get deleted.
 
 **Dependencies**: This library does not have any dependencies.
+
+thread
+------
+This is a simple thread library. It uses lightweight threads and has its own scheduler.
+When creating the first thread, the library tries to figure out, how many CPU-cores there
+are and will start as many OS-threads as there are CPU cores. These threads will then
+execute the user level threads. The scheduler implements a naive form of thread stealing.
+
+The main reasons to use this library instead of anything existant:
+
+- It uses the same interface as std::thread
+- It supports yielding (which will basically just schedule another task and return)
+- crossbow::mutex can be used with std::unique_lock and will not block the OS-Thread
+but the user level thread.
+
+This library is at the moment pretty untested and not highly optimized. So expect to
+find bugs when you use it.
+
+**Dependencies**: This library depends on boost context which has to be installed - otherwise
+this library will not build.

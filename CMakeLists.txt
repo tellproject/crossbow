@@ -15,4 +15,5 @@ install(DIRECTORY crossbow DESTINATION include FILES_MATCHING PATTERN "*.hpp")
 
 enable_testing()
 add_subdirectory(test)
+add_subdirectory(libs)
 
