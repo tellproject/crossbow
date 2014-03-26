@@ -95,3 +95,24 @@ If you use singleton in a single-threaded environment, you can use
 `crossbow::no_lock` here. In that case, the singleton won't use any locking at all.
 
 **Dependencies**: This library does not have any dependencies.
+
+singleconsumerqueue (header only)
+---------------------------------
+This is a lock-free queue, which works for one consumer and multiple producers.
+The main reason to chose this queue over others like ##boost::lockfree::queue##
+is the support for multipull - so the consumer can pull multiple elements out of
+the queue at once.
+
+**Dependencies**: This library does not have any dependencies.
+
+concurrent_map (header only)
+----------------------------
+This is an implementation of a thread safe hash map. It does not support iteration,
+nor does it ever return references to the values hold in the queue, since a resize
+might happen at any point in time. But it has support for ##for_each##, which will
+execute a function on all elements in the queue. Furthermore ##exec_on## can be used
+to call a function on one element of the queue. ##exec_on## can even be used for
+insertion. The function passed to ##exec_on## is required to return a boolean. If
+it returns false, the value will be left in the map, otherwise it will get deleted.
+
+**Dependencies**: This library does not have any dependencies.
