@@ -67,19 +67,19 @@ The singleton class can be configured with several parameters. These are:
 __**Create policy**__
 The default create policy is create_static. This will use a statically allocated block
 to store the singleton. Others are:
--  //create_using_new//: Will use new and delete to allocate the memory for the singleton object.
--  //create_using_malloc//: Uses malloc/free
--  //create_using//: This takes another teamplate argument which has to be an allocator. This allocator will be used to create and delete the object.
+-  ##create_using_new##: Will use new and delete to allocate the memory for the singleton object.
+-  ##create_using_malloc##: Uses malloc/free
+-  ##create_using##: This takes another teamplate argument which has to be an allocator. This allocator will be used to create and delete the object.
 -  You can also create your own lifetime policy.
 
 __**Lifetime Policy**__
 The lifetime policy controls how long the object lives. Options are:
-- *default_lifetime*: Will destroy the object as soon as the program quits.
-- *phoenix_lifetime*: Same as default_lifetime, but this one will recreate
+- ##default_lifetime##: Will destroy the object as soon as the program quits.
+- ##phoenix_lifetime##: Same as default_lifetime, but this one will recreate
 the object if it gets referenced again. This might be useful, if you have
 singletons referencing other singletons. But be careful: if your singleton
 uses other resources (like files), this might not be unproblematic.
-- *infinite_lifetime*: As it says: the singleton object will never be destroyed.
+- ##infinite_lifetime##: As it says: the singleton object will never be destroyed.
 Leak detection tools like valgrind might complain about a memory leak if
 you use this lifetime policy. Usually this can be ignored, since a singleton
 lives until the end of program execution anyway. But be carefull with file
