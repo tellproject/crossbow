@@ -14,11 +14,11 @@
 
 #include <stdexcept>
 #include <cassert>
-#include "string.h"
+#include <crossbow/string.hpp>
 
 #include "min_allocator.h"
 
-using namespace awesome;
+using namespace crossbow;
 
 template <class S>
 void

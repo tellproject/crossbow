@@ -21,8 +21,8 @@ public: // Types
     using difference_type = typename std::allocator_traits<allocator_type>::difference_type;
     using reference = value_type&;
     using const_reference = const value_type&;
-    using pointer = typename std::allocator_traits<Allocator>::pointer;
-    using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
+    using pointer = typename std::allocator_traits<allocator_type>::pointer;
+    using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
     using iterator = pointer;
     using const_iterator = const_pointer;
     using reverse_iterator = std::reverse_iterator<iterator>;
@@ -93,8 +93,7 @@ private: // Helpers
     }
 
     inline void set_ptr(pointer ptr) {
-        value_type* p = ptr;
-        std::memcpy(arr.data() + POINTER_OFFSET, &p, sizeof(p));
+        std::memcpy(arr.data() + POINTER_OFFSET, &ptr, sizeof(ptr));
 #ifndef NDEBUG
         auto nptr = get_ptr();
         assert(nptr == ptr);
@@ -104,11 +103,11 @@ private: // Helpers
     inline pointer get_ptr() {
         using val_ptr = value_type*;
         if (arr[0] != nullchar) {
-            return reinterpret_cast<val_ptr>(arr.data() + 1);
+            return pointer(reinterpret_cast<val_ptr>(arr.data() + 1));
         }
-        val_ptr res;
+        pointer res;
         std::memcpy(&res, arr.data() + POINTER_OFFSET, sizeof(res));
-        return res;
+        return pointer(res);
     }
     inline const_pointer get_ptr() const {
         return const_cast<basic_string<Char, Traits, Allocator>*>(this)->get_ptr();
@@ -178,7 +177,9 @@ public: // Constructors
         init(count);
         auto ptr = get_ptr();
         for (decltype(count) i = 0; i < count; ++i) {
-            *(ptr + i) = *(first + i);
+            auto adv = first;
+            std::advance(adv, i);
+            *(ptr + i) = *adv;
         }
         *(ptr + count) = '\0';
     }
@@ -225,7 +226,7 @@ public: // Constructors
 
     // Compatibility to std::string
     basic_string(const std::basic_string<Char, traits_type, allocator_type>& other)
-        : basic_string(other.c_str(), other.size(), other.get_allocator())
+        : basic_string(const_pointer(other.c_str()), other.size(), other.get_allocator())
     {
     }
 
@@ -419,7 +420,7 @@ public: // Capacity
     }
     void reserve(size_type new_cap = 0) {
         if (new_cap <= capacity()) return;
-        if (new_cap >= max_size()) throw std::length_error("Cannot make a bigger string than max_size");
+        if (new_cap > max_size()) throw std::length_error("Cannot make a bigger string than max_size");
         // we at least double the capacity
         auto sz = size();
         new_cap = std::max(capacity()*2, new_cap);
@@ -768,10 +769,10 @@ public: // Element access
     const_reference operator[] (size_type pos) const {
         return begin()[pos];
     }
-    const_pointer data() const {
+    const value_type* data() const {
         return begin();
     }
-    const_pointer c_str() const {
+    const value_type* c_str() const {
         return begin();
     }
     reference at(size_type pos) {

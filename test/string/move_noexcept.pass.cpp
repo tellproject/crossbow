@@ -16,8 +16,8 @@
 
 #include <string>
 #include <cassert>
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 #include "test_allocator.h"
 

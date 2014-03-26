@@ -15,8 +15,8 @@
 #include <cassert>
 
 #include "min_allocator.h"
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 int sign(int x)
 {

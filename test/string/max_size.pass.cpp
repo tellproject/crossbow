@@ -13,8 +13,8 @@
 
 #include <string>
 #include <cassert>
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 #include "min_allocator.h"
 
@@ -26,6 +26,7 @@ test1(const S& s)
     const size_t sz = s2.max_size() - 1;
     try { s2.resize(sz, 'x'); }
     catch ( const std::bad_alloc & ) { return ; }
+    catch ( const std::length_error& ) { return; }
     assert ( s2.size() ==  sz );
 }
 

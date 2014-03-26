@@ -16,12 +16,12 @@
 #define _LIBCPP_ASSERT(x, m) ((x) ? (void)0 : std::exit(0))
 #endif
 
-#include "string.h"
+#include <crossbow/string.hpp>
 #include <cassert>
 
 #include "min_allocator.h"
 
-using namespace awesome;
+using namespace crossbow;
 
 template <class S>
 void

@@ -14,8 +14,8 @@
 
 #include <string>
 #include <cassert>
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
 

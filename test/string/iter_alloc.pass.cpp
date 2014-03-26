@@ -20,8 +20,8 @@
 #include "test_allocator.h"
 #include "input_iterator.h"
 #include "min_allocator.h"
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 template <class It>
 void

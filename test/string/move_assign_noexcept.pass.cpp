@@ -20,8 +20,8 @@
 #include <cassert>
 
 #include "test_allocator.h"
-#include "string.h"
-using namespace awesome;
+#include <crossbow/string.hpp>
+using namespace crossbow;
 
 template <class T>
 struct some_alloc
