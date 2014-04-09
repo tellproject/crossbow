@@ -1227,16 +1227,19 @@ bool operator>=( const std::basic_string<CharT,Traits,Alloc>& lhs, const basic_s
     return lhs.compare(rhs.c_str(), rhs.size()) >= 0;
 }
 
-template<class Char, class Traits, class Allocator>
-size_t hash_value(const basic_string<Char, Traits, Allocator>& val)
-{
-    using sstring = std::basic_string<Char, Traits, Allocator>;
-    std::hash<sstring> hasher;
-    return hasher(sstring(val.c_str(), val.size(), val.get_allocator()));
-}
-
 using string = basic_string<char>;
 using wstring = basic_string<wchar_t>;
+
+template<class CharT, class Traits, class Allocator>
+size_t hash_value(const crossbow::basic_string<CharT, Traits, Allocator>& str) {
+    constexpr size_t FNV_offset_basis = 14695981039346656037ul;
+    auto hash = FNV_offset_basis;
+    for (auto i = str.begin(); i != str.end(); ++i) {
+        hash *= FNV_offset_basis;
+        hash ^= size_t(*i);
+    }
+    return hash;
+}
 
 template<class _CharT, class _Traits, class _Allocator>
 std::basic_ostream<_CharT, _Traits>&
@@ -1446,17 +1449,11 @@ void swap( crossbow::basic_string<T, Traits, Alloc> &lhs, crossbow::basic_string
     lhs.swap(rhs);
 }
 
-template<>
-struct hash<crossbow::string>
+template<class CharT, class Traits, class Allocator>
+struct hash<crossbow::basic_string<CharT, Traits, Allocator> >
 {
-    constexpr static size_t FNV_offset_basis = 14695981039346656037ul;
-    size_t operator() (const crossbow::string& str) const {
-        auto hash = FNV_offset_basis;
-        for (auto i = str.begin(); str.end(); ++i) {
-            hash *= FNV_offset_basis;
-            hash ^= size_t(*i);
-        }
-        return hash;
+    size_t operator() (const crossbow::basic_string<CharT, Traits, Allocator>& str) const {
+        return crossbow::hash_value(str);
     }
 };
 
