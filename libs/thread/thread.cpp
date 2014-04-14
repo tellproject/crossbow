@@ -213,8 +213,7 @@ RETRY:
     } else {
         goto RETRY;
     }
-END:
-    return timpl;
+   return timpl;
 }
 
 thread::thread(thread&& other)

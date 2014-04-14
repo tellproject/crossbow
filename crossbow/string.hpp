@@ -479,7 +479,6 @@ public: // Operations
     }
     basic_string& insert( size_type index, const_pointer s) {
         size_type count = traits_type::length(s);
-        auto i = s;
         return insert(index, s, count);
     }
     basic_string& insert( size_type index, const basic_string& str ) {

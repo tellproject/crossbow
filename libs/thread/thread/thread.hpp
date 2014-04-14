@@ -7,7 +7,7 @@ namespace crossbow
 
 namespace impl{
 
-class thread_impl;
+struct thread_impl;
 
 } // namespace impl
 

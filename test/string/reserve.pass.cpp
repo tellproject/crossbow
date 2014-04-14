@@ -36,7 +36,6 @@ template <class S>
 void
 test(S s, typename S::size_type res_arg)
 {
-    typename S::size_type old_cap = s.capacity();
     S s0 = s;
     try
     {

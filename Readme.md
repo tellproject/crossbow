@@ -136,3 +136,10 @@ find bugs when you use it.
 
 **Dependencies**: This library depends on boost context which has to be installed - otherwise
 this library will not build.
+
+program_options (header only)
+-----------------------------
+This is a small replacement for boost::program options. The reason to have an alternative
+to boost::program_options is mostly because using boost will introduce a link time
+dependency, which crossbow::program_options is header only. A small example on how  to
+use program_options can be found in the test folder.
