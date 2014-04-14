@@ -126,8 +126,22 @@ struct option
     option(value_type* value, Opts... opts)
         : value_ptr(value), this_opts(opts...) {}
     option(Opts... opts) : this_opts(opts...) {}
+
+    unsigned print_length() const {
+        unsigned res = 0;
+        if (!ignore_short) {
+            res += 2;
+            if (!ignore_long)
+                ++res;
+        }
+        if (!ignore_long)
+            res += 2 + longoption.size();
+        if (tprinter.length() > 0)
+            res += 2 + tprinter.length();
+        return res;
+    }
     
-    std::ostream& print_help(std::ostream& os) const {
+    std::ostream& print_help(std::ostream& os, unsigned align_with) const {
         if (ignore_short && ignore_long) return os;
         os << " ";
         if (!ignore_short) {
@@ -137,9 +151,13 @@ struct option
         }
         if (!ignore_long)
             os << "--" << longoption;
-        os << " ";
+        if (tprinter.length() > 0) os << " ";
         tprinter(os);
-        os << "\t\t\t" << this_opts.description();
+        assert(align_with >= print_length());
+        unsigned spaces = align_with - print_length();
+        for (unsigned i = 0u; i < spaces + 2; ++i)
+            os << " ";
+        os << this_opts.description();
         os << std::endl;
         return os;
     }
@@ -241,11 +259,15 @@ struct options<First, Rest...> : options<Rest...>
         }
     }
     
+    unsigned max_print_lenght() const {
+        return std::max(this_option.print_length(), base::max_print_lenght());
+    }
+    
     std::ostream& print_help(std::ostream& out) const {
         if (is_root) {
             out << "Usage: " << global_name << " [OPTION...]" << std::endl;
         }
-        this_option.print_help(out);
+        this_option.print_help(out, max_print_lenght());
         return base::print_help(out);
     }
 };
@@ -271,6 +293,10 @@ struct options<>
 
     constexpr static bool is_unique(char) {
         return true;
+    }
+    
+    unsigned max_print_lenght() const {
+        return 0u;
     }
     
     std::ostream& print_help(std::ostream& out) const {
@@ -363,6 +389,8 @@ int parse(O& opts, int argc, const char** argv) {
         } else {
             // either an error or remaining options
             for (int j = i; j < argc; ++j) {
+                if (argv[j][0] == '-' && argv[j][1] == '-' && argv[j][2] == '\0')
+                    return i;
                 if (argv[j][0] == '-')
                     throw inexpected_value(str);
             }

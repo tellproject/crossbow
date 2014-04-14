@@ -9,6 +9,10 @@ namespace program_options
 template<class T>
 struct type_printer
 {
+    unsigned length() const {
+        return 7;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "Unknown";
     }
@@ -17,6 +21,10 @@ struct type_printer
 template<>
 struct type_printer<bool>
 {
+    unsigned length() const {
+        return 0;
+    }
+    
     std::ostream& operator() (std::ostream& os) const {
         return os;
     }
@@ -25,6 +33,10 @@ struct type_printer<bool>
 template<>
 struct type_printer<char>
 {
+    unsigned length() const {
+        return 9;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "character";
     }
@@ -33,6 +45,10 @@ struct type_printer<char>
 template<>
 struct type_printer<unsigned char>
 {
+    unsigned length() const {
+        return 13;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "unsigned char";
     }
@@ -41,6 +57,10 @@ struct type_printer<unsigned char>
 template<>
 struct type_printer<short>
 {
+    unsigned length() const {
+        return 5;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "short";
     }
@@ -49,6 +69,10 @@ struct type_printer<short>
 template<>
 struct type_printer<unsigned short>
 {
+    unsigned length() const {
+        return 14;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "unsigned short";
     }
@@ -57,6 +81,10 @@ struct type_printer<unsigned short>
 template<>
 struct type_printer<int>
 {
+    unsigned length() const {
+        return 4;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "int";
     }
@@ -65,6 +93,10 @@ struct type_printer<int>
 template<>
 struct type_printer<unsigned>
 {
+    unsigned length() const {
+        return 8;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "unsigned";
     }
@@ -73,6 +105,10 @@ struct type_printer<unsigned>
 template<>
 struct type_printer<long>
 {
+    unsigned length() const {
+        return 4;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "long";
     }
@@ -81,6 +117,10 @@ struct type_printer<long>
 template<>
 struct type_printer<unsigned long>
 {
+    unsigned length() const {
+        return 13;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "unsigned long";
     }
@@ -89,6 +129,10 @@ struct type_printer<unsigned long>
 template<>
 struct type_printer<long long>
 {
+    unsigned length() const {
+        return 9;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "long long";
     }
@@ -97,6 +141,10 @@ struct type_printer<long long>
 template<>
 struct type_printer<unsigned long long>
 {
+    unsigned length() const {
+        return 18;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "unsigned long long";
     }
@@ -105,6 +153,10 @@ struct type_printer<unsigned long long>
 template<>
 struct type_printer<double>
 {
+    unsigned length() const {
+        return 6;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "double";
     }
@@ -113,6 +165,10 @@ struct type_printer<double>
 template<>
 struct type_printer<long double>
 {
+    unsigned length() const {
+        return 11;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "long double";
     }
@@ -121,6 +177,10 @@ struct type_printer<long double>
 template<>
 struct type_printer<std::string>
 {
+    unsigned length() const {
+        return 6;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "string";
     }
@@ -129,6 +189,10 @@ struct type_printer<std::string>
 template<>
 struct type_printer<string>
 {
+    unsigned length() const {
+        return 6;
+    }
+
     std::ostream& operator() (std::ostream& os) const {
         return os << "string";
     }
