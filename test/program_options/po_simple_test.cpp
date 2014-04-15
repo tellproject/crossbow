@@ -17,12 +17,16 @@ int main(int argc, const char** argv)
                              value<'s'>("string", str, tag::callback([](crossbow::string& str){
                                 std::cout << "Callback with " << str << " on -s" <<std::endl;})),
                              value<'f'>("foo", foo));
+    std::cout << "Size of options: " << sizeof(opts) << std::endl;
     print_help(std::cout, opts);
     auto idx = parse(opts, argc, argv);
-    auto fooVal = opts.get<'f'>();
-    all = opts.get<'a'>();
-    b = opts.get<'b'>();
-    bar = opts.get<-1>();
+    auto fooVal = get<'f'>(opts);
+    //all = opts.get<'a'>();
+    all = get<'a'>(opts);
+    //b = opts.get<'b'>();
+    b = get<'b'>(opts);
+    //bar = opts.get<-1>();
+    bar = get<-1>(opts);
     static_assert(std::is_same<decltype(fooVal), char>::value, "fooVal should be char");
     std::cout << std::endl << "Options set:" << std::endl;
     std::cout << "\tall = " << all << std::endl

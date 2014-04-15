@@ -323,15 +323,18 @@ struct options<>
     }
 };
 
-template<char Name, template<class...> class Opts, class... Opt>
-const typename type_of<Name, Opt...>::type& get(Opts<Opt...>& opts) {
-}
+template<char Name, class O>
+decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O>& opts)
+{
+    const O& o = *opts;
+    return o.template get<Name>();
+};
 
 template<class... Opts>
-options<Opts...> create_options(const string& name, Opts&&... opts)
+std::unique_ptr<options<Opts...>> create_options(const string& name, Opts&&... opts)
 {
     using res_type = options<Opts...>;
-    return res_type{name, std::forward<Opts>(opts)...};
+    return std::unique_ptr<res_type>(new res_type{name, std::forward<Opts>(opts)...});
 }
 
 template<char Name, class T, class... Opts>
@@ -387,7 +390,7 @@ option<Name, bool, Opts...> toggle(const char* longopt, bool& value, Opts... opt
 template<class O>
 std::ostream& print_help(std::ostream& s, O& opts)
 {
-    return opts.print_help(s);
+    return opts->print_help(s);
 }
 
 template<class O>
@@ -399,12 +402,12 @@ int parse(O& opts, int argc, const char** argv) {
             return i + 1;
         } else if (str[0] == '-' && str[1] == '-') {
             // parse a long option
-            opts.parse_long(i, argv);
+            opts->parse_long(i, argv);
         } else if (str[0] == '-') {
             if (str[2] != '\0')
                 throw parse_error("Long options must start with '--'");
             // parse short option
-            opts.parse_short(str[1], i, argv);
+            opts->parse_short(str[1], i, argv);
         } else {
             // either an error or remaining options
             for (int j = i; j < argc; ++j) {
