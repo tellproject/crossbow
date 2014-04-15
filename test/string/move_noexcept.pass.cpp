@@ -22,20 +22,17 @@ using namespace crossbow;
 #include "test_allocator.h"
 
 template <class T>
-struct some_alloc
-{
+struct some_alloc {
     typedef T value_type;
-    some_alloc(const some_alloc&);
+    some_alloc(const some_alloc &);
 };
 
-int main()
-{
+int main() {
 #if __has_feature(cxx_noexcept)
     {
         typedef string C;
         static_assert(std::is_nothrow_move_constructible<C>::value, "");
-    }
-    {
+    } {
         typedef basic_string<char, std::char_traits<char>, test_allocator<char>> C;
         static_assert(std::is_nothrow_move_constructible<C>::value, "");
     }

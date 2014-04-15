@@ -20,40 +20,38 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s)
-{
+test(S s) {
     s.clear();
     assert(s.size() == 0);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    S s;
-    test(s);
+        typedef string S;
+        S s;
+        test(s);
 
-    s.assign(10, 'a');
-    s.erase(5);
-    test(s);
+        s.assign(10, 'a');
+        s.erase(5);
+        test(s);
 
-    s.assign(100, 'a');
-    s.erase(50);
-    test(s);
+        s.assign(100, 'a');
+        s.erase(50);
+        test(s);
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    S s;
-    test(s);
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        S s;
+        test(s);
 
-    s.assign(10, 'a');
-    s.erase(5);
-    test(s);
+        s.assign(10, 'a');
+        s.erase(5);
+        test(s);
 
-    s.assign(100, 'a');
-    s.erase(50);
-    test(s);
+        s.assign(100, 'a');
+        s.erase(50);
+        test(s);
     }
 #endif
 }

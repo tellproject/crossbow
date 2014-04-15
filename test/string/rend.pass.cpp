@@ -21,13 +21,11 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s)
-{
-    const S& cs = s;
+test(S s) {
+    const S &cs = s;
     typename S::reverse_iterator e = s.rend();
     typename S::const_reverse_iterator ce = cs.rend();
-    if (s.empty())
-    {
+    if (s.empty()) {
         assert(e == s.rbegin());
         assert(ce == cs.rbegin());
     }
@@ -35,18 +33,17 @@ test(S s)
     assert(ce - cs.rbegin() == cs.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S());
-    test(S("123"));
+        typedef string S;
+        test(S());
+        test(S("123"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S());
-    test(S("123"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S());
+        test(S("123"));
     }
 #endif
 }

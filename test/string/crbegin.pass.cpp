@@ -20,28 +20,25 @@ using namespace crossbow;
 
 template <class S>
 void
-test(const S& s)
-{
+test(const S &s) {
     typename S::const_reverse_iterator cb = s.crbegin();
-    if (!s.empty())
-    {
+    if (!s.empty()) {
         assert(*cb == s.back());
     }
     assert(cb == s.rbegin());
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S());
-    test(S("123"));
+        typedef string S;
+        test(S());
+        test(S("123"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S());
-    test(S("123"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S());
+        test(S("123"));
     }
 #endif
 }

@@ -24,27 +24,25 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s, S expected)
-{
+test(S s, S expected) {
     s.pop_back();
     assert(s.__invariants());
     assert(s == expected);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S("abcde"), S("abcd"));
-    test(S("abcdefghij"), S("abcdefghi"));
-    test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrs"));
+        typedef string S;
+        test(S("abcde"), S("abcd"));
+        test(S("abcdefghij"), S("abcdefghi"));
+        test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrs"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S("abcde"), S("abcd"));
-    test(S("abcdefghij"), S("abcdefghi"));
-    test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrs"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S("abcde"), S("abcd"));
+        test(S("abcdefghij"), S("abcdefghi"));
+        test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrs"));
     }
 #endif
 #if _LIBCPP_DEBUG >= 1
@@ -53,5 +51,5 @@ int main()
         s.pop_back();
         assert(false);
     }
-#endif        
+#endif
 }

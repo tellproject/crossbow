@@ -9,7 +9,7 @@ namespace crossbow {
 
 /**
  * @brief A mock mutex for disabling locking in the singleton
- * 
+ *
  * This class implements the mutex concept with empty methods.
  * This can be used to disable synchronization in the singleton
  * holder.
@@ -17,7 +17,9 @@ namespace crossbow {
 struct no_locking {
     void lock() {}
     void unlock() {}
-    bool try_lock() { return true; }
+    bool try_lock() {
+        return true;
+    }
 };
 
 template<typename T>
@@ -34,15 +36,13 @@ struct create_static {
         int Test::* pMember_;
         int (Test::*pMemberFn_)(int);
     };
-    
-    static T* create()
-    {
+
+    static T* create() {
         static max_align static_memory_;
-        return new (&static_memory_) T;
+        return new(&static_memory_) T;
     }
-    
-    static void destroy(T* ptr)
-    {
+
+    static void destroy(T* ptr) {
         ptr->~T();
     }
 };
@@ -50,126 +50,109 @@ struct create_static {
 template<typename T>
 struct create_using_new {
     static constexpr bool supports_recreation = true;
-    static T* create()
-    {
+    static T* create() {
         return new T;
     };
-    
-    static void destroy(T* ptr)
-    {
+
+    static void destroy(T* ptr) {
         delete ptr;
     }
 };
 
 template<typename T>
-struct create_using_malloc
-{
+struct create_using_malloc {
     static constexpr bool supports_recreation = true;
-    static T* create()
-    {
+    static T* create() {
         void* p = std::malloc(sizeof(T));
         if (!p) return nullptr;
-        return new (p) T;
+        return new(p) T;
     }
-    
-    static void destroy(T *ptr)
-    {
+
+    static void destroy(T* ptr) {
         ptr->~T();
         free(ptr);
     }
 };
 
 template<class T, class allocator>
-struct create_using
-{
+struct create_using {
     static constexpr bool supports_recreation = true;
     static allocator alloc_;
-    
-    static T* create()
-    {
+
+    static T* create() {
         T* p = alloc_.allocate(1);
         if (!p) return nullptr;
         alloc_.construct(p);
         return p;
     };
-    
-    static void destroy(T* ptr)
-    {
+
+    static void destroy(T* ptr) {
         alloc_.destroy(ptr);
         alloc_.deallocate(ptr, 1);
     }
 };
 
 template<typename T>
-struct default_lifetime
-{
-    static void schedule_destruction(T*, void (*func)())
-    {
+struct default_lifetime {
+    static void schedule_destruction(T*, void (*func)()) {
         std::atexit(func);
     }
-    
-    static void on_dead_ref()
-    {
+
+    static void on_dead_ref() {
         throw std::logic_error("Dead reference detected");
     }
 };
 
 template<typename T>
 struct phoenix_lifetime {
-    static void schedule_destruction(T*, void (*func)())
-    {
+    static void schedule_destruction(T*, void (*func)()) {
         std::atexit(func);
     }
-    
-    static void on_dead_ref()
-    {
+
+    static void on_dead_ref() {
     }
 };
 
 template<typename T>
-struct infinite_lifetime
-{
+struct infinite_lifetime {
     static void schedule_destruction(T*, void (*)()) {}
     static void on_dead_ref() {}
 };
 
 template<typename T>
-struct lifetime_traits
-{
+struct lifetime_traits {
     static constexpr bool supports_recreation = true;
 };
 
 template<typename T>
-struct lifetime_traits<infinite_lifetime<T>>
-{
+struct lifetime_traits<infinite_lifetime<T>> {
     static constexpr bool supports_recreation = false;
 };
 
 template<typename T>
-struct lifetime_traits<default_lifetime<T>>
-{
+struct lifetime_traits<default_lifetime<T>> {
     static constexpr bool supports_recreation = false;
 };
 
-template<
-    typename Type,
-    typename Create = create_static<Type>,
-    typename LifetimePolicy = default_lifetime<Type>,
-    typename Mutex = std::mutex>
+template <
+typename Type,
+         typename Create = create_static<Type>,
+         typename LifetimePolicy = default_lifetime<Type>,
+         typename Mutex = std::mutex >
 class singleton {
 public:
     typedef Type value_type;
     typedef Type* pointer;
     typedef const Type* const_pointer;
-    typedef const Type& const_reference;
-    typedef Type& reference;
+    typedef const Type &const_reference;
+    typedef Type &reference;
 private:
     static bool destroyed_;
     static pointer instance_;
     static Mutex mutex_;
-    
+
     static void destroy() {
-        if(destroyed_) return;
+        if (destroyed_) return;
         Create::destroy(instance_);
         instance_ = nullptr;
         destroyed_ = true;
@@ -201,38 +184,42 @@ public:
         }
     }
 public:
-    pointer operator-> ()
-    {
-        if (!instance_) { instance(); }
+    pointer operator-> () {
+        if (!instance_) {
+            instance();
+        }
         return instance_;
     }
-    
-    reference operator* ()
-    {
-        if (!instance_) { instance(); }
+
+    reference operator* () {
+        if (!instance_) {
+            instance();
+        }
         return *instance_;
     }
-    
-    const_pointer operator-> () const
-    {
-        if (!instance_) { instance(); }
+
+    const_pointer operator-> () const {
+        if (!instance_) {
+            instance();
+        }
         return instance_;
     }
-    
-    const_reference operator*() const
-    {
-        if (!instance_) { instance(); }
+
+    const_reference operator*() const {
+        if (!instance_) {
+            instance();
+        }
         return *instance_;
     }
 };
 
 template<typename T, typename C, typename L, typename M>
-bool singleton<T,C,L,M>::destroyed_ = false;
+bool singleton<T, C, L, M>::destroyed_ = false;
 
 template<typename T, typename C, typename L, typename M>
-typename singleton<T,C,L,M>::pointer singleton<T,C,L,M>::instance_ = nullptr;
+typename singleton<T, C, L, M>::pointer singleton<T, C, L, M>::instance_ = nullptr;
 
 template<typename T, typename C, typename L, typename M>
-M singleton<T,C,L,M>::mutex_;
+M singleton<T, C, L, M>::mutex_;
 
 } // namespace crossbow

@@ -8,16 +8,13 @@
 #include <utility>
 #include <crossbow/string.hpp>
 
-namespace crossbow
-{
+namespace crossbow {
 
 namespace program_options {
 
-namespace impl
-{
+namespace impl {
 
-enum class o_option_t
-{
+enum class o_option_t {
     ShowOption,
     IgnoreShort,
     IgnoreLong,
@@ -27,48 +24,42 @@ enum class o_option_t
 
 }
 
-namespace tag
-{
+namespace tag {
 
 template<bool V>
-struct show
-{
+struct show {
     constexpr static bool show_option = V;
     constexpr static impl::o_option_t type = impl::o_option_t::ShowOption;
 };
 
 template<bool V>
-struct ignore_short
-{
+struct ignore_short {
     constexpr static bool ignore_short_option = V;
     constexpr static impl::o_option_t type = impl::o_option_t::IgnoreShort;
 };
 
 template<bool V>
-struct ignore_long
-{
+struct ignore_long {
     constexpr static bool ignore_long_option = V;
     constexpr static impl::o_option_t type = impl::o_option_t::IgnoreLong;
 };
 
-struct description
-{
+struct description {
     std::string value;
     constexpr static impl::o_option_t type = impl::o_option_t::Description;
 };
 
 template<class Fun>
-struct callback_t
-{
+struct callback_t {
     Fun _callback;
     template<class T>
-    auto callback(T& arg) -> typename std::enable_if<std::is_void<decltype(_callback(arg))>::value, T>::type {
+    auto callback(T &arg) -> typename std::enable_if<std::is_void<decltype(_callback(arg))>::value, T>::type {
         _callback(arg);
         return arg;
     }
 
     template<class T>
-    auto callback(T& arg) -> typename std::enable_if<!std::is_void<decltype(_callback(arg))>::value, T>::type {
+    auto callback(T &arg) -> typename std::enable_if < !std::is_void<decltype(_callback(arg))>::value, T >::type {
         return _callback(arg);
     }
 
@@ -77,7 +68,7 @@ struct callback_t
 
 template<class Fun>
 callback_t<Fun> callback(Fun fun) {
-    return callback_t<Fun>{fun};
+    return callback_t<Fun> {fun};
 }
 
 }
@@ -86,8 +77,7 @@ template<class... Opts>
 struct o_options;
 
 template<class Head, class... Tail>
-struct o_options<Head, Tail...> : o_options<Tail...>
-{
+struct o_options<Head, Tail...> : o_options<Tail...> {
     using base = o_options<Tail...>;
     constexpr static bool show_option = std::conditional<Head::type == impl::o_option_t::ShowOption, Head, base>::type::show_option;
     constexpr static bool ignore_short_option = std::conditional<Head::type == impl::o_option_t::IgnoreShort, Head, base>::type::ignore_short_option;
@@ -95,29 +85,26 @@ struct o_options<Head, Tail...> : o_options<Tail...>
     Head this_opt;
 
     template<class T>
-    typename std::enable_if<Head::type == impl::o_option_t::Callback, T>::type callback(T& arg) {
+    typename std::enable_if<Head::type == impl::o_option_t::Callback, T>::type callback(T &arg) {
         return this_opt.template callback<T>(arg);
     }
 
     template<class T>
-    typename std::enable_if<Head::type != impl::o_option_t::Callback, T>::type callback(T& arg) {
+    typename std::enable_if < Head::type != impl::o_option_t::Callback, T >::type callback(T &arg) {
         return base::callback(arg);
     }
 
     template<class H>
-    typename std::enable_if<H::type == impl::o_option_t::Description, string>::type desc_impl() const
-    {
+    typename std::enable_if<H::type == impl::o_option_t::Description, string>::type desc_impl() const {
         return this_opt.value;
     }
-    
+
     template<class H>
-    typename std::enable_if<H::type != impl::o_option_t::Description, string>::type desc_impl() const
-    {
+    typename std::enable_if < H::type != impl::o_option_t::Description, string >::type desc_impl() const {
         return base::description();
     }
-    
-    string description() const
-    {
+
+    string description() const {
         return desc_impl<Head>();
     }
 
@@ -125,8 +112,7 @@ struct o_options<Head, Tail...> : o_options<Tail...>
 };
 
 template<>
-struct o_options<>
-{
+struct o_options<> {
     constexpr static bool show_option = true;
     constexpr static bool ignore_short_option = false;
     constexpr static bool ignore_long_option = false;
@@ -142,8 +128,7 @@ struct o_options<>
 };
 
 template<char Name, class T, class... Opts>
-struct option
-{
+struct option {
     using my_options = o_options<Opts...>;
     using value_type = T;
     constexpr static bool ignore_short = my_options::ignore_short_option;
@@ -156,7 +141,7 @@ struct option
     value_type value;
     my_options this_opts;
     template<class V>
-    void set_value(V&& v) {
+    void set_value(V && v) {
         value = std::forward<V>(v);
         value = this_opts.template callback<value_type>(value);
         if (value_ptr)
@@ -169,8 +154,8 @@ struct option
     option(value_type* value, Opts... opts)
         : value_ptr(value), this_opts(opts...) {}
     option(Opts... opts) : this_opts(opts...) {}
-    
-    std::ostream& print_help(std::ostream& os) const {
+
+    std::ostream &print_help(std::ostream &os) const {
         if (ignore_short && ignore_long) return os;
         os << " ";
         if (!ignore_short) {
@@ -194,8 +179,7 @@ template<char Name, bool F, class... Opts>
 struct type_of_impl;
 
 template<char Name, bool F, class Head, class... Tail>
-struct type_of_impl<Name, F, Head, Tail...>
-{
+struct type_of_impl<Name, F, Head, Tail...> {
     constexpr static bool is_this = Name == Head::name;
     constexpr static bool already_found = F || is_this;
     constexpr static bool found = already_found || type_of_impl<Name, already_found, Tail...>::found;
@@ -203,16 +187,14 @@ struct type_of_impl<Name, F, Head, Tail...>
 };
 
 template<char Name, bool F, class Head>
-struct type_of_impl<Name, F, Head>
-{
+struct type_of_impl<Name, F, Head> {
     constexpr static bool is_this = Name == Head::name;
     constexpr static bool found = F || is_this;
     using type = typename Head::value_type;
 };
 
 template<char Name, class... Opts>
-struct type_of
-{
+struct type_of {
     using imp = type_of_impl<Name, false, Opts...>;
     constexpr static bool found = imp::found;
     using type = typename imp::type;
@@ -223,8 +205,7 @@ template<class... Opts>
 struct options;
 
 template<class First, class... Rest>
-struct options<First, Rest...> : options<Rest...>
-{
+struct options<First, Rest...> : options<Rest...> {
     using base = options<Rest...>;
     static constexpr char name = First::name;
     using value_type = typename First::value_type;
@@ -236,38 +217,36 @@ struct options<First, Rest...> : options<Rest...>
     First this_option;
     string global_name;
     bool is_root = false;
-	
-	options(First&& f, Rest... opts) : base(std::forward<Rest>(opts)...), this_option(std::move(f)) {}
-    options(const string& n, First&& f, Rest... opts)
+
+    options(First && f, Rest... opts) : base(std::forward<Rest>(opts)...), this_option(std::move(f)) {}
+    options(const string &n, First && f, Rest... opts)
         : base(std::forward<Rest>(opts)...), this_option(std::move(f)),
           global_name(n),
           is_root(true) {}
 
     template<char Name>
-    const typename std::enable_if<Name == name, typename type_of<Name, First, Rest...>::type>::type get() const
-    {
+    const typename std::enable_if<Name == name, typename type_of<Name, First, Rest...>::type>::type get() const {
         return this->this_option.value;
     }
 
     template<char Name>
-    const typename std::enable_if<Name != name, typename type_of<Name, First, Rest...>::type>::type get() const
-    {
+    const typename std::enable_if < Name != name, typename type_of<Name, First, Rest...>::type >::type get() const {
         return this->base::template get<Name>();
     }
 
     template<class T>
-    typename std::enable_if<std::is_same<bool, T>::value, bool>::type parse_impl(int& i, const char**) {
+    typename std::enable_if<std::is_same<bool, T>::value, bool>::type parse_impl(int &i, const char**) {
         this_option.set_value(true);
         return true;
     }
 
     template<class T>
-    typename std::enable_if<!std::is_same<bool, T>::value, bool>::type parse_impl(int& i, const char** args) {
+    typename std::enable_if < !std::is_same<bool, T>::value, bool >::type parse_impl(int &i, const char** args) {
         parser<T> p;
         this_option.set_value(p(args[++i]));
         return true;
     }
-    
+
     bool parse_long(int &i, const char** args) {
         const char* arg = args[i];
         while (*arg == '-') ++arg;
@@ -278,15 +257,15 @@ struct options<First, Rest...> : options<Rest...>
         }
     }
 
-    bool parse_short(char n, int& i, const char** argv) {
+    bool parse_short(char n, int &i, const char** argv) {
         if (name == n && !First::ignore_short) {
             return parse_impl<value_type>(i, argv);
         } else {
             return base::parse_short(n, i, argv);
         }
     }
-    
-    std::ostream& print_help(std::ostream& out) const {
+
+    std::ostream &print_help(std::ostream &out) const {
         if (is_root) {
             out << "Usage: " << global_name << " [OPTION...]" << std::endl;
         }
@@ -296,10 +275,8 @@ struct options<First, Rest...> : options<Rest...>
 };
 
 template<>
-struct options<>
-{
-    bool parse_short(char n, int& i, const char** argv)
-    {
+struct options<> {
+    bool parse_short(char n, int &i, const char** argv) {
         char err[3];
         err[0] = '-';
         err[1] = n;
@@ -307,8 +284,7 @@ struct options<>
         throw argument_not_found(err);
     }
 
-    bool parse_long(int& i, const char** args)
-    {
+    bool parse_long(int &i, const char** args) {
         string err = "--";
         err += args[i];
         throw argument_not_found(err.c_str());
@@ -318,83 +294,75 @@ struct options<>
         return true;
     }
 
-    std::ostream& print_help(std::ostream& out) const {
+    std::ostream &print_help(std::ostream &out) const {
         return out;
     }
 };
 
 template<char Name, class O>
-decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O>& opts)
-{
-    const O& o = *opts;
+decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O> &opts) {
+    const O &o = *opts;
     return o.template get<Name>();
 };
 
 template<class... Opts>
-std::unique_ptr<options<Opts...>> create_options(const string& name, Opts&&... opts)
-{
+std::unique_ptr<options<Opts...>> create_options(const string &name, Opts && ... opts) {
     using res_type = options<Opts...>;
-    return std::unique_ptr<res_type>(new res_type{name, std::forward<Opts>(opts)...});
+    return std::unique_ptr<res_type>(new res_type {name, std::forward<Opts>(opts)...});
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, Opts...> value(const string& longopt, T& val, Opts... opts) {
-    return option<Name, T, Opts...>{longopt, &val, opts...};
+option<Name, T, Opts...> value(const string &longopt, T &val, Opts... opts) {
+    return option<Name, T, Opts...> {longopt, &val, opts...};
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, Opts...> value(const char* longopt, T& val, Opts... opts) {
-    return value<Name, T, Opts...>(string{longopt}, val, opts...);
+option<Name, T, Opts...> value(const char* longopt, T &val, Opts... opts) {
+    return value<Name, T, Opts...>(string {longopt}, val, opts...);
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, tag::ignore_long<true>, Opts...> value(T& val, Opts... opts) {
-    return option<Name, T, tag::ignore_long<true>, Opts...>{&val, tag::ignore_long<true>{}, opts...};
+option<Name, T, tag::ignore_long<true>, Opts...> value(T &val, Opts... opts) {
+    return option<Name, T, tag::ignore_long<true>, Opts...> {&val, tag::ignore_long<true>{}, opts...};
 }
 
 template<char Name, class... Opts>
 option<Name, bool, tag::ignore_long<true>, Opts...> toggle(Opts... opts) {
-    return option<Name, bool, tag::ignore_long<true>, Opts...>{tag::ignore_long<true>{}, opts...};
+    return option<Name, bool, tag::ignore_long<true>, Opts...> {tag::ignore_long<true>{}, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool& value, Opts... opts)
-{
-    return option<Name, bool, tag::ignore_long<true>, Opts...>{&value};
+option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool &value, Opts... opts) {
+    return option<Name, bool, tag::ignore_long<true>, Opts...> {&value};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const string& longopt, Opts... opts)
-{
-    return option<Name, bool, Opts...>{longopt, opts...};
+option<Name, bool, Opts...> toggle(const string &longopt, Opts... opts) {
+    return option<Name, bool, Opts...> {longopt, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const char* longopt, Opts... opts)
-{
-    return toggle<Name, Opts...>(string{longopt}, opts...);
+option<Name, bool, Opts...> toggle(const char* longopt, Opts... opts) {
+    return toggle<Name, Opts...>(string {longopt}, opts...);
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const string& longopt, bool& value, Opts... opts)
-{
-    return option<Name, bool, Opts...>{longopt, &value, opts...};
+option<Name, bool, Opts...> toggle(const string &longopt, bool &value, Opts... opts) {
+    return option<Name, bool, Opts...> {longopt, &value, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const char* longopt, bool& value, Opts... opts)
-{
-    return toggle<Name, Opts...>(string{longopt}, value, opts...);
+option<Name, bool, Opts...> toggle(const char* longopt, bool &value, Opts... opts) {
+    return toggle<Name, Opts...>(string {longopt}, value, opts...);
 }
 
 template<class O>
-std::ostream& print_help(std::ostream& s, O& opts)
-{
+std::ostream &print_help(std::ostream &s, O &opts) {
     return opts->print_help(s);
 }
 
 template<class O>
-int parse(O& opts, int argc, const char** argv) {
+int parse(O &opts, int argc, const char** argv) {
     int i;
     for (i = 1; i < argc; ++i) {
         const char* str = argv[i];

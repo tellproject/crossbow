@@ -26,8 +26,7 @@ using namespace crossbow;
 
 template <class S>
 void
-test0(typename S::value_type lhs, const S& rhs, const S& x)
-{
+test0(typename S::value_type lhs, const S &rhs, const S &x) {
     assert(lhs + rhs == x);
 }
 
@@ -35,45 +34,43 @@ test0(typename S::value_type lhs, const S& rhs, const S& x)
 
 template <class S>
 void
-test1(typename S::value_type lhs, S&& rhs, const S& x)
-{
+test1(typename S::value_type lhs, S && rhs, const S &x) {
     assert(lhs + move(rhs) == x);
 }
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0('a', S(""), S("a"));
-    test0('a', S("12345"), S("a12345"));
-    test0('a', S("1234567890"), S("a1234567890"));
-    test0('a', S("12345678901234567890"), S("a12345678901234567890"));
-    
+        typedef string S;
+        test0('a', S(""), S("a"));
+        test0('a', S("12345"), S("a12345"));
+        test0('a', S("1234567890"), S("a1234567890"));
+        test0('a', S("12345678901234567890"), S("a12345678901234567890"));
+
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-    test1('a', S(""), S("a"));
-    test1('a', S("12345"), S("a12345"));
-    test1('a', S("1234567890"), S("a1234567890"));
-    test1('a', S("12345678901234567890"), S("a12345678901234567890"));
+        test1('a', S(""), S("a"));
+        test1('a', S("12345"), S("a12345"));
+        test1('a', S("1234567890"), S("a1234567890"));
+        test1('a', S("12345678901234567890"), S("a12345678901234567890"));
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0('a', S(""), S("a"));
-    test0('a', S("12345"), S("a12345"));
-    test0('a', S("1234567890"), S("a1234567890"));
-    test0('a', S("12345678901234567890"), S("a12345678901234567890"));
-    
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0('a', S(""), S("a"));
+        test0('a', S("12345"), S("a12345"));
+        test0('a', S("1234567890"), S("a1234567890"));
+        test0('a', S("12345678901234567890"), S("a12345678901234567890"));
+
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-    test1('a', S(""), S("a"));
-    test1('a', S("12345"), S("a12345"));
-    test1('a', S("1234567890"), S("a1234567890"));
-    test1('a', S("12345678901234567890"), S("a12345678901234567890"));
+        test1('a', S(""), S("a"));
+        test1('a', S("12345"), S("a12345"));
+        test1('a', S("1234567890"), S("a1234567890"));
+        test1('a', S("12345678901234567890"), S("a12345678901234567890"));
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
     }

@@ -20,25 +20,23 @@ using namespace crossbow;
 
 template <class S>
 void
-test(const S& s)
-{
+test(const S &s) {
     assert(s.empty() == (s.size() == 0));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S());
-    test(S("123"));
-    test(S("12345678901234567890123456789012345678901234567890"));
+        typedef string S;
+        test(S());
+        test(S("123"));
+        test(S("12345678901234567890123456789012345678901234567890"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S());
-    test(S("123"));
-    test(S("12345678901234567890123456789012345678901234567890"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S());
+        test(S("123"));
+        test(S("12345678901234567890123456789012345678901234567890"));
     }
 #endif
 }

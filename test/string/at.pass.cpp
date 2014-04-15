@@ -22,30 +22,25 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s, typename S::size_type pos)
-{
-    try
-    {
-        const S& cs = s;
+test(S s, typename S::size_type pos) {
+    try {
+        const S &cs = s;
         assert(s.at(pos) == s[pos]);
         assert(cs.at(pos) == cs[pos]);
         assert(pos < cs.size());
-    }
-    catch (std::out_of_range&)
-    {
+    } catch (std::out_of_range &) {
         assert(pos >= s.size());
     }
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(), 0);
-    test(S("123"), 0);
-    test(S("123"), 1);
-    test(S("123"), 2);
-    test(S("123"), 3);
+        typedef string S;
+        test(S(), 0);
+        test(S("123"), 0);
+        test(S("123"), 1);
+        test(S("123"), 2);
+        test(S("123"), 3);
     }
 #if __cplusplus >= 201103L
     {

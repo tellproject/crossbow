@@ -23,8 +23,7 @@ using namespace crossbow;
 
 template <class charT>
 void
-test(unsigned n, charT c)
-{
+test(unsigned n, charT c) {
     typedef std::basic_string<charT, std::char_traits<charT>, test_allocator<charT> > S;
     typedef typename S::traits_type T;
     typedef typename S::allocator_type A;
@@ -39,8 +38,7 @@ test(unsigned n, charT c)
 
 template <class charT, class A>
 void
-test(unsigned n, charT c, const A& a)
-{
+test(unsigned n, charT c, const A &a) {
     typedef std::basic_string<charT, std::char_traits<charT>, A> S;
     typedef typename S::traits_type T;
     S s2(n, c, a);
@@ -54,8 +52,7 @@ test(unsigned n, charT c, const A& a)
 
 template <class Tp>
 void
-test(Tp n, Tp c)
-{
+test(Tp n, Tp c) {
     typedef char charT;
     typedef std::basic_string<charT, std::char_traits<charT>, test_allocator<charT> > S;
     typedef typename S::traits_type T;
@@ -71,8 +68,7 @@ test(Tp n, Tp c)
 
 template <class Tp, class A>
 void
-test(Tp n, Tp c, const A& a)
-{
+test(Tp n, Tp c, const A &a) {
     typedef char charT;
     typedef std::basic_string<charT, std::char_traits<charT>, A> S;
     typedef typename S::traits_type T;
@@ -85,46 +81,45 @@ test(Tp n, Tp c, const A& a)
     assert(s2.capacity() >= s2.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef test_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
+        typedef test_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
 
-    test(0, 'a');
-    test(0, 'a', A(2));
+        test(0, 'a');
+        test(0, 'a', A(2));
 
-    test(1, 'a');
-    test(1, 'a', A(2));
+        test(1, 'a');
+        test(1, 'a', A(2));
 
-    test(10, 'a');
-    test(10, 'a', A(2));
+        test(10, 'a');
+        test(10, 'a', A(2));
 
-    test(100, 'a');
-    test(100, 'a', A(2));
+        test(100, 'a');
+        test(100, 'a', A(2));
 
-    test(100, 65);
-    test(100, 65, A(3));
+        test(100, 65);
+        test(100, 65, A(3));
     }
 #if __cplusplus >= 201103L
     {
-    typedef min_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
+        typedef min_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
 
-    test(0, 'a');
-    test(0, 'a', A());
+        test(0, 'a');
+        test(0, 'a', A());
 
-    test(1, 'a');
-    test(1, 'a', A());
+        test(1, 'a');
+        test(1, 'a', A());
 
-    test(10, 'a');
-    test(10, 'a', A());
+        test(10, 'a');
+        test(10, 'a', A());
 
-    test(100, 'a');
-    test(100, 'a', A());
+        test(100, 'a');
+        test(100, 'a', A());
 
-    test(100, 65);
-    test(100, 65, A());
+        test(100, 65);
+        test(100, 65, A());
     }
 #endif
 }

@@ -20,12 +20,10 @@ using namespace crossbow;
 
 template <class S>
 void
-test(const S& s, const typename S::value_type* str, typename S::size_type pos,
-     typename S::size_type x)
-{
+test(const S &s, const typename S::value_type* str, typename S::size_type pos,
+     typename S::size_type x) {
     assert(s.rfind(str, pos) == x);
-    if (x != S::npos)
-    {
+    if (x != S::npos) {
         typename S::size_type n = S::traits_type::length(str);
         assert(x <= pos && x + n <= s.size());
     }
@@ -33,11 +31,9 @@ test(const S& s, const typename S::value_type* str, typename S::size_type pos,
 
 template <class S>
 void
-test(const S& s, const typename S::value_type* str, typename S::size_type x)
-{
+test(const S &s, const typename S::value_type* str, typename S::size_type x) {
     assert(s.rfind(str) == x);
-    if (x != S::npos)
-    {
+    if (x != S::npos) {
         typename S::size_type pos = s.size();
         typename S::size_type n = S::traits_type::length(str);
         assert(x <= pos && x + n <= s.size());
@@ -45,8 +41,7 @@ test(const S& s, const typename S::value_type* str, typename S::size_type x)
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), "", 0, 0);
     test(S(""), "abcde", 0, S::npos);
     test(S(""), "abcdeabcde", 0, S::npos);
@@ -130,8 +125,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S(""), "", 0);
     test(S(""), "abcde", S::npos);
     test(S(""), "abcdeabcde", S::npos);
@@ -150,18 +144,17 @@ void test1()
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 0);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
     }
 #endif
 }

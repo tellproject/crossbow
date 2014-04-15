@@ -21,8 +21,7 @@
 
 template <class S>
 void
-test(S s0)
-{
+test(S s0) {
     S s1 = s0;
     S s2 = std::move(s0);
     assert(s2.__invariants());
@@ -34,23 +33,22 @@ test(S s0)
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-int main()
-{
+int main() {
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
     {
-    typedef test_allocator<char> A;
-    typedef std::basic_string<char, std::char_traits<char>, A> S;
-    test(S(A(3)));
-    test(S("1", A(5)));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A(7)));
+        typedef test_allocator<char> A;
+        typedef std::basic_string<char, std::char_traits<char>, A> S;
+        test(S(A(3)));
+        test(S("1", A(5)));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A(7)));
     }
 #if __cplusplus >= 201103L
     {
-    typedef min_allocator<char> A;
-    typedef std::basic_string<char, std::char_traits<char>, A> S;
-    test(S(A{}));
-    test(S("1", A()));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A()));
+        typedef min_allocator<char> A;
+        typedef std::basic_string<char, std::char_traits<char>, A> S;
+        test(S(A{}));
+        test(S("1", A()));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890", A()));
     }
 #endif
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES

@@ -20,8 +20,7 @@
 
 #include "min_allocator.h"
 
-int main()
-{
+int main() {
 #ifndef _LIBCPP_HAS_NO_GENERALIZED_INITIALIZERS
     {
         std::string s("123456");

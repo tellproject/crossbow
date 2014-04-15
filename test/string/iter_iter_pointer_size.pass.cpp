@@ -25,8 +25,7 @@ using namespace crossbow;
 template <class S>
 void
 test(S s, typename S::size_type pos1, typename S::size_type n1, const typename S::value_type* str,
-     typename S::size_type n2, S expected)
-{
+     typename S::size_type n2, S expected) {
     typename S::size_type old_size = s.size();
     typename S::const_iterator first = s.begin() + pos1;
     typename S::const_iterator last = s.begin() + pos1 + n1;
@@ -39,8 +38,7 @@ test(S s, typename S::size_type pos1, typename S::size_type n1, const typename S
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), 0, 0, "", 0, S(""));
     test(S(""), 0, 0, "12345", 0, S(""));
     test(S(""), 0, 0, "12345", 1, S("1"));
@@ -144,8 +142,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcde"), 1, 0, "12345", 4, S("a1234bcde"));
     test(S("abcde"), 1, 0, "12345", 5, S("a12345bcde"));
     test(S("abcde"), 1, 0, "1234567890", 0, S("abcde"));
@@ -249,8 +246,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcde"), 2, 1, "1234567890", 5, S("ab12345de"));
     test(S("abcde"), 2, 1, "1234567890", 9, S("ab123456789de"));
     test(S("abcde"), 2, 1, "1234567890", 10, S("ab1234567890de"));
@@ -354,8 +350,7 @@ void test2()
 }
 
 template <class S>
-void test3()
-{
+void test3() {
     test(S("abcdefghij"), 0, 0, "12345678901234567890", 1, S("1abcdefghij"));
     test(S("abcdefghij"), 0, 0, "12345678901234567890", 10, S("1234567890abcdefghij"));
     test(S("abcdefghij"), 0, 0, "12345678901234567890", 19, S("1234567890123456789abcdefghij"));
@@ -459,8 +454,7 @@ void test3()
 }
 
 template <class S>
-void test4()
-{
+void test4() {
     test(S("abcdefghij"), 1, 4, "", 0, S("afghij"));
     test(S("abcdefghij"), 1, 4, "12345", 0, S("afghij"));
     test(S("abcdefghij"), 1, 4, "12345", 1, S("a1fghij"));
@@ -564,8 +558,7 @@ void test4()
 }
 
 template <class S>
-void test5()
-{
+void test5() {
     test(S("abcdefghij"), 5, 4, "12345", 4, S("abcde1234j"));
     test(S("abcdefghij"), 5, 4, "12345", 5, S("abcde12345j"));
     test(S("abcdefghij"), 5, 4, "1234567890", 0, S("abcdej"));
@@ -669,8 +662,7 @@ void test5()
 }
 
 template <class S>
-void test6()
-{
+void test6() {
     test(S("abcdefghijklmnopqrst"), 0, 1, "1234567890", 5, S("12345bcdefghijklmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 0, 1, "1234567890", 9, S("123456789bcdefghijklmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 0, 1, "1234567890", 10, S("1234567890bcdefghijklmnopqrst"));
@@ -774,8 +766,7 @@ void test6()
 }
 
 template <class S>
-void test7()
-{
+void test7() {
     test(S("abcdefghijklmnopqrst"), 1, 9, "12345678901234567890", 1, S("a1klmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 1, 9, "12345678901234567890", 10, S("a1234567890klmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 1, 9, "12345678901234567890", 19, S("a1234567890123456789klmnopqrst"));
@@ -879,8 +870,7 @@ void test7()
 }
 
 template <class S>
-void test8()
-{
+void test8() {
     test(S("abcdefghijklmnopqrst"), 10, 10, "", 0, S("abcdefghij"));
     test(S("abcdefghijklmnopqrst"), 10, 10, "12345", 0, S("abcdefghij"));
     test(S("abcdefghijklmnopqrst"), 10, 10, "12345", 1, S("abcdefghij1"));
@@ -947,32 +937,31 @@ void test8()
     test(S("abcdefghijklmnopqrst"), 20, 0, "12345678901234567890", 20, S("abcdefghijklmnopqrst12345678901234567890"));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
-    test3<S>();
-    test4<S>();
-    test5<S>();
-    test6<S>();
-    test7<S>();
-    test8<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
+        test3<S>();
+        test4<S>();
+        test5<S>();
+        test6<S>();
+        test7<S>();
+        test8<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
-    test3<S>();
-    test4<S>();
-    test5<S>();
-    test6<S>();
-    test7<S>();
-    test8<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
+        test3<S>();
+        test4<S>();
+        test5<S>();
+        test6<S>();
+        test7<S>();
+        test8<S>();
     }
 #endif
 }

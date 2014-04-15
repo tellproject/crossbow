@@ -19,8 +19,7 @@
 #include <crossbow/string.hpp>
 using namespace crossbow;
 
-int sign(int x)
-{
+int sign(int x) {
     if (x == 0)
         return 0;
     if (x < 0)
@@ -30,23 +29,18 @@ int sign(int x)
 
 template <class S>
 void
-test(const S& s, typename S::size_type pos1, typename S::size_type n1,
-     const typename S::value_type* str, int x)
-{
-    try
-    {
+test(const S &s, typename S::size_type pos1, typename S::size_type n1,
+     const typename S::value_type* str, int x) {
+    try {
         assert(sign(s.compare(pos1, n1, str)) == sign(x));
         assert(pos1 <= s.size());
-    }
-    catch (std::out_of_range&)
-    {
+    } catch (std::out_of_range &) {
         assert(pos1 > s.size());
     }
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), 0, 0, "", 0);
     test(S(""), 0, 0, "abcde", -5);
     test(S(""), 0, 0, "abcdefghij", -10);
@@ -150,8 +144,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcde"), 6, 0, "", 0);
     test(S("abcde"), 6, 0, "abcde", 0);
     test(S("abcde"), 6, 0, "abcdefghij", 0);
@@ -255,8 +248,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcdefghijklmnopqrst"), 0, 0, "", 0);
     test(S("abcdefghijklmnopqrst"), 0, 0, "abcde", -5);
     test(S("abcdefghijklmnopqrst"), 0, 0, "abcdefghij", -10);
@@ -355,20 +347,19 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 21, 0, "abcdefghijklmnopqrst", 0);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #endif
 }

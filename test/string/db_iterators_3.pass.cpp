@@ -23,30 +23,28 @@
 
 #include "min_allocator.h"
 
-int main()
-{
+int main() {
     {
-    typedef std::string S;
-    S s1;
-    S s2;
-    int i = s1.begin() - s2.begin();
-    assert(false);
+        typedef std::string S;
+        S s1;
+        S s2;
+        int i = s1.begin() - s2.begin();
+        assert(false);
     }
 #if __cplusplus >= 201103L
     {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    S s1;
-    S s2;
-    int i = s1.begin() - s2.begin();
-    assert(false);
+        typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        S s1;
+        S s2;
+        int i = s1.begin() - s2.begin();
+        assert(false);
     }
 #endif
 }
 
 #else
 
-int main()
-{
+int main() {
 }
 
 #endif

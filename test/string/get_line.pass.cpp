@@ -20,8 +20,7 @@
 
 #include "min_allocator.h"
 
-int main()
-{
+int main() {
     {
         std::istringstream in(" abc\n  def\n   ghij");
         std::string s("initial text");

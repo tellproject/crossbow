@@ -13,22 +13,20 @@
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
-namespace
-{
+namespace {
 
-inline unsigned int rdtsc(){
-    unsigned int lo,hi;
-    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+inline unsigned int rdtsc() {
+    unsigned int lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
     return lo;
 }
 
-unsigned get_num_cpus()
-{
+unsigned get_num_cpus() {
 #if 0
 #if (defined(linux) || defined(__linux) || defined(__linux__) || defined(__GNU__) || defined(__GLIBC__)) && !defined(_CRAYC)
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
     SYSTEM_INFO sysinfo;
-    GetSystemInfo( &sysinfo );
+    GetSystemInfo(&sysinfo);
 
     return sysinfo.dwNumberOfProcessors;
 #elif defined(macintosh) || defined(__APPLE__) || defined(__APPLE_CC__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
@@ -44,15 +42,13 @@ unsigned get_num_cpus()
     /* get the number of CPUs from the system */
     sysctl(mib, 2, &numCPU, &len, NULL, 0);
 
-    if( numCPU < 1 )
-    {
-         mib[1] = HW_NCPU;
-         sysctl( mib, 2, &numCPU, &len, NULL, 0 );
+    if (numCPU < 1) {
+        mib[1] = HW_NCPU;
+        sysctl(mib, 2, &numCPU, &len, NULL, 0);
 
-         if( numCPU < 1 )
-         {
-              numCPU = 1;
-         }
+        if (numCPU < 1) {
+            numCPU = 1;
+        }
     }
     return numCPU;
 #else
@@ -65,36 +61,31 @@ unsigned get_num_cpus()
 
 constexpr size_t STACK_SIZE = 8192 * 1024;
 
-struct stack_allocator
-{
-	static boost::lockfree::queue<char*, boost::lockfree::fixed_sized<true>, boost::lockfree::capacity<1024> > stacks;
-	static void* alloc()
-	{
-		char* res;
-		if (!stacks.pop(res))
-			res = reinterpret_cast<char*>(std::calloc(STACK_SIZE, sizeof(char)));
-		if (!res) throw std::bad_alloc();
-		return res + STACK_SIZE;
-	}
+struct stack_allocator {
+    static boost::lockfree::queue<char*, boost::lockfree::fixed_sized<true>, boost::lockfree::capacity<1024> > stacks;
+    static void* alloc() {
+        char* res;
+        if (!stacks.pop(res))
+            res = reinterpret_cast<char*>(std::calloc(STACK_SIZE, sizeof(char)));
+        if (!res) throw std::bad_alloc();
+        return res + STACK_SIZE;
+    }
 
-	static void free(void* stack)
-	{
-		char* s = reinterpret_cast<char*>(stack);
-		s -= STACK_SIZE;
-		if (!stacks.push(s))
-			std::free(s);
-	}
+    static void free(void* stack) {
+        char* s = reinterpret_cast<char*>(stack);
+        s -= STACK_SIZE;
+        if (!stacks.push(s))
+            std::free(s);
+    }
 };
 
 decltype(stack_allocator::stacks) stack_allocator::stacks;
 
-void* alloc_stack()
-{
+void* alloc_stack() {
     return stack_allocator::alloc();
 }
 
-void free_stack(void* vp)
-{
+void free_stack(void* vp) {
     return stack_allocator::free(vp);
 }
 
@@ -102,14 +93,14 @@ std::atomic<bool> initialized(false);
 std::mutex init_mutex;
 
 struct processor;
-void scheduler(processor& p);
+void scheduler(processor &p);
 
-struct processor
-{
+struct processor {
     boost::lockfree::queue<crossbow::impl::thread_impl*, boost::lockfree::fixed_sized<true>, boost::lockfree::capacity<1024> > queue;
-    processor()
-    {
-        auto t = std::thread([this](){ scheduler(*this); });
+    processor() {
+        auto t = std::thread([this]() {
+            scheduler(*this);
+        });
         t.detach();
     }
     processor(bool main)
@@ -121,14 +112,12 @@ volatile unsigned num_processors;
 crossbow::busy_mutex map_mutex;
 std::unordered_map<std::thread::id, processor*> this_thread_map;
 
-processor& this_processor()
-{
+processor &this_processor() {
     std::lock_guard<decltype(map_mutex)> _(map_mutex);
     return *this_thread_map.at(std::this_thread::get_id());
 }
 
-inline void default_init()
-{
+inline void default_init() {
     if (!initialized.load()) {
         std::lock_guard<std::mutex> _(init_mutex);
         if (!initialized.load()) {
@@ -151,27 +140,23 @@ inline void default_init()
 void run_function(intptr_t funptr);
 
 void scheduler(processor &p);
-void schedule(processor& p);
+void schedule(processor &p);
 
 } // namspace <anonymous>
 
-namespace crossbow
-{
+namespace crossbow {
 
-namespace impl
-{
+namespace impl {
 
-struct thread_impl
-{
-    enum class state
-    {
+struct thread_impl {
+    enum class state {
         RUNNING,
         READY,
         FINISHED,
         BLOCKED
     };
 
-    void *sp;
+    void* sp;
     std::function<void()> fun;
     boost::context::fcontext_t ocontext;
     boost::context::fcontext_t* fc;
@@ -180,30 +165,26 @@ struct thread_impl
     volatile bool in_queue;
     busy_mutex mutex;
     thread_impl()
-        : sp(nullptr), fc(nullptr), is_detached(false), state_(state::READY), in_queue(true)
-    {
+        : sp(nullptr), fc(nullptr), is_detached(false), state_(state::READY), in_queue(true) {
     }
-    thread_impl(const thread_impl&) = delete;
-    thread_impl(thread_impl&& o)
-        : sp(o.sp), fun(std::move(o.fun)), ocontext(std::move(ocontext)), fc (o.fc),
-          is_detached(o.is_detached)
-    {
+    thread_impl(const thread_impl &) = delete;
+    thread_impl(thread_impl && o)
+        : sp(o.sp), fun(std::move(o.fun)), ocontext(std::move(ocontext)), fc(o.fc),
+          is_detached(o.is_detached) {
         o.sp = nullptr;
         o.fc = nullptr;
-        ocontext = boost::context::fcontext_t{};
+        ocontext = boost::context::fcontext_t {};
     }
-    ~thread_impl()
-    {
+    ~thread_impl() {
         free_stack(sp);
     }
 };
 
 } // namespace impl
 
-impl::thread_impl* thread::create_impl(std::function<void()> fun)
-{
+impl::thread_impl* thread::create_impl(std::function<void()> fun) {
     default_init();
-    auto timpl = new impl::thread_impl{};
+    auto timpl = new impl::thread_impl {};
     timpl->sp = alloc_stack();
     timpl->fun = std::move(fun);
     timpl->fc = boost::context::make_fcontext(timpl->sp, STACK_SIZE, run_function);
@@ -213,32 +194,28 @@ RETRY:
     } else {
         goto RETRY;
     }
-   return timpl;
+    return timpl;
 }
 
-thread::thread(thread&& other)
-{
+thread::thread(thread && other) {
     if (impl_)
         std::terminate();
     impl_ = other.impl_;
     other.impl_ = nullptr;
 }
 
-thread::~thread()
-{
+thread::~thread() {
     if (impl_) {
         join();
     }
 }
 
-bool thread::joinable() const
-{
+bool thread::joinable() const {
     return impl_ != nullptr;
 }
 
-void thread::join()
-{
-    processor& proc = this_processor();
+void thread::join() {
+    processor &proc = this_processor();
 RETRY:
     bool do_run = false;
     bool do_delete = false;
@@ -252,7 +229,7 @@ RETRY:
             goto FINISH;
         }
     }
-    if (do_run){
+    if (do_run) {
         boost::context::jump_fcontext(&(impl_->ocontext), impl_->fc, (intptr_t) impl_);
         std::lock_guard<busy_mutex> _(impl_->mutex);
         if (impl_->in_queue) {
@@ -270,8 +247,7 @@ FINISH:
     impl_ = nullptr;
 }
 
-void thread::detach()
-{
+void thread::detach() {
     bool do_delete = false;
     if (impl_) {
         std::lock_guard<busy_mutex> _(impl_->mutex);
@@ -282,14 +258,13 @@ void thread::detach()
     impl_ = nullptr;
 }
 
-void mutex::lock()
-{
+void mutex::lock() {
     bool val = _m.load();
     for (int i = 0; i < 100; ++i) {
         if (val)
             if (_m.compare_exchange_strong(val, false)) return;
     }
-    auto& proc = this_processor();
+    auto &proc = this_processor();
     while (true) {
         schedule(proc);
         for (int i = 0; i < 100; ++i) {
@@ -299,19 +274,16 @@ void mutex::lock()
     }
 }
 
-namespace this_thread
-{
+namespace this_thread {
 
-void yield()
-{
-    auto& p = this_processor();
+void yield() {
+    auto &p = this_processor();
     schedule(p);
 }
 
 template<class Rep, class Period>
-void sleep_for(const std::chrono::duration<Rep, Period>& duration)
-{
-    auto& p = this_processor();
+void sleep_for(const std::chrono::duration<Rep, Period> &duration) {
+    auto &p = this_processor();
     auto begin = std::chrono::system_clock::now();
     decltype(begin) end;
     do {
@@ -321,9 +293,8 @@ void sleep_for(const std::chrono::duration<Rep, Period>& duration)
 }
 
 template<class Clock, class Duration>
-void sleep_until(const std::chrono::time_point<Clock, Duration>& sleep_time)
-{
-    auto& p = this_processor();
+void sleep_until(const std::chrono::time_point<Clock, Duration> &sleep_time) {
+    auto &p = this_processor();
     auto now = Clock::now();
     while (now < sleep_time) {
         schedule(p);
@@ -337,8 +308,7 @@ void sleep_until(const std::chrono::time_point<Clock, Duration>& sleep_time)
 
 namespace {
 
-void run_function(intptr_t funptr)
-{
+void run_function(intptr_t funptr) {
     crossbow::impl::thread_impl* timpl = (crossbow::impl::thread_impl*)funptr;
     (timpl->fun)();
     // jump back to scheduler
@@ -346,8 +316,7 @@ void run_function(intptr_t funptr)
     assert(false); // never returns
 }
 
-void scheduler(processor &p)
-{
+void scheduler(processor &p) {
     {
         std::lock_guard<decltype(map_mutex)> _(map_mutex);
         this_thread_map.insert(std::make_pair(std::this_thread::get_id(), &p));
@@ -357,8 +326,7 @@ void scheduler(processor &p)
     }
 }
 
-void schedule(processor& p)
-{
+void schedule(processor &p) {
     processor* proc = &p;
     crossbow::impl::thread_impl* timpl;
     size_t count = 10;

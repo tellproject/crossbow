@@ -25,12 +25,10 @@ template <class S>
 void
 test(S s, typename S::size_type pos, typename S::size_type n1,
      typename S::size_type n2, typename S::value_type c,
-     S expected)
-{
+     S expected) {
     typename S::size_type old_size = s.size();
     S s0 = s;
-    try
-    {
+    try {
         s.replace(pos, n1, n2, c);
         assert(s.__invariants());
         assert(pos <= old_size);
@@ -38,17 +36,14 @@ test(S s, typename S::size_type pos, typename S::size_type n1,
         typename S::size_type xlen = std::min(n1, old_size - pos);
         typename S::size_type rlen = n2;
         assert(s.size() == old_size - xlen + rlen);
-    }
-    catch (std::out_of_range&)
-    {
+    } catch (std::out_of_range &) {
         assert(pos > old_size);
         assert(s == s0);
     }
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), 0, 0, 0, '2', S(""));
     test(S(""), 0, 0, 5, '2', S("22222"));
     test(S(""), 0, 0, 10, '2', S("2222222222"));
@@ -152,8 +147,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcde"), 6, 0, 0, '2', S("can't happen"));
     test(S("abcde"), 6, 0, 5, '2', S("can't happen"));
     test(S("abcde"), 6, 0, 10, '2', S("can't happen"));
@@ -257,8 +251,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcdefghijklmnopqrst"), 0, 0, 0, '2', S("abcdefghijklmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 0, 0, 5, '2', S("22222abcdefghijklmnopqrst"));
     test(S("abcdefghijklmnopqrst"), 0, 0, 10, '2', S("2222222222abcdefghijklmnopqrst"));
@@ -357,20 +350,19 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 21, 0, 20, '2', S("can't happen"));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #endif
 }

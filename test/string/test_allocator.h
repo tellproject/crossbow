@@ -17,8 +17,7 @@
 #include <climits>
 #include <cassert>
 
-class test_alloc_base
-{
+class test_alloc_base {
 protected:
     static int time_to_throw;
 public:
@@ -34,8 +33,7 @@ int test_alloc_base::throw_after = INT_MAX;
 
 template <class T>
 class test_allocator
-    : public test_alloc_base
-{
+        : public test_alloc_base {
     int data_;
 
     template <class U> friend class test_allocator;
@@ -49,53 +47,79 @@ public:
     typedef typename std::add_lvalue_reference<value_type>::type       reference;
     typedef typename std::add_lvalue_reference<const value_type>::type const_reference;
 
-    template <class U> struct rebind {typedef test_allocator<U> other;};
+    template <class U> struct rebind {
+        typedef test_allocator<U> other;
+    };
 
-    test_allocator() throw() : data_(0) {++count;}
-    explicit test_allocator(int i) throw() : data_(i) {++count;}
-    test_allocator(const test_allocator& a) throw()
-        : data_(a.data_) {++count;}
-    template <class U> test_allocator(const test_allocator<U>& a) throw()
-        : data_(a.data_) {++count;}
-    ~test_allocator() throw() {assert(data_ >= 0); --count; data_ = -1;}
-    pointer address(reference x) const {return &x;}
-    const_pointer address(const_reference x) const {return &x;}
-    pointer allocate(size_type n, const void* = 0)
-        {
-            assert(data_ >= 0);
-            if (time_to_throw >= throw_after) {
+    test_allocator() throw() : data_(0) {
+        ++count;
+    }
+    explicit test_allocator(int i) throw() : data_(i) {
+        ++count;
+    }
+    test_allocator(const test_allocator &a) throw()
+        : data_(a.data_) {
+        ++count;
+    }
+    template <class U> test_allocator(const test_allocator<U> &a) throw()
+        : data_(a.data_) {
+        ++count;
+    }
+    ~test_allocator() throw() {
+        assert(data_ >= 0);
+        --count;
+        data_ = -1;
+    }
+    pointer address(reference x) const {
+        return &x;
+    }
+    const_pointer address(const_reference x) const {
+        return &x;
+    }
+    pointer allocate(size_type n, const void* = 0) {
+        assert(data_ >= 0);
+        if (time_to_throw >= throw_after) {
 #ifndef _LIBCPP_NO_EXCEPTIONS
-                throw std::bad_alloc();
+            throw std::bad_alloc();
 #else
-                std::terminate();
+            std::terminate();
 #endif
-            }
-            ++time_to_throw;
-            ++alloc_count;
-            return (pointer)std::malloc(n * sizeof(T));
         }
-    void deallocate(pointer p, size_type n)
-        {assert(data_ >= 0); --alloc_count; std::free(p);}
-    size_type max_size() const throw()
-        {return UINT_MAX / sizeof(T);}
-    void construct(pointer p, const T& val)
-        {::new(p) T(val);}
+        ++time_to_throw;
+        ++alloc_count;
+        return (pointer)std::malloc(n * sizeof(T));
+    }
+    void deallocate(pointer p, size_type n) {
+        assert(data_ >= 0);
+        --alloc_count;
+        std::free(p);
+    }
+    size_type max_size() const throw() {
+        return UINT_MAX / sizeof(T);
+    }
+    void construct(pointer p, const T &val) {
+        ::new(p) T(val);
+    }
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
-    void construct(pointer p, T&& val)
-        {::new(p) T(std::move(val));}
+    void construct(pointer p, T && val) {
+        ::new(p) T(std::move(val));
+    }
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
-    void destroy(pointer p) {p->~T();}
+    void destroy(pointer p) {
+        p->~T();
+    }
 
-    friend bool operator==(const test_allocator& x, const test_allocator& y)
-        {return x.data_ == y.data_;}
-    friend bool operator!=(const test_allocator& x, const test_allocator& y)
-        {return !(x == y);}
+    friend bool operator==(const test_allocator &x, const test_allocator &y) {
+        return x.data_ == y.data_;
+    }
+    friend bool operator!=(const test_allocator &x, const test_allocator &y) {
+        return !(x == y);
+    }
 };
 
 template <>
 class test_allocator<void>
-    : public test_alloc_base
-{
+        : public test_alloc_base {
     int data_;
 
     template <class U> friend class test_allocator;
@@ -107,25 +131,30 @@ public:
     typedef value_type*                                                pointer;
     typedef const value_type*                                          const_pointer;
 
-    template <class U> struct rebind {typedef test_allocator<U> other;};
+    template <class U> struct rebind {
+        typedef test_allocator<U> other;
+    };
 
     test_allocator() throw() : data_(-1) {}
     explicit test_allocator(int i) throw() : data_(i) {}
-    test_allocator(const test_allocator& a) throw()
+    test_allocator(const test_allocator &a) throw()
         : data_(a.data_) {}
-    template <class U> test_allocator(const test_allocator<U>& a) throw()
+    template <class U> test_allocator(const test_allocator<U> &a) throw()
         : data_(a.data_) {}
-    ~test_allocator() throw() {data_ = 0;}
+    ~test_allocator() throw() {
+        data_ = 0;
+    }
 
-    friend bool operator==(const test_allocator& x, const test_allocator& y)
-        {return x.data_ == y.data_;}
-    friend bool operator!=(const test_allocator& x, const test_allocator& y)
-        {return !(x == y);}
+    friend bool operator==(const test_allocator &x, const test_allocator &y) {
+        return x.data_ == y.data_;
+    }
+    friend bool operator!=(const test_allocator &x, const test_allocator &y) {
+        return !(x == y);
+    }
 };
 
 template <class T>
-class other_allocator
-{
+class other_allocator {
     int data_;
 
     template <class U> friend class other_allocator;
@@ -135,28 +164,34 @@ public:
 
     other_allocator() : data_(-1) {}
     explicit other_allocator(int i) : data_(i) {}
-    template <class U> other_allocator(const other_allocator<U>& a)
+    template <class U> other_allocator(const other_allocator<U> &a)
         : data_(a.data_) {}
-    T* allocate(std::size_t n)
-        {return (T*)std::malloc(n * sizeof(T));}
-    void deallocate(T* p, std::size_t n)
-        {std::free(p);}
+    T* allocate(std::size_t n) {
+        return (T*)std::malloc(n * sizeof(T));
+    }
+    void deallocate(T* p, std::size_t n) {
+        std::free(p);
+    }
 
-    other_allocator select_on_container_copy_construction() const
-        {return other_allocator(-2);}
+    other_allocator select_on_container_copy_construction() const {
+        return other_allocator(-2);
+    }
 
-    friend bool operator==(const other_allocator& x, const other_allocator& y)
-        {return x.data_ == y.data_;}
-    friend bool operator!=(const other_allocator& x, const other_allocator& y)
-        {return !(x == y);}
+    friend bool operator==(const other_allocator &x, const other_allocator &y) {
+        return x.data_ == y.data_;
+    }
+    friend bool operator!=(const other_allocator &x, const other_allocator &y) {
+        return !(x == y);
+    }
 
     typedef std::true_type propagate_on_container_copy_assignment;
     typedef std::true_type propagate_on_container_move_assignment;
     typedef std::true_type propagate_on_container_swap;
 
 #ifdef _LIBCPP_HAS_NO_ADVANCED_SFINAE
-    std::size_t max_size() const
-        {return UINT_MAX / sizeof(T);}
+    std::size_t max_size() const {
+        return UINT_MAX / sizeof(T);
+    }
 #endif  // _LIBCPP_HAS_NO_ADVANCED_SFINAE
 
 };

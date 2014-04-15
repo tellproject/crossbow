@@ -25,8 +25,7 @@ using namespace crossbow;
 template <class S>
 void
 test(S s, typename S::size_type pos1, typename S::size_type n1, typename S::size_type n2,
-     typename S::value_type c, S expected)
-{
+     typename S::value_type c, S expected) {
     typename S::size_type old_size = s.size();
     typename S::const_iterator first = s.begin() + pos1;
     typename S::const_iterator last = s.begin() + pos1 + n1;
@@ -39,8 +38,7 @@ test(S s, typename S::size_type pos1, typename S::size_type n1, typename S::size
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), 0, 0, 0, '3', S(""));
     test(S(""), 0, 0, 5, '3', S("33333"));
     test(S(""), 0, 0, 10, '3', S("3333333333"));
@@ -144,8 +142,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcdefghij"), 1, 4, 0, '3', S("afghij"));
     test(S("abcdefghij"), 1, 4, 5, '3', S("a33333fghij"));
     test(S("abcdefghij"), 1, 4, 10, '3', S("a3333333333fghij"));
@@ -249,8 +246,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcdefghijklmnopqrst"), 10, 10, 0, '3', S("abcdefghij"));
     test(S("abcdefghijklmnopqrst"), 10, 10, 5, '3', S("abcdefghij33333"));
     test(S("abcdefghijklmnopqrst"), 10, 10, 10, '3', S("abcdefghij3333333333"));
@@ -269,20 +265,19 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 20, 0, 20, '3', S("abcdefghijklmnopqrst33333333333333333333"));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #endif
 }

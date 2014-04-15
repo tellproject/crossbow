@@ -21,8 +21,7 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s)
-{
+test(S s) {
     typename S::size_type old_cap = s.capacity();
     S s0 = s;
     s.reserve();
@@ -34,85 +33,80 @@ test(S s)
 
 template <class S>
 void
-test(S s, typename S::size_type res_arg)
-{
+test(S s, typename S::size_type res_arg) {
     S s0 = s;
-    try
-    {
+    try {
         s.reserve(res_arg);
         assert(res_arg <= s.max_size());
         assert(s == s0);
         assert(s.capacity() >= res_arg);
         assert(s.capacity() >= s.size());
-    }
-    catch (std::length_error&)
-    {
+    } catch (std::length_error &) {
         assert(res_arg > s.max_size());
     }
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    {
-    S s;
-    test(s);
+        typedef string S;
+        {
+            S s;
+            test(s);
 
-    s.assign(10, 'a');
-    s.erase(5);
-    test(s);
+            s.assign(10, 'a');
+            s.erase(5);
+            test(s);
 
-    s.assign(100, 'a');
-    s.erase(50);
-    test(s);
-    }
-    {
-    S s;
-    test(s, 5);
-    test(s, 10);
-    test(s, 50);
-    }
-    {
-    S s(100, 'a');
-    s.erase(50);
-    test(s, 5);
-    test(s, 10);
-    test(s, 50);
-    test(s, 100);
-    test(s, S::npos);
-    }
+            s.assign(100, 'a');
+            s.erase(50);
+            test(s);
+        }
+        {
+            S s;
+            test(s, 5);
+            test(s, 10);
+            test(s, 50);
+        }
+        {
+            S s(100, 'a');
+            s.erase(50);
+            test(s, 5);
+            test(s, 10);
+            test(s, 50);
+            test(s, 100);
+            test(s, S::npos);
+        }
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    {
-    S s;
-    test(s);
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        {
+            S s;
+            test(s);
 
-    s.assign(10, 'a');
-    s.erase(5);
-    test(s);
+            s.assign(10, 'a');
+            s.erase(5);
+            test(s);
 
-    s.assign(100, 'a');
-    s.erase(50);
-    test(s);
-    }
-    {
-    S s;
-    test(s, 5);
-    test(s, 10);
-    test(s, 50);
-    }
-    {
-    S s(100, 'a');
-    s.erase(50);
-    test(s, 5);
-    test(s, 10);
-    test(s, 50);
-    test(s, 100);
-    test(s, S::npos);
-    }
+            s.assign(100, 'a');
+            s.erase(50);
+            test(s);
+        }
+        {
+            S s;
+            test(s, 5);
+            test(s, 10);
+            test(s, 50);
+        }
+        {
+            S s(100, 'a');
+            s.erase(50);
+            test(s, 5);
+            test(s, 10);
+            test(s, 50);
+            test(s, 100);
+            test(s, S::npos);
+        }
     }
 #endif
 }

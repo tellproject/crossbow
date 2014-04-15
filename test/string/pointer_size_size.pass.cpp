@@ -20,17 +20,15 @@ using namespace crossbow;
 
 template <class S>
 void
-test(const S& s, const typename S::value_type* str, typename S::size_type pos,
-      typename S::size_type n, typename S::size_type x)
-{
+test(const S &s, const typename S::value_type* str, typename S::size_type pos,
+     typename S::size_type n, typename S::size_type x) {
     assert(s.rfind(str, pos, n) == x);
     if (x != S::npos)
         assert(x <= pos && x + n <= s.size());
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), "", 0, 0, 0);
     test(S(""), "abcde", 0, 0, 0);
     test(S(""), "abcde", 0, 1, S::npos);
@@ -134,8 +132,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcde"), "abcde", 5, 4, 0);
     test(S("abcde"), "abcde", 5, 5, 0);
     test(S("abcde"), "abcdeabcde", 5, 0, 5);
@@ -239,8 +236,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcdeabcde"), "abcdeabcde", 10, 5, 5);
     test(S("abcdeabcde"), "abcdeabcde", 10, 9, 0);
     test(S("abcdeabcde"), "abcdeabcde", 10, 10, 0);
@@ -344,8 +340,7 @@ void test2()
 }
 
 template <class S>
-void test3()
-{
+void test3() {
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 20, 1, 15);
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 20, 10, 10);
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 20, 19, 0);
@@ -368,22 +363,21 @@ void test3()
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 21, 20, 0);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
-    test3<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
+        test3<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
-    test3<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
+        test3<S>();
     }
 #endif
 }

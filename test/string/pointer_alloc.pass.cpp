@@ -23,8 +23,7 @@ using namespace crossbow;
 
 template <class charT>
 void
-test(const charT* s)
-{
+test(const charT* s) {
     typedef std::basic_string<charT, std::char_traits<charT>, test_allocator<charT> > S;
     typedef typename S::traits_type T;
     typedef typename S::allocator_type A;
@@ -39,8 +38,7 @@ test(const charT* s)
 
 template <class charT, class A>
 void
-test(const charT* s, const A& a)
-{
+test(const charT* s, const A &a) {
     typedef std::basic_string<charT, std::char_traits<charT>, A> S;
     typedef typename S::traits_type T;
     unsigned n = T::length(s);
@@ -52,40 +50,39 @@ test(const charT* s, const A& a)
     assert(s2.capacity() >= s2.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef test_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
+        typedef test_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
 
-    test("");
-    test("", A(2));
+        test("");
+        test("", A(2));
 
-    test("1");
-    test("1", A(2));
+        test("1");
+        test("1", A(2));
 
-    test("1234567980");
-    test("1234567980", A(2));
+        test("1234567980");
+        test("1234567980", A(2));
 
-    test("123456798012345679801234567980123456798012345679801234567980");
-    test("123456798012345679801234567980123456798012345679801234567980", A(2));
+        test("123456798012345679801234567980123456798012345679801234567980");
+        test("123456798012345679801234567980123456798012345679801234567980", A(2));
     }
 #if __cplusplus >= 201103L
     {
-    typedef min_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
+        typedef min_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
 
-    test("");
-    test("", A());
+        test("");
+        test("", A());
 
-    test("1");
-    test("1", A());
+        test("1");
+        test("1", A());
 
-    test("1234567980");
-    test("1234567980", A());
+        test("1234567980");
+        test("1234567980", A());
 
-    test("123456798012345679801234567980123456798012345679801234567980");
-    test("123456798012345679801234567980123456798012345679801234567980", A());
+        test("123456798012345679801234567980123456798012345679801234567980");
+        test("123456798012345679801234567980123456798012345679801234567980", A());
     }
 #endif
 }

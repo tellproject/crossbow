@@ -23,34 +23,31 @@
 #include <crossbow/string.hpp>
 using namespace crossbow;
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    S s("0123456789");
-    const S& cs = s;
-    for (S::size_type i = 0; i < cs.size(); ++i)
-    {
-        assert(s[i] == '0' + i);
-        assert(cs[i] == s[i]);
-    }
-    assert(cs[cs.size()] == '\0');
-    const S s2 = S();
-    assert(s2[0] == '\0');
+        typedef string S;
+        S s("0123456789");
+        const S &cs = s;
+        for (S::size_type i = 0; i < cs.size(); ++i) {
+            assert(s[i] == '0' + i);
+            assert(cs[i] == s[i]);
+        }
+        assert(cs[cs.size()] == '\0');
+        const S s2 = S();
+        assert(s2[0] == '\0');
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    S s("0123456789");
-    const S& cs = s;
-    for (S::size_type i = 0; i < cs.size(); ++i)
-    {
-        assert(s[i] == '0' + i);
-        assert(cs[i] == s[i]);
-    }
-    assert(cs[cs.size()] == '\0');
-    const S s2 = S();
-    assert(s2[0] == '\0');
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        S s("0123456789");
+        const S &cs = s;
+        for (S::size_type i = 0; i < cs.size(); ++i) {
+            assert(s[i] == '0' + i);
+            assert(cs[i] == s[i]);
+        }
+        assert(cs[cs.size()] == '\0');
+        const S s2 = S();
+        assert(s2[0] == '\0');
     }
 #endif
 #ifdef _LIBCPP_DEBUG

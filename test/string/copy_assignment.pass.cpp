@@ -21,51 +21,49 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s1, const S& s2)
-{
+test(S s1, const S &s2) {
     s1 = s2;
     assert(s1 == s2);
     assert(s1.capacity() >= s1.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(), S());
-    test(S("1"), S());
-    test(S(), S("1"));
-    test(S("1"), S("2"));
-    test(S("1"), S("2"));
+        typedef string S;
+        test(S(), S());
+        test(S("1"), S());
+        test(S(), S("1"));
+        test(S("1"), S("2"));
+        test(S("1"), S("2"));
 
-    test(S(),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("123456789"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"
-           "1234567890123456789012345678901234567890123456789012345678901234567890"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S(),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("123456789"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"
+               "1234567890123456789012345678901234567890123456789012345678901234567890"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), S());
-    test(S("1"), S());
-    test(S(), S("1"));
-    test(S("1"), S("2"));
-    test(S("1"), S("2"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(), S());
+        test(S("1"), S());
+        test(S(), S("1"));
+        test(S("1"), S("2"));
+        test(S("1"), S("2"));
 
-    test(S(),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("123456789"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"
-           "1234567890123456789012345678901234567890123456789012345678901234567890"),
-         S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S(),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("123456789"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"
+               "1234567890123456789012345678901234567890123456789012345678901234567890"),
+             S("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"));
     }
 #endif
 }

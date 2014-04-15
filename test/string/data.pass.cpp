@@ -20,35 +20,31 @@ using namespace crossbow;
 
 template <class S>
 void
-test(const S& s)
-{
+test(const S &s) {
     typedef typename S::traits_type T;
     const typename S::value_type* str = s.data();
-    if (s.size() > 0)
-    {
+    if (s.size() > 0) {
         assert(T::compare(str, &s[0], s.size()) == 0);
         assert(T::eq(str[s.size()], typename S::value_type()));
-    }
-    else
+    } else
         assert(T::eq(str[0], typename S::value_type()));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(""));
-    test(S("abcde"));
-    test(S("abcdefghij"));
-    test(S("abcdefghijklmnopqrst"));
+        typedef string S;
+        test(S(""));
+        test(S("abcde"));
+        test(S("abcdefghij"));
+        test(S("abcdefghijklmnopqrst"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(""));
-    test(S("abcde"));
-    test(S("abcdefghij"));
-    test(S("abcdefghijklmnopqrst"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(""));
+        test(S("abcde"));
+        test(S("abcdefghij"));
+        test(S("abcdefghijklmnopqrst"));
     }
 #endif
 }

@@ -11,8 +11,7 @@
 #define TEST_TRAITS_H
 
 template <class charT>
-struct test_traits
-{
+struct test_traits {
     typedef charT     char_type;
 };
 

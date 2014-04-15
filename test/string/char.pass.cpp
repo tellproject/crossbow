@@ -20,28 +20,26 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s, typename S::value_type str, S expected)
-{
+test(S s, typename S::value_type str, S expected) {
     s += str;
     assert(s == expected);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(), 'a', S("a"));
-    test(S("12345"), 'a', S("12345a"));
-    test(S("1234567890"), 'a', S("1234567890a"));
-    test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
+        typedef string S;
+        test(S(), 'a', S("a"));
+        test(S("12345"), 'a', S("12345a"));
+        test(S("1234567890"), 'a', S("1234567890a"));
+        test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 'a', S("a"));
-    test(S("12345"), 'a', S("12345a"));
-    test(S("1234567890"), 'a', S("1234567890a"));
-    test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(), 'a', S("a"));
+        test(S("12345"), 'a', S("12345a"));
+        test(S("1234567890"), 'a', S("1234567890a"));
+        test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
     }
 #endif
 }

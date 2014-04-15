@@ -21,30 +21,27 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s)
-{
-    const S& cs = s;
+test(S s) {
+    const S &cs = s;
     typename S::iterator b = s.begin();
     typename S::const_iterator cb = cs.begin();
-    if (!s.empty())
-    {
+    if (!s.empty()) {
         assert(*b == s[0]);
     }
     assert(b == cb);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S());
-    test(S("123"));
+        typedef string S;
+        test(S());
+        test(S("123"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S());
-    test(S("123"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S());
+        test(S("123"));
     }
 #endif
 }

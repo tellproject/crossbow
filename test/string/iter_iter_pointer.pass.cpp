@@ -24,8 +24,7 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s, typename S::size_type pos1, typename S::size_type n1, const typename S::value_type* str, S expected)
-{
+test(S s, typename S::size_type pos1, typename S::size_type n1, const typename S::value_type* str, S expected) {
     typename S::size_type old_size = s.size();
     typename S::const_iterator first = s.begin() + pos1;
     typename S::const_iterator last = s.begin() + pos1 + n1;
@@ -38,8 +37,7 @@ test(S s, typename S::size_type pos1, typename S::size_type n1, const typename S
 }
 
 template <class S>
-void test0()
-{
+void test0() {
     test(S(""), 0, 0, "", S(""));
     test(S(""), 0, 0, "12345", S("12345"));
     test(S(""), 0, 0, "1234567890", S("1234567890"));
@@ -143,8 +141,7 @@ void test0()
 }
 
 template <class S>
-void test1()
-{
+void test1() {
     test(S("abcdefghij"), 1, 4, "", S("afghij"));
     test(S("abcdefghij"), 1, 4, "12345", S("a12345fghij"));
     test(S("abcdefghij"), 1, 4, "1234567890", S("a1234567890fghij"));
@@ -248,8 +245,7 @@ void test1()
 }
 
 template <class S>
-void test2()
-{
+void test2() {
     test(S("abcdefghijklmnopqrst"), 10, 10, "", S("abcdefghij"));
     test(S("abcdefghijklmnopqrst"), 10, 10, "12345", S("abcdefghij12345"));
     test(S("abcdefghijklmnopqrst"), 10, 10, "1234567890", S("abcdefghij1234567890"));
@@ -268,20 +264,19 @@ void test2()
     test(S("abcdefghijklmnopqrst"), 20, 0, "12345678901234567890", S("abcdefghijklmnopqrst12345678901234567890"));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef string S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0<S>();
-    test1<S>();
-    test2<S>();
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0<S>();
+        test1<S>();
+        test2<S>();
     }
 #endif
 }

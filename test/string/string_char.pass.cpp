@@ -26,8 +26,7 @@ using namespace crossbow;
 
 template <class S>
 void
-test0(const S& lhs, typename S::value_type rhs, const S& x)
-{
+test0(const S &lhs, typename S::value_type rhs, const S &x) {
     assert(lhs + rhs == x);
 }
 
@@ -35,45 +34,43 @@ test0(const S& lhs, typename S::value_type rhs, const S& x)
 
 template <class S>
 void
-test1(S&& lhs, typename S::value_type rhs, const S& x)
-{
+test1(S && lhs, typename S::value_type rhs, const S &x) {
     assert(move(lhs) + rhs == x);
 }
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test0(S(""), '1', S("1"));
-    test0(S("abcde"), '1', S("abcde1"));
-    test0(S("abcdefghij"), '1', S("abcdefghij1"));
-    test0(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
+        typedef string S;
+        test0(S(""), '1', S("1"));
+        test0(S("abcde"), '1', S("abcde1"));
+        test0(S("abcdefghij"), '1', S("abcdefghij1"));
+        test0(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
 
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-    test1(S(""), '1', S("1"));
-    test1(S("abcde"), '1', S("abcde1"));
-    test1(S("abcdefghij"), '1', S("abcdefghij1"));
-    test1(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
+        test1(S(""), '1', S("1"));
+        test1(S("abcde"), '1', S("abcde1"));
+        test1(S("abcdefghij"), '1', S("abcdefghij1"));
+        test1(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test0(S(""), '1', S("1"));
-    test0(S("abcde"), '1', S("abcde1"));
-    test0(S("abcdefghij"), '1', S("abcdefghij1"));
-    test0(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test0(S(""), '1', S("1"));
+        test0(S("abcde"), '1', S("abcde1"));
+        test0(S("abcdefghij"), '1', S("abcdefghij1"));
+        test0(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
 
 #ifndef _LIBCPP_HAS_NO_RVALUE_REFERENCES
 
-    test1(S(""), '1', S("1"));
-    test1(S("abcde"), '1', S("abcde1"));
-    test1(S("abcdefghij"), '1', S("abcdefghij1"));
-    test1(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
+        test1(S(""), '1', S("1"));
+        test1(S("abcde"), '1', S("abcde1"));
+        test1(S("abcdefghij"), '1', S("abcdefghij1"));
+        test1(S("abcdefghijklmnopqrst"), '1', S("abcdefghijklmnopqrst1"));
 
 #endif  // _LIBCPP_HAS_NO_RVALUE_REFERENCES
     }

@@ -25,27 +25,25 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s)
-{
-    const S& cs = s;
+test(S s) {
+    const S &cs = s;
     assert(&cs.front() == &cs[0]);
     assert(&s.front() == &s[0]);
     s.front() = typename S::value_type('z');
     assert(s.front() == typename S::value_type('z'));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S("1"));
-    test(S("1234567890123456789012345678901234567890"));
+        typedef string S;
+        test(S("1"));
+        test(S("1234567890123456789012345678901234567890"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S("1"));
-    test(S("1234567890123456789012345678901234567890"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S("1"));
+        test(S("1234567890123456789012345678901234567890"));
     }
 #endif
 #ifdef _LIBCPP_DEBUG

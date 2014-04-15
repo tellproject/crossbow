@@ -25,8 +25,7 @@ using namespace crossbow;
 
 template <class It>
 void
-test(It first, It last)
-{
+test(It first, It last) {
     typedef typename std::iterator_traits<It>::value_type charT;
     typedef basic_string<charT, std::char_traits<charT>, test_allocator<charT> > S;
     typedef typename S::traits_type T;
@@ -42,8 +41,7 @@ test(It first, It last)
 
 template <class It, class A>
 void
-test(It first, It last, const A& a)
-{
+test(It first, It last, const A &a) {
     typedef typename std::iterator_traits<It>::value_type charT;
     typedef basic_string<charT, std::char_traits<charT>, A> S;
     typedef typename S::traits_type T;
@@ -56,64 +54,63 @@ test(It first, It last, const A& a)
     assert(s2.capacity() >= s2.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef test_allocator<char> A;
-    const char* s = "12345678901234567890123456789012345678901234567890";
+        typedef test_allocator<char> A;
+        const char* s = "12345678901234567890123456789012345678901234567890";
 
-    test(s, s);
-    test(s, s, A(2));
+        test(s, s);
+        test(s, s, A(2));
 
-    test(s, s+1);
-    test(s, s+1, A(2));
+        test(s, s + 1);
+        test(s, s + 1, A(2));
 
-    test(s, s+10);
-    test(s, s+10, A(2));
+        test(s, s + 10);
+        test(s, s + 10, A(2));
 
-    test(s, s+50);
-    test(s, s+50, A(2));
+        test(s, s + 50);
+        test(s, s + 50, A(2));
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s), A(2));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s), A(2));
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+1));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+1), A(2));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 1));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 1), A(2));
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+10));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+10), A(2));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 10));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 10), A(2));
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+50));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+50), A(2));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 50));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 50), A(2));
     }
 #if __cplusplus >= 201103L
     {
-    typedef min_allocator<char> A;
-    const char* s = "12345678901234567890123456789012345678901234567890";
+        typedef min_allocator<char> A;
+        const char* s = "12345678901234567890123456789012345678901234567890";
 
-    test(s, s);
-    test(s, s, A());
+        test(s, s);
+        test(s, s, A());
 
-    test(s, s+1);
-    test(s, s+1, A());
+        test(s, s + 1);
+        test(s, s + 1, A());
 
-    test(s, s+10);
-    test(s, s+10, A());
+        test(s, s + 10);
+        test(s, s + 10, A());
 
-    test(s, s+50);
-    test(s, s+50, A());
+        test(s, s + 50);
+        test(s, s + 50, A());
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s), A());
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s), A());
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+1));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+1), A());
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 1));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 1), A());
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+10));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+10), A());
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 10));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 10), A());
 
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+50));
-    test(input_iterator<const char*>(s), input_iterator<const char*>(s+50), A());
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 50));
+        test(input_iterator<const char*>(s), input_iterator<const char*>(s + 50), A());
     }
 #endif
 }

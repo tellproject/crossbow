@@ -19,55 +19,58 @@
 #include <string>
 #include <cassert>
 
-int main()
-{
+int main() {
 #if _LIBCPP_STD_VER > 11
-    { // N3644 testing
+    {
+        // N3644 testing
         typedef std::string C;
         C::iterator ii1{}, ii2{};
         C::iterator ii4 = ii1;
         C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
+        assert(ii1 == ii2);
+        assert(ii1 == ii4);
+        assert(ii1 == cii);
+        assert(!(ii1 != ii2));
+        assert(!(ii1 != cii));
     }
 
-    { // N3644 testing
+    {
+        // N3644 testing
         typedef std::wstring C;
         C::iterator ii1{}, ii2{};
         C::iterator ii4 = ii1;
         C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );        
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
+        assert(ii1 == ii2);
+        assert(ii1 == ii4);
+        assert(ii1 == cii);
+        assert(!(ii1 != ii2));
+        assert(!(ii1 != cii));
     }
 
-    { // N3644 testing
+    {
+        // N3644 testing
         typedef std::u16string C;
         C::iterator ii1{}, ii2{};
         C::iterator ii4 = ii1;
         C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
+        assert(ii1 == ii2);
+        assert(ii1 == ii4);
+        assert(ii1 == cii);
+        assert(!(ii1 != ii2));
+        assert(!(ii1 != cii));
     }
 
-    { // N3644 testing
+    {
+        // N3644 testing
         typedef std::u32string C;
         C::iterator ii1{}, ii2{};
         C::iterator ii4 = ii1;
         C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
+        assert(ii1 == ii2);
+        assert(ii1 == ii4);
+        assert(ii1 == cii);
+        assert(!(ii1 != ii2));
+        assert(!(ii1 != cii));
     }
 #endif
 }

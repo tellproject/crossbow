@@ -24,14 +24,12 @@
 using namespace crossbow;
 
 template <class T>
-struct some_alloc
-{
+struct some_alloc {
     typedef T value_type;
-    some_alloc(const some_alloc&);
+    some_alloc(const some_alloc &);
 };
 
-int main()
-{
+int main() {
 #if __has_feature(cxx_noexcept)
     {
         typedef string C;

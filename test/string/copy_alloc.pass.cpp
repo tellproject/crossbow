@@ -21,30 +21,28 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s1, const typename S::allocator_type& a)
-{
+test(S s1, const typename S::allocator_type &a) {
     S s2(s1, a);
     assert(s2 == s1);
     assert(s2.capacity() >= s2.size());
     assert(s2.get_allocator() == a);
 }
 
-int main()
-{
+int main() {
     {
-    typedef test_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
-    test(S(), A(3));
-    test(S("1"), A(5));
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), A(7));
+        typedef test_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
+        test(S(), A(3));
+        test(S("1"), A(5));
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), A(7));
     }
 #if __cplusplus >= 201103L
     {
-    typedef min_allocator<char> A;
-    typedef basic_string<char, std::char_traits<char>, A> S;
-    test(S(), A());
-    test(S("1"), A());
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), A());
+        typedef min_allocator<char> A;
+        typedef basic_string<char, std::char_traits<char>, A> S;
+        test(S(), A());
+        test(S("1"), A());
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), A());
     }
 #endif
 }

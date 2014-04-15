@@ -20,8 +20,7 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s1, typename S::value_type s2)
-{
+test(S s1, typename S::value_type s2) {
     typedef typename S::traits_type T;
     s1 = s2;
     assert(s1.size() == 1);
@@ -29,22 +28,21 @@ test(S s1, typename S::value_type s2)
     assert(s1.capacity() >= s1.size());
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(), 'a');
-    test(S("1"), 'a');
-    test(S("123456789"), 'a');
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), 'a');
+        typedef string S;
+        test(S(), 'a');
+        test(S("1"), 'a');
+        test(S("123456789"), 'a');
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), 'a');
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 'a');
-    test(S("1"), 'a');
-    test(S("123456789"), 'a');
-    test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), 'a');
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(), 'a');
+        test(S("1"), 'a');
+        test(S("123456789"), 'a');
+        test(S("1234567890123456789012345678901234567890123456789012345678901234567890"), 'a');
     }
 #endif
 }

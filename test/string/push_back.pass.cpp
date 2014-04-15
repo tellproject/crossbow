@@ -20,27 +20,25 @@ using namespace crossbow;
 
 template <class S>
 void
-test(S s, typename S::value_type c, S expected)
-{
+test(S s, typename S::value_type c, S expected) {
     s.push_back(c);
     assert(s.__invariants());
     assert(s == expected);
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(), 'a', S(1, 'a'));
-    test(S("12345"), 'a', S("12345a"));
-    test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
+        typedef string S;
+        test(S(), 'a', S(1, 'a'));
+        test(S("12345"), 'a', S("12345a"));
+        test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 'a', S(1, 'a'));
-    test(S("12345"), 'a', S("12345a"));
-    test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(), 'a', S(1, 'a'));
+        test(S("12345"), 'a', S("12345a"));
+        test(S("12345678901234567890"), 'a', S("12345678901234567890a"));
     }
 #endif
 }

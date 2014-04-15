@@ -18,8 +18,7 @@
 #include <crossbow/string.hpp>
 using namespace crossbow;
 
-int sign(int x)
-{
+int sign(int x) {
     if (x == 0)
         return 0;
     if (x < 0)
@@ -29,51 +28,49 @@ int sign(int x)
 
 template <class S>
 void
-test(const S& s, const S& str, int x)
-{
+test(const S &s, const S &str, int x) {
     assert(sign(s.compare(str)) == sign(x));
 }
 
-int main()
-{
+int main() {
     {
-    typedef string S;
-    test(S(""), S(""), 0);
-    test(S(""), S("abcde"), -5);
-    test(S(""), S("abcdefghij"), -10);
-    test(S(""), S("abcdefghijklmnopqrst"), -20);
-    test(S("abcde"), S(""), 5);
-    test(S("abcde"), S("abcde"), 0);
-    test(S("abcde"), S("abcdefghij"), -5);
-    test(S("abcde"), S("abcdefghijklmnopqrst"), -15);
-    test(S("abcdefghij"), S(""), 10);
-    test(S("abcdefghij"), S("abcde"), 5);
-    test(S("abcdefghij"), S("abcdefghij"), 0);
-    test(S("abcdefghij"), S("abcdefghijklmnopqrst"), -10);
-    test(S("abcdefghijklmnopqrst"), S(""), 20);
-    test(S("abcdefghijklmnopqrst"), S("abcde"), 15);
-    test(S("abcdefghijklmnopqrst"), S("abcdefghij"), 10);
-    test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrst"), 0);
+        typedef string S;
+        test(S(""), S(""), 0);
+        test(S(""), S("abcde"), -5);
+        test(S(""), S("abcdefghij"), -10);
+        test(S(""), S("abcdefghijklmnopqrst"), -20);
+        test(S("abcde"), S(""), 5);
+        test(S("abcde"), S("abcde"), 0);
+        test(S("abcde"), S("abcdefghij"), -5);
+        test(S("abcde"), S("abcdefghijklmnopqrst"), -15);
+        test(S("abcdefghij"), S(""), 10);
+        test(S("abcdefghij"), S("abcde"), 5);
+        test(S("abcdefghij"), S("abcdefghij"), 0);
+        test(S("abcdefghij"), S("abcdefghijklmnopqrst"), -10);
+        test(S("abcdefghijklmnopqrst"), S(""), 20);
+        test(S("abcdefghijklmnopqrst"), S("abcde"), 15);
+        test(S("abcdefghijklmnopqrst"), S("abcdefghij"), 10);
+        test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrst"), 0);
     }
 #if __cplusplus >= 201103L
     {
-    typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(""), S(""), 0);
-    test(S(""), S("abcde"), -5);
-    test(S(""), S("abcdefghij"), -10);
-    test(S(""), S("abcdefghijklmnopqrst"), -20);
-    test(S("abcde"), S(""), 5);
-    test(S("abcde"), S("abcde"), 0);
-    test(S("abcde"), S("abcdefghij"), -5);
-    test(S("abcde"), S("abcdefghijklmnopqrst"), -15);
-    test(S("abcdefghij"), S(""), 10);
-    test(S("abcdefghij"), S("abcde"), 5);
-    test(S("abcdefghij"), S("abcdefghij"), 0);
-    test(S("abcdefghij"), S("abcdefghijklmnopqrst"), -10);
-    test(S("abcdefghijklmnopqrst"), S(""), 20);
-    test(S("abcdefghijklmnopqrst"), S("abcde"), 15);
-    test(S("abcdefghijklmnopqrst"), S("abcdefghij"), 10);
-    test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrst"), 0);
+        typedef basic_string<char, std::char_traits<char>, min_allocator<char>> S;
+        test(S(""), S(""), 0);
+        test(S(""), S("abcde"), -5);
+        test(S(""), S("abcdefghij"), -10);
+        test(S(""), S("abcdefghijklmnopqrst"), -20);
+        test(S("abcde"), S(""), 5);
+        test(S("abcde"), S("abcde"), 0);
+        test(S("abcde"), S("abcdefghij"), -5);
+        test(S("abcde"), S("abcdefghijklmnopqrst"), -15);
+        test(S("abcdefghij"), S(""), 10);
+        test(S("abcdefghij"), S("abcde"), 5);
+        test(S("abcdefghij"), S("abcdefghij"), 0);
+        test(S("abcdefghij"), S("abcdefghijklmnopqrst"), -10);
+        test(S("abcdefghijklmnopqrst"), S(""), 20);
+        test(S("abcdefghijklmnopqrst"), S("abcde"), 15);
+        test(S("abcdefghijklmnopqrst"), S("abcdefghij"), 10);
+        test(S("abcdefghijklmnopqrst"), S("abcdefghijklmnopqrst"), 0);
     }
 #endif
 }
