@@ -1,14 +1,14 @@
 #!/bin/bash
 
-cmd="astyle --suffix=none --style=java --indent=spaces=4 --indent-col1-comments --pad-oper --pad-header --unpad-paren --align-pointer=type --align-reference=name --recursive"
+. astylef.sh
 
-eval "$cmd 'crossbow/*.hpp'"
-eval "$cmd 'crossbow/*.cpp'"
-eval "$cmd 'crossbow/*.h'"
-eval "$cmd 'libs/*.cpp'"
-eval "$cmd 'libs/*.hpp'"
-eval "$cmd 'libs/*.h'"
-eval "$cmd 'test/*.cpp'"
-eval "$cmd 'test/*.h'"
-eval "$cmd 'test/*.hpp'"
+eval "$cmd --recursive 'crossbow/*.hpp'"
+eval "$cmd --recursive 'crossbow/*.cpp'"
+eval "$cmd --recursive 'crossbow/*.h'"
+eval "$cmd --recursive 'libs/*.cpp'"
+eval "$cmd --recursive 'libs/*.hpp'"
+eval "$cmd --recursive 'libs/*.h'"
+eval "$cmd --recursive 'test/*.cpp'"
+eval "$cmd --recursive 'test/*.h'"
+eval "$cmd --recursive 'test/*.hpp'"
 
