@@ -18,7 +18,11 @@ namespace impl
 
 enum class o_option_t
 {
-    ShowOption, IgnoreShort, IgnoreLong, Description
+    ShowOption,
+    IgnoreShort,
+    IgnoreLong,
+    Description,
+    Callback
 };
 
 }
@@ -53,6 +57,29 @@ struct description
     constexpr static impl::o_option_t type = impl::o_option_t::Description;
 };
 
+template<class Fun>
+struct callback_t
+{
+    Fun _callback;
+    template<class T>
+    auto callback(T& arg) -> typename std::enable_if<std::is_void<decltype(_callback(arg))>::value, T>::type {
+        _callback(arg);
+        return arg;
+    }
+
+    template<class T>
+    auto callback(T& arg) -> typename std::enable_if<!std::is_void<decltype(_callback(arg))>::value, T>::type {
+        return _callback(arg);
+    }
+
+    constexpr static impl::o_option_t type = impl::o_option_t::Callback;
+};
+
+template<class Fun>
+callback_t<Fun> callback(Fun fun) {
+    return callback_t<Fun>{fun};
+}
+
 }
 
 template<class... Opts>
@@ -65,7 +92,18 @@ struct o_options<Head, Tail...> : o_options<Tail...>
     constexpr static bool show_option = std::conditional<Head::type == impl::o_option_t::ShowOption, Head, base>::type::show_option;
     constexpr static bool ignore_short_option = std::conditional<Head::type == impl::o_option_t::IgnoreShort, Head, base>::type::ignore_short_option;
     constexpr static bool ignore_long_option = std::conditional<Head::type == impl::o_option_t::IgnoreLong, Head, base>::type::ignore_long_option;
-    
+    Head this_opt;
+
+    template<class T>
+    typename std::enable_if<Head::type == impl::o_option_t::Callback, T>::type callback(T& arg) {
+        return this_opt.template callback<T>(arg);
+    }
+
+    template<class T>
+    typename std::enable_if<Head::type != impl::o_option_t::Callback, T>::type callback(T& arg) {
+        return base::callback(arg);
+    }
+
     template<class H>
     typename std::enable_if<H::type == impl::o_option_t::Description, string>::type desc_impl() const
     {
@@ -82,8 +120,7 @@ struct o_options<Head, Tail...> : o_options<Tail...>
     {
         return desc_impl<Head>();
     }
-    
-    Head this_opt;
+
     o_options(Head h, Tail... t) : base(t...), this_opt(h) {}
 };
 
@@ -93,7 +130,12 @@ struct o_options<>
     constexpr static bool show_option = true;
     constexpr static bool ignore_short_option = false;
     constexpr static bool ignore_long_option = false;
-    
+
+    template<class T>
+    T callback(T arg) const {
+        return arg;
+    }
+
     string description() const {
         return "";
     }
@@ -116,6 +158,7 @@ struct option
     template<class V>
     void set_value(V&& v) {
         value = std::forward<V>(v);
+        value = this_opts.template callback<value_type>(value);
         if (value_ptr)
             *value_ptr = value;
     }

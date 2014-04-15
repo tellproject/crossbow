@@ -14,7 +14,8 @@ int main(int argc, const char** argv)
                              value<'a'>("all", all, tag::ignore_short<true>{}, tag::description{"All Test"}),
                              toggle<'b'>("all2", tag::ignore_long<true>{}),
                              toggle<-1>("bar", tag::ignore_short<true>{}),
-                             value<'s'>("string", str),
+                             value<'s'>("string", str, tag::callback([](crossbow::string& str){
+                                std::cout << "Callback with " << str << " on -s" <<std::endl;})),
                              value<'f'>("foo", foo));
     print_help(std::cout, opts);
     auto idx = parse(opts, argc, argv);
