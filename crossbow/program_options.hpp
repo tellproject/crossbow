@@ -49,6 +49,11 @@ struct description {
     constexpr static impl::o_option_t type = impl::o_option_t::Description;
 };
 
+} // namespace tag
+
+namespace impl
+{
+
 template<class Fun>
 struct callback_t {
     Fun _callback;
@@ -63,15 +68,23 @@ struct callback_t {
         return _callback(arg);
     }
 
-    constexpr static impl::o_option_t type = impl::o_option_t::Callback;
+    constexpr static o_option_t type = o_option_t::Callback;
 };
 
-template<class Fun>
-callback_t<Fun> callback(Fun fun) {
-    return callback_t<Fun> {fun};
 }
 
+namespace tag
+{
+
+template<class Fun>
+impl::callback_t<Fun> callback(Fun fun) {
+    return impl::callback_t<Fun> {fun};
 }
+
+} // namespace tag
+
+namespace impl
+{
 
 template<class... Opts>
 struct o_options;
@@ -79,28 +92,28 @@ struct o_options;
 template<class Head, class... Tail>
 struct o_options<Head, Tail...> : o_options<Tail...> {
     using base = o_options<Tail...>;
-    constexpr static bool show_option = std::conditional<Head::type == impl::o_option_t::ShowOption, Head, base>::type::show_option;
-    constexpr static bool ignore_short_option = std::conditional<Head::type == impl::o_option_t::IgnoreShort, Head, base>::type::ignore_short_option;
-    constexpr static bool ignore_long_option = std::conditional<Head::type == impl::o_option_t::IgnoreLong, Head, base>::type::ignore_long_option;
+    constexpr static bool show_option = std::conditional<Head::type == o_option_t::ShowOption, Head, base>::type::show_option;
+    constexpr static bool ignore_short_option = std::conditional<Head::type == o_option_t::IgnoreShort, Head, base>::type::ignore_short_option;
+    constexpr static bool ignore_long_option = std::conditional<Head::type == o_option_t::IgnoreLong, Head, base>::type::ignore_long_option;
     Head this_opt;
 
     template<class T>
-    typename std::enable_if<Head::type == impl::o_option_t::Callback, T>::type callback(T &arg) {
+    typename std::enable_if<Head::type == o_option_t::Callback, T>::type callback(T &arg) {
         return this_opt.template callback<T>(arg);
     }
 
     template<class T>
-    typename std::enable_if < Head::type != impl::o_option_t::Callback, T >::type callback(T &arg) {
+    typename std::enable_if < Head::type != o_option_t::Callback, T >::type callback(T &arg) {
         return base::callback(arg);
     }
 
     template<class H>
-    typename std::enable_if<H::type == impl::o_option_t::Description, string>::type desc_impl() const {
+    typename std::enable_if<H::type == o_option_t::Description, string>::type desc_impl() const {
         return this_opt.value;
     }
 
     template<class H>
-    typename std::enable_if < H::type != impl::o_option_t::Description, string >::type desc_impl() const {
+    typename std::enable_if < H::type != o_option_t::Description, string >::type desc_impl() const {
         return base::description();
     }
 
@@ -299,6 +312,8 @@ struct options<> {
     }
 };
 
+} // namespace impl
+
 template<char Name, class O>
 decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O> &opts) {
     const O &o = *opts;
@@ -306,53 +321,53 @@ decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O> &o
 };
 
 template<class... Opts>
-std::unique_ptr<options<Opts...>> create_options(const string &name, Opts && ... opts) {
-    using res_type = options<Opts...>;
+std::unique_ptr<impl::options<Opts...>> create_options(const string &name, Opts && ... opts) {
+    using res_type = impl::options<Opts...>;
     return std::unique_ptr<res_type>(new res_type {name, std::forward<Opts>(opts)...});
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, Opts...> value(const string &longopt, T &val, Opts... opts) {
-    return option<Name, T, Opts...> {longopt, &val, opts...};
+impl::option<Name, T, Opts...> value(const string &longopt, T &val, Opts... opts) {
+    return impl::option<Name, T, Opts...> {longopt, &val, opts...};
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, Opts...> value(const char* longopt, T &val, Opts... opts) {
+impl::option<Name, T, Opts...> value(const char* longopt, T &val, Opts... opts) {
     return value<Name, T, Opts...>(string {longopt}, val, opts...);
 }
 
 template<char Name, class T, class... Opts>
-option<Name, T, tag::ignore_long<true>, Opts...> value(T &val, Opts... opts) {
-    return option<Name, T, tag::ignore_long<true>, Opts...> {&val, tag::ignore_long<true>{}, opts...};
+impl::option<Name, T, tag::ignore_long<true>, Opts...> value(T &val, Opts... opts) {
+    return impl::option<Name, T, tag::ignore_long<true>, Opts...> {&val, tag::ignore_long<true>{}, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, tag::ignore_long<true>, Opts...> toggle(Opts... opts) {
-    return option<Name, bool, tag::ignore_long<true>, Opts...> {tag::ignore_long<true>{}, opts...};
+impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(Opts... opts) {
+    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {tag::ignore_long<true>{}, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool &value, Opts... opts) {
-    return option<Name, bool, tag::ignore_long<true>, Opts...> {&value};
+impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool &value, Opts... opts) {
+    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {&value};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const string &longopt, Opts... opts) {
-    return option<Name, bool, Opts...> {longopt, opts...};
+impl::option<Name, bool, Opts...> toggle(const string &longopt, Opts... opts) {
+    return impl::option<Name, bool, Opts...> {longopt, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const char* longopt, Opts... opts) {
+impl::option<Name, bool, Opts...> toggle(const char* longopt, Opts... opts) {
     return toggle<Name, Opts...>(string {longopt}, opts...);
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const string &longopt, bool &value, Opts... opts) {
-    return option<Name, bool, Opts...> {longopt, &value, opts...};
+impl::option<Name, bool, Opts...> toggle(const string &longopt, bool &value, Opts... opts) {
+    return impl::option<Name, bool, Opts...> {longopt, &value, opts...};
 }
 
 template<char Name, class... Opts>
-option<Name, bool, Opts...> toggle(const char* longopt, bool &value, Opts... opts) {
+impl::option<Name, bool, Opts...> toggle(const char* longopt, bool &value, Opts... opts) {
     return toggle<Name, Opts...>(string {longopt}, value, opts...);
 }
 
