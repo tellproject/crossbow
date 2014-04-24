@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cassert>
 #include <type_traits>
+#include <memory>
 
 namespace crossbow {
 
