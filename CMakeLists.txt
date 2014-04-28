@@ -9,11 +9,15 @@ else(APPLE)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 endif(APPLE)
 
+set(ENABLE_TESTS OFF CACHE BOOL "build and execute tests (currently only supported on Clang/Mac OS X)")
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 install(DIRECTORY crossbow DESTINATION include FILES_MATCHING PATTERN "*.hpp")
 
-enable_testing()
-add_subdirectory(test)
+if(${ENABLE_TESTS})
+    enable_testing()
+    add_subdirectory(test)
+endif()
 add_subdirectory(libs)
 
