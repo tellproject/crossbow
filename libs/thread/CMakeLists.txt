@@ -1,4 +1,4 @@
-find_package(Boost 1.54 COMPONENTS context)
+find_package(Boost 1.49 COMPONENTS context)
 if (${Boost_FOUND})
     include_directories(${Boost_INCLUDE_DIR})
     set(CMAKE_THREAD_PREFER_PTHREAD ON)
