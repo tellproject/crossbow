@@ -25,6 +25,8 @@ if (${Boost_FOUND})
 
     do_test(simple_test)
     do_test(fibonacci)
+    set(HAS_THREAD True)
 else()
     message(STATUS "Could not find Boost - won't build thread library")
+    set(HAS_THREAD False)
 endif()

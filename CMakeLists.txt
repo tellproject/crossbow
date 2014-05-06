@@ -17,3 +17,6 @@ enable_testing()
 add_subdirectory(test)
 add_subdirectory(libs)
 
+configure_file(${CMAKE_SOURCE_DIR}/CrossbowConfig.cmake.in ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake DESTINATION cmake)
+
