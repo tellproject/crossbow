@@ -1,6 +1,8 @@
 find_package(Boost 1.54 COMPONENTS context)
 if (${Boost_FOUND})
     include_directories(${Boost_INCLUDE_DIR})
+    set(CMAKE_THREAD_PREFER_PTHREAD ON)
+    find_package(Threads REQUIRED)
 
     set(SRC
         thread/thread.hpp
@@ -9,7 +11,7 @@ if (${Boost_FOUND})
         )
 
     add_library(crossbow_thread ${SRC})
-    target_link_libraries(crossbow_thread ${Boost_LIBRARIES})
+    target_link_libraries(crossbow_thread ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
 
     install(FILES "thread.hpp" DESTINATION include/crossbow)
     install(DIRECTORY "thread" DESTINATION include/crossbow)
