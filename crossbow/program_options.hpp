@@ -318,7 +318,7 @@ template<char Name, class O>
 decltype(std::declval<O>().template get<Name>()) get(const std::unique_ptr<O> &opts) {
     const O &o = *opts;
     return o.template get<Name>();
-};
+}
 
 template<class... Opts>
 std::unique_ptr<impl::options<Opts...>> create_options(const string &name, Opts && ... opts) {
