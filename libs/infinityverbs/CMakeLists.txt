@@ -1,36 +1,40 @@
 find_package(Ibverbs)
-if (${Ibverbs_FOUND})
-    include_directories(${Ibverbs_INCLUDE_DIRS})
+if (${IBVERBS_FOUND})
+    include_directories(${Ibverbs_INCLUDE_DIR})
     set(SRCS
-        core/Configuration.hpp
-        core/Context.cpp
-        core/Context.hpp
-        core/DirectMemoryAccessStore.cpp
-        core/DirectMemoryAccessStore.hpp
-        core/MemoryTokenStore.cpp
-        core/MemoryTokenStore.hpp
-        core/SerializedMemoryToken.hpp
-        InfinityVerbs.hpp
-        memory/AtomicValue.cpp
-        memory/AtomicValue.hpp
-        memory/MemoryRegion.hpp
-        memory/MemoryRegionType.hpp
-        memory/MemoryToken.cpp
-        memory/MemoryToken.hpp
-        memory/RdmaBuffer.cpp
-        memory/RdmaBuffer.hpp
-        queues/QueuePair.cpp
-        queues/QueuePair.hpp
-        queues/QueuePairFactory.cpp
-        queues/QueuePairFactory.hpp
-        tools/AddressResolver.cpp
-        tools/AddressResolver.hpp
-        tools/Lock.cpp
-        tools/Lock.hpp
-        tools/ThreadControl.cpp
-        tools/ThreadControl.hpp)
+        src/core/Configuration.hpp
+        src/core/Context.cpp
+        src/core/Context.hpp
+        src/core/DirectMemoryAccessStore.cpp
+        src/core/DirectMemoryAccessStore.hpp
+        src/core/MemoryTokenStore.cpp
+        src/core/MemoryTokenStore.hpp
+        src/core/SerializedMemoryToken.hpp
+        src/InfinityVerbs.hpp
+        src/memory/AtomicValue.cpp
+        src/memory/AtomicValue.hpp
+        src/memory/MemoryRegion.hpp
+        src/memory/MemoryRegionType.hpp
+        src/memory/MemoryToken.cpp
+        src/memory/MemoryToken.hpp
+        src/memory/RdmaBuffer.cpp
+        src/memory/RdmaBuffer.hpp
+        src/queues/QueuePair.cpp
+        src/queues/QueuePair.hpp
+        src/queues/QueuePairFactory.cpp
+        src/queues/QueuePairFactory.hpp
+        src/tools/AddressResolver.cpp
+        src/tools/AddressResolver.hpp
+        src/tools/Lock.cpp
+        src/tools/Lock.hpp
+        src/tools/ThreadControl.cpp
+        src/tools/ThreadControl.hpp)
     add_library(crossbow_infinityverbs ${SRCS})
-    target_link_libraries(crossbow_infinityverbs ${Ibverbs_LIBRARIES})
+    target_link_libraries(crossbow_infinityverbs ${Ibverbs_LIBRARY})
+
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_executable(infinityverbs_sample examples/src/main.cpp)
+    target_link_libraries(infinityverbs_sample crossbow_infinityverbs ${Ibverbs_LIBRARY})
 
     # for installing
     foreach(source ${SRCS})
