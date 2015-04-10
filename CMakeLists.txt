@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(crossbow)
 
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
+
 if(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -stdlib=libc++ -fPIC -Werror -march=native -ferror-limit=5")
 else(APPLE)
