@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <boost/lockfree/queue.hpp>
 #include <boost/context/all.hpp>
+#include <boost/version.hpp>
 #include <unistd.h>
 #include <cassert>
 #include <cstdlib>
@@ -159,7 +160,11 @@ struct thread_impl {
     void* sp;
     std::function<void()> fun;
     boost::context::fcontext_t ocontext;
+#if BOOST_VERSION >= 105600
+    boost::context::fcontext_t fc;
+#else
     boost::context::fcontext_t* fc;
+#endif
     volatile bool is_detached;
     volatile state state_;
     volatile bool in_queue;
@@ -312,7 +317,11 @@ void run_function(intptr_t funptr) {
     crossbow::impl::thread_impl* timpl = (crossbow::impl::thread_impl*)funptr;
     (timpl->fun)();
     // jump back to scheduler
+#if BOOST_VERSION >= 105600
+    boost::context::jump_fcontext(&timpl->fc, timpl->ocontext, 0);
+#else
     boost::context::jump_fcontext(timpl->fc, &(timpl->ocontext), 0);
+#endif
     assert(false); // never returns
 }
 
