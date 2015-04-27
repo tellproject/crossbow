@@ -348,7 +348,7 @@ impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(Opts... opts) {
 
 template<char Name, class... Opts>
 impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool &value, Opts... opts) {
-    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {&value};
+    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {&value, opts...};
 }
 
 template<char Name, class... Opts>
