@@ -3,6 +3,7 @@ project(crossbow)
 
 # Declare build options
 option(ENABLE_TESTS "Build and execute tests (currently only supported on Clang/Mac OS X)" OFF)
+option(INFINIO_DEBUG "Build Infinio with debug logging enabled" OFF)
 
 # Set default install paths
 set(CMAKE_INSTALL_DIR cmake CACHE PATH "Installation directory for CMake files")
@@ -20,6 +21,8 @@ else(APPLE)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 endif(APPLE)
+
+set(Crossbow_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Install Crossbow headers
 install(DIRECTORY crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.hpp")
