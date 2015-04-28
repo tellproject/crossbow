@@ -115,6 +115,8 @@ void InfinibandService::shutdown(boost::system::error_code& ec) {
     mChannel = nullptr;
 
     SERVICE_LOG("Wait for event poll thread");
+    // TODO: Ask Jonas whether there is a better solution to thish
+    mPollingThread.detach();
     mPollingThread.join();
 }
 
