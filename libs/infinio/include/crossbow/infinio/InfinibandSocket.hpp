@@ -167,7 +167,7 @@ public:
  */
 class InfinibandSocketHandler: public InfinibandBaseHandler {
 private:
-    virtual bool onConnection(InfinibandSocket socket) override;
+    virtual bool onConnection(InfinibandSocket socket) final override;
 };
 
 /**
@@ -177,15 +177,17 @@ private:
  */
 class InfinibandAcceptorHandler: public InfinibandBaseHandler {
 private:
-    virtual void onConnected(const boost::system::error_code& ec) override;
+    virtual void onConnected(const boost::system::error_code& ec) final override;
 
-    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) final
+        override;
 
-    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) final
+        override;
 
-    virtual void onDisconnect() override;
+    virtual void onDisconnect() final override;
 
-    virtual void onDisconnected() override;
+    virtual void onDisconnected() final override;
 };
 
 } // namespace infinio
