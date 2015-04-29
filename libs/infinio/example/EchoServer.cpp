@@ -23,9 +23,9 @@ public:
 private:
     virtual void onConnected(const boost::system::error_code& ec) override;
 
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
 
-    virtual void onSend(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
 
     virtual void onDisconnect() override;
 
@@ -44,7 +44,8 @@ void EchoConnection::onConnected(const boost::system::error_code& ec) {
     std::cout << "Connected" << std::endl;
 }
 
-void EchoConnection::onReceive(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
+void EchoConnection::onReceive(const InfinibandBuffer& buffer, size_t length,
+        const boost::system::error_code& /* ec */) {
     boost::system::error_code ec;
 
     // Acquire buffer with same size
@@ -55,7 +56,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const boost::s
     }
 
     // Copy received message into send buffer
-    memcpy(sendbuffer.data(), buffer, length);
+    memcpy(sendbuffer.data(), buffer.data(), length);
 
     // Send incoming message back to client
     mSocket.send(sendbuffer, ec);
@@ -64,7 +65,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const boost::s
     }
 }
 
-void EchoConnection::onSend(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
+void EchoConnection::onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& /* ec */) {
 }
 
 void EchoConnection::onDisconnect() {

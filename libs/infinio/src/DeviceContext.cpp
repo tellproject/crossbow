@@ -247,7 +247,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             COMPLETION_LOG("Executing successful receive event of id %1%", bufferid);
 
             auto buffer = mBufferManager.acquireBuffer(bufferid, gReceiveBufferLength);
-            impl->handler->onReceive(buffer.data(), byte_len, ec);
+            impl->handler->onReceive(buffer, byte_len, ec);
 
             boost::system::error_code ec2;
             postReceiveBuffer(mReceiveQueue, buffer, ec2);
@@ -265,7 +265,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             COMPLETION_LOG("Executing successful send event of id %1%", bufferid);
 
             auto buffer = mBufferManager.acquireBuffer(bufferid, gReceiveBufferLength);
-            impl->handler->onSend(buffer.data(), byte_len, ec);
+            impl->handler->onSend(buffer, byte_len, ec);
 
             mBufferManager.releaseBuffer(bufferid);
 

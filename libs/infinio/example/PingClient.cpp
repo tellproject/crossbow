@@ -26,9 +26,9 @@ public:
 private:
     virtual void onConnected(const boost::system::error_code& ec) override;
 
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
 
-    virtual void onSend(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
 
     virtual void onDisconnect() override;
 
@@ -77,10 +77,11 @@ void PingConnection::onConnected(const boost::system::error_code& ec) {
     sendMessage();
 }
 
-void PingConnection::onReceive(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
+void PingConnection::onReceive(const InfinibandBuffer& buffer, size_t length,
+        const boost::system::error_code& /* ec */) {
     // Calculate RTT
     auto now = std::chrono::steady_clock::now().time_since_epoch();
-    auto start = std::chrono::nanoseconds(*reinterpret_cast<const uint64_t*>(buffer));
+    auto start = std::chrono::nanoseconds(*reinterpret_cast<const uint64_t*>(buffer.data()));
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(now) - start;
     std::cout << "RTT is " << duration.count() << "ns" << std::endl;
 
@@ -96,7 +97,7 @@ void PingConnection::onReceive(const void* buffer, size_t length, const boost::s
     }
 }
 
-void PingConnection::onSend(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
+void PingConnection::onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& /* ec */) {
 }
 
 void PingConnection::onDisconnect() {

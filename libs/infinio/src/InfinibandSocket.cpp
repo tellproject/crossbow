@@ -78,11 +78,13 @@ void InfinibandAcceptorHandler::onConnected(const boost::system::error_code& ec)
     // TODO This should never be called
 }
 
-void InfinibandAcceptorHandler::onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) {
+void InfinibandAcceptorHandler::onReceive(const InfinibandBuffer& buffer, size_t length,
+        const boost::system::error_code& ec) {
     // TODO This should never be called
 }
 
-void InfinibandAcceptorHandler::onSend(const void* buffer, size_t length, const boost::system::error_code& ec) {
+void InfinibandAcceptorHandler::onSend(const InfinibandBuffer& buffer, size_t length,
+        const boost::system::error_code& ec) {
     // TODO This should never be called
 }
 
