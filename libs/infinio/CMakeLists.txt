@@ -15,6 +15,7 @@ find_package(Boost COMPONENTS system REQUIRED)
 find_package(Threads REQUIRED)
 
 set(SRCS
+    include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/EventDispatcher.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
     include/crossbow/infinio/InfinibandService.hpp
@@ -25,6 +26,7 @@ set(SRCS
     src/BufferManager.cpp
     src/DeviceContext.hpp
     src/DeviceContext.cpp
+    src/Endpoint.cpp
     src/ErrorCode.hpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp

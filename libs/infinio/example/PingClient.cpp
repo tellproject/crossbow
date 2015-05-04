@@ -1,3 +1,4 @@
+#include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
@@ -6,8 +7,6 @@
 
 #include <chrono>
 #include <iostream>
-
-#include <arpa/inet.h>
 
 using namespace crossbow::infinio;
 
@@ -58,12 +57,7 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
     mSocket.setHandler(this);
 
     // Connect to remote server
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    inet_aton(server.c_str(), &addr.sin_addr);
-    addr.sin_port = htons(port);
-    mSocket.connect(reinterpret_cast<struct sockaddr*>(&addr), ec);
+    mSocket.connect(Endpoint(Endpoint::ipv4(), server, port), ec);
     if (ec) {
         std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
     }

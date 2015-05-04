@@ -8,11 +8,10 @@
 
 #include <rdma/rdma_cma.h>
 
-#include <sys/socket.h>
-
 namespace crossbow {
 namespace infinio {
 
+class Endpoint;
 class InfinibandService;
 class InfinibandBaseHandler;
 class SocketImplementation;
@@ -30,7 +29,7 @@ public:
 
     void close(boost::system::error_code& ec);
 
-    void bind(sockaddr* addr, boost::system::error_code& ec);
+    void bind(const Endpoint& addr, boost::system::error_code& ec);
 
     void setHandler(InfinibandBaseHandler* handler);
 
@@ -77,7 +76,7 @@ public:
             : InfinibandBaseSocket(transport, impl) {
     }
 
-    void connect(sockaddr* addr, boost::system::error_code& ec);
+    void connect(const Endpoint& addr, boost::system::error_code& ec);
 
     void disconnect(boost::system::error_code& ec);
 

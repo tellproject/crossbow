@@ -34,7 +34,7 @@ void InfinibandBaseSocket::close(boost::system::error_code& ec) {
     mImpl = nullptr;
 }
 
-void InfinibandBaseSocket::bind(struct sockaddr* addr, boost::system::error_code& ec) {
+void InfinibandBaseSocket::bind(const Endpoint& addr, boost::system::error_code& ec) {
     mTransport.bind(mImpl, addr, ec);
 }
 
@@ -46,7 +46,7 @@ void InfinibandAcceptor::listen(int backlog, boost::system::error_code& ec) {
     mTransport.listen(mImpl, backlog, ec);
 }
 
-void InfinibandSocket::connect(sockaddr* addr, boost::system::error_code& ec) {
+void InfinibandSocket::connect(const Endpoint& addr, boost::system::error_code& ec) {
     mTransport.connect(mImpl, addr, ec);
 }
 

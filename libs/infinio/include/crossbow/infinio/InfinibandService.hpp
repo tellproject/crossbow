@@ -8,12 +8,11 @@
 
 #include <rdma/rdma_cma.h>
 
-#include <sys/socket.h>
-
 namespace crossbow {
 namespace infinio {
 
 class DeviceContext;
+class Endpoint;
 class EventDispatcher;
 class InfinibandBuffer;
 class SocketImplementation;
@@ -43,11 +42,11 @@ public:
 
     void close(SocketImplementation* impl, boost::system::error_code& ec);
 
-    void bind(SocketImplementation* impl, struct sockaddr* addr, boost::system::error_code& ec);
+    void bind(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec);
 
     void listen(SocketImplementation* impl, int backlog, boost::system::error_code& ec);
 
-    void connect(SocketImplementation* impl, struct sockaddr* addr, boost::system::error_code& ec);
+    void connect(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec);
 
     void disconnect(SocketImplementation* impl, boost::system::error_code& ec);
 

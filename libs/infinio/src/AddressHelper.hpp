@@ -2,6 +2,7 @@
 
 #include <rdma/rdma_cma.h>
 
+#include <iosfwd>
 #include <string>
 
 namespace crossbow {
@@ -10,7 +11,12 @@ namespace infinio {
 /**
  * @brief Returns the address in a human readable format
  */
-std::string formatAddress(struct sockaddr* addr);
+void printAddress(std::ostream& out, const struct sockaddr* addr);
+
+/**
+ * @brief Returns the address in a human readable format
+ */
+std::string formatAddress(const struct sockaddr* addr);
 
 /**
  * @brief Returns the address of the remote host in a human readable format

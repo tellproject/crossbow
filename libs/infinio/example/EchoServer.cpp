@@ -1,3 +1,4 @@
+#include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
@@ -7,8 +8,6 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
-
-#include <arpa/inet.h>
 
 using namespace crossbow::infinio;
 
@@ -119,11 +118,7 @@ void EchoAcceptor::open(uint16_t port) {
     mAcceptor.setHandler(this);
 
     // Bind socket
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    mAcceptor.bind(reinterpret_cast<struct sockaddr*>(&addr), ec);
+    mAcceptor.bind(Endpoint(Endpoint::ipv4(), port), ec);
     if (ec) {
         std::cout << "Bind failed " << ec << " - " << ec.message() << std::endl;
         std::terminate();

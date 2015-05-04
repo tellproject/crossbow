@@ -1,5 +1,6 @@
 #include <crossbow/infinio/InfinibandService.hpp>
 
+#include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
@@ -151,15 +152,15 @@ void InfinibandService::close(SocketImplementation* impl, boost::system::error_c
     impl->state.store(ConnectionState::CLOSED);
 }
 
-void InfinibandService::bind(SocketImplementation* impl, sockaddr* addr, boost::system::error_code& ec) {
+void InfinibandService::bind(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec) {
     if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
         ec = error::bad_descriptor;
         return;
     }
 
-    SERVICE_LOG("Bind on address %1%", formatAddress(addr));
+    SERVICE_LOG("Bind on address %1%", addr);
     errno = 0;
-    if (rdma_bind_addr(impl->id, addr) != 0) {
+    if (rdma_bind_addr(impl->id, const_cast<Endpoint&>(addr).handle()) != 0) {
         ec = boost::system::error_code(errno, boost::system::system_category());
         return;
     }
@@ -180,15 +181,15 @@ void InfinibandService::listen(SocketImplementation* impl, int backlog, boost::s
     impl->state.store(ConnectionState::LISTENING);
 }
 
-void InfinibandService::connect(SocketImplementation* impl, sockaddr* addr, boost::system::error_code& ec) {
+void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec) {
     if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
         ec = error::bad_descriptor;
         return;
     }
 
-    SERVICE_LOG("%1%: Connect to address", formatAddress(addr));
+    SERVICE_LOG("%1%: Connect to address", addr);
     errno = 0;
-    if (rdma_resolve_addr(impl->id, nullptr, addr, gTimeout.count()) != 0) {
+    if (rdma_resolve_addr(impl->id, nullptr, const_cast<Endpoint&>(addr).handle(), gTimeout.count()) != 0) {
         ec = boost::system::error_code(errno, boost::system::system_category());
         return;
     }
