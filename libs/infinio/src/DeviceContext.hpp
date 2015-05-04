@@ -2,6 +2,7 @@
 
 #include "BufferManager.hpp"
 
+#include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/concurrent_map.hpp>
 
 #include <atomic>
@@ -25,8 +26,11 @@ class SocketImplementation;
  */
 class CompletionContext {
 public:
-    CompletionContext(BufferManager& bufferManager)
+    CompletionContext(BufferManager& bufferManager, const InfinibandLimits& limits)
             : mBufferManager(bufferManager),
+              mSendQueueLength(limits.sendQueueLength),
+              mCompletionQueueLength(limits.completionQueueLength),
+              mPollCycles(limits.pollCycles),
               mProtectionDomain(nullptr),
               mReceiveQueue(nullptr),
               mCompletionQueue(nullptr),
@@ -129,6 +133,15 @@ private:
 
     BufferManager& mBufferManager;
 
+    /// Size of the send queue to allocate for each connection
+    uint32_t mSendQueueLength;
+
+    /// Size of the completion queue to allocate
+    uint32_t mCompletionQueueLength;
+
+    /// Number of iterations to poll when there is no work completion
+    uint64_t mPollCycles;
+
     struct ibv_pd* mProtectionDomain;
     struct ibv_srq* mReceiveQueue;
     struct ibv_cq* mCompletionQueue;
@@ -151,13 +164,14 @@ private:
  */
 class DeviceContext {
 public:
-    DeviceContext(EventDispatcher& dispatcher, struct ibv_context* verbs)
+    DeviceContext(EventDispatcher& dispatcher, const InfinibandLimits& limits, struct ibv_context* verbs)
             : mDispatcher(dispatcher),
+              mReceiveQueueLength(limits.receiveQueueLength),
               mVerbs(verbs),
               mProtectionDomain(nullptr),
               mReceiveQueue(nullptr),
-              mBufferManager(),
-              mCompletion(mBufferManager),
+              mBufferManager(limits),
+              mCompletion(mBufferManager, limits),
               mShutdown(false) {
     }
 
@@ -207,7 +221,11 @@ public:
         mCompletion.removeConnection(impl, ec);
     }
 
-    InfinibandBuffer acquireBuffer(size_t length) {
+    uint32_t bufferLength() const {
+        return mBufferManager.bufferLength();
+    }
+
+    InfinibandBuffer acquireBuffer(uint32_t length) {
         return mBufferManager.acquireBuffer(length);
     }
 
@@ -222,6 +240,9 @@ private:
     void doPoll();
 
     EventDispatcher& mDispatcher;
+
+    /// Number of buffers to post on the shared receive queue
+    uint32_t mReceiveQueueLength;
 
     struct ibv_context* mVerbs;
     struct ibv_pd* mProtectionDomain;

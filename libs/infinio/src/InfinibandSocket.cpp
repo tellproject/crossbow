@@ -58,7 +58,11 @@ void InfinibandSocket::send(InfinibandBuffer& buffer, boost::system::error_code&
     mTransport.send(mImpl, buffer, ec);
 }
 
-InfinibandBuffer InfinibandSocket::acquireBuffer(size_t length) {
+uint32_t InfinibandSocket::bufferLength() const {
+    return mImpl->device->bufferLength();
+}
+
+InfinibandBuffer InfinibandSocket::acquireBuffer(uint32_t length) {
     return mImpl->device->acquireBuffer(length);
 }
 

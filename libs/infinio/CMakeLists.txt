@@ -18,6 +18,7 @@ set(SRCS
     include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/EventDispatcher.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
+    include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
     include/crossbow/infinio/InfinibandSocket.hpp
     src/AddressHelper.cpp

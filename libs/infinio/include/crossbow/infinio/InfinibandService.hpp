@@ -1,5 +1,7 @@
 #pragma once
 
+#include <crossbow/infinio/InfinibandLimits.hpp>
+
 #include <boost/system/error_code.hpp>
 
 #include <atomic>
@@ -26,7 +28,11 @@ class SocketImplementation;
  */
 class InfinibandService {
 public:
-    InfinibandService(EventDispatcher& dispatcher);
+    InfinibandService(EventDispatcher& dispatcher)
+            : InfinibandService(dispatcher, InfinibandLimits()) {
+    }
+
+    InfinibandService(EventDispatcher& dispatcher, const InfinibandLimits& limits);
 
     ~InfinibandService();
 
@@ -149,6 +155,9 @@ private:
 
     /// Dispatcher to execute all actions on
     EventDispatcher& mDispatcher;
+
+    /// Configurable limits for the Infiniband devices
+    InfinibandLimits mLimits;
 
     /// Thread polling the RDMA event channel for events
     std::thread mPollingThread;

@@ -49,7 +49,7 @@ void dispatchConnectionError(EventDispatcher& dispatcher, struct rdma_cm_id* id,
 
 } // anonymous namespace
 
-InfinibandService::InfinibandService(EventDispatcher& dispatcher)
+InfinibandService::InfinibandService(EventDispatcher& dispatcher, const InfinibandLimits& limits)
         : mDispatcher(dispatcher),
           mDevice(nullptr),
           mShutdown(false) {
@@ -246,7 +246,7 @@ void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffe
 DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
     if (!mDevice) {
         SERVICE_LOG("Initialize device context");
-        mDevice.reset(new DeviceContext(mDispatcher, verbs));
+        mDevice.reset(new DeviceContext(mDispatcher, mLimits, verbs));
 
         boost::system::error_code ec;
         mDevice->init(ec);

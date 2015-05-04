@@ -21,31 +21,6 @@ namespace infinio {
 namespace {
 
 /**
- * @brief Buffer size of the buffers to post on the shared receive queue
- */
-constexpr size_t gReceiveBufferLength = 1024;
-
-/**
- * @brief Number of buffers to post on the shared receive queue
- */
-constexpr size_t gReceiveQueueLength = 4;
-
-/**
- * @brief Size of the send queue to allocate for each connection
- */
-constexpr size_t gSendQueueLength = 10;
-
-/**
- * @brief Size of the completion queue to allocate for each completion context
- */
-constexpr size_t gCompletionQueueLength = 10;
-
-/**
- * @brief Number of iterations to poll when there is no work completion
- */
-constexpr size_t gPollCycles = 1000000;
-
-/**
  * @brief Helper function posting the buffer to the shared receive queue
  */
 void postReceiveBuffer(struct ibv_srq* srq, InfinibandBuffer& buffer, boost::system::error_code& ec) {
@@ -78,7 +53,7 @@ void CompletionContext::init(struct ibv_pd* protectionDomain, struct ibv_srq* re
 
     COMPLETION_LOG("Create completion queue");
     errno = 0;
-    mCompletionQueue = ibv_create_cq(mProtectionDomain->context, gCompletionQueueLength, nullptr, nullptr, 0);
+    mCompletionQueue = ibv_create_cq(mProtectionDomain->context, mCompletionQueueLength, nullptr, nullptr, 0);
     if (mCompletionQueue == nullptr) {
         ec = boost::system::error_code(errno, boost::system::system_category());
         return;
@@ -106,7 +81,7 @@ void CompletionContext::addConnection(SocketImplementation* impl, boost::system:
     qp_attr.send_cq = mCompletionQueue;
     qp_attr.recv_cq = mCompletionQueue;
     qp_attr.srq = mReceiveQueue;
-    qp_attr.cap.max_send_wr = gSendQueueLength;
+    qp_attr.cap.max_send_wr = mSendQueueLength;
     qp_attr.cap.max_send_sge = 1;
     qp_attr.qp_type = IBV_QPT_RC;
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
@@ -145,9 +120,9 @@ void CompletionContext::removeConnection(SocketImplementation* impl, boost::syst
 
 void CompletionContext::poll(EventDispatcher& dispatcher, boost::system::error_code& ec) {
     std::vector<SocketImplementation*> draining;
-    struct ibv_wc wc[gCompletionQueueLength];
+    struct ibv_wc wc[mCompletionQueueLength];
 
-    for (size_t j = 0; j < gPollCycles; ++j) {
+    for (size_t j = 0; j < mPollCycles; ++j) {
         while (true) {
             SocketImplementation* impl = nullptr;
             if (!mDrainingQueue.pop(impl)) {
@@ -158,7 +133,7 @@ void CompletionContext::poll(EventDispatcher& dispatcher, boost::system::error_c
 
         // Poll the completion queue
         errno = 0;
-        auto num = ibv_poll_cq(mCompletionQueue, gCompletionQueueLength, wc);
+        auto num = ibv_poll_cq(mCompletionQueue, mCompletionQueueLength, wc);
 
         // Check if polling the completion queue failed
         if (num < 0) {
@@ -207,7 +182,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         // In the case that we have no socket associated with the qp_num we just repost the buffer to the shared receive
         // queue or release the buffer in the case of send
         if (op == 0x1u) {
-            auto buffer = mBufferManager.acquireBuffer(bufferid, gReceiveBufferLength);
+            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
             postReceiveBuffer(mReceiveQueue, buffer, ec);
             if (ec) {
                 mBufferManager.releaseBuffer(bufferid);
@@ -246,7 +221,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         dispatcher.post([this, impl, bufferid, byte_len, ec] () {
             COMPLETION_LOG("Executing successful receive event of id %1%", bufferid);
 
-            auto buffer = mBufferManager.acquireBuffer(bufferid, gReceiveBufferLength);
+            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
             impl->handler->onReceive(buffer, byte_len, ec);
 
             boost::system::error_code ec2;
@@ -264,7 +239,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         dispatcher.post([this, impl, bufferid, byte_len, ec] () {
             COMPLETION_LOG("Executing successful send event of id %1%", bufferid);
 
-            auto buffer = mBufferManager.acquireBuffer(bufferid, gReceiveBufferLength);
+            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
             impl->handler->onSend(buffer, byte_len, ec);
 
             mBufferManager.releaseBuffer(bufferid);
@@ -343,7 +318,7 @@ void DeviceContext::init(boost::system::error_code& ec) {
     DEVICE_LOG("Create shared receive queue");
     struct ibv_srq_init_attr srq_attr;
     memset(&srq_attr, 0, sizeof(srq_attr));
-    srq_attr.attr.max_wr = gReceiveQueueLength;
+    srq_attr.attr.max_wr = mReceiveQueueLength;
     srq_attr.attr.max_sge = 1;
 
     errno = 0;
@@ -359,9 +334,9 @@ void DeviceContext::init(boost::system::error_code& ec) {
         return;
     }
 
-    DEVICE_LOG("Post %1% buffers to shared receive queue", gReceiveQueueLength);
-    for (size_t i = 0; i < gReceiveQueueLength; ++i) {
-        auto buffer = mBufferManager.acquireBuffer(gReceiveBufferLength);
+    DEVICE_LOG("Post %1% buffers to shared receive queue", mReceiveQueueLength);
+    for (size_t i = 0; i < mReceiveQueueLength; ++i) {
+        auto buffer = mBufferManager.acquireBuffer(mBufferManager.bufferLength());
         postReceiveBuffer(mReceiveQueue, buffer, ec);
         if (ec) {
             mBufferManager.releaseBuffer(buffer.id());

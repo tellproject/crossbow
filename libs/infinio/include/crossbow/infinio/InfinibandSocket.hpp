@@ -82,7 +82,9 @@ public:
 
     void send(InfinibandBuffer& buffer, boost::system::error_code& ec);
 
-    InfinibandBuffer acquireBuffer(size_t length);
+    uint32_t bufferLength() const;
+
+    InfinibandBuffer acquireBuffer(uint32_t length);
 
     void releaseBuffer(uint32_t id);
 };

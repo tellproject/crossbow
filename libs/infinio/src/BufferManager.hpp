@@ -1,6 +1,7 @@
 #pragma once
 
 #include <crossbow/infinio/InfinibandBuffer.hpp>
+#include <crossbow/infinio/InfinibandLimits.hpp>
 
 #include <boost/lockfree/queue.hpp>
 #include <boost/system/error_code.hpp>
@@ -22,19 +23,12 @@ namespace infinio {
  */
 class BufferManager {
 public:
-    /**
-     * @brief Maximum size of any buffer
-     */
-    static constexpr size_t gBufferLength = 1024;
-
-    /**
-     * @brief Number of buffers to be allocated
-     */
-    static constexpr size_t gBufferCount = 8;
-
-    BufferManager()
-            : mData(nullptr),
-              mDataRegion(nullptr) {
+    BufferManager(const InfinibandLimits& limits)
+            : mBufferCount(limits.bufferCount),
+              mBufferLength(limits.bufferLength),
+              mData(nullptr),
+              mDataRegion(nullptr),
+              mBufferQueue(limits.bufferCount) {
     }
 
     ~BufferManager() {
@@ -43,6 +37,13 @@ public:
         if (ec) {
             // TODO Log error?
         }
+    }
+
+    /**
+     * @brief Maximum buffer length this buffer manager is able to allocate
+     */
+    uint32_t bufferLength() const {
+        return mBufferLength;
     }
 
     /**
@@ -101,6 +102,12 @@ public:
     void releaseBuffer(uint64_t id);
 
 private:
+    /// Number of buffers to be allocated
+    uint64_t mBufferCount;
+
+    /// Size of the allocated buffer
+    uint32_t mBufferLength;
+
     /// Pointer to the memory block acquired from the kernel
     void* mData;
 
@@ -108,7 +115,7 @@ private:
     struct ibv_mr* mDataRegion;
 
     /// Queue containing IDs of buffers that are not in use
-    boost::lockfree::queue<uint64_t, boost::lockfree::capacity<gBufferCount>> mBufferQueue;
+    boost::lockfree::queue<uint64_t, boost::lockfree::fixed_sized<true>> mBufferQueue;
 };
 
 } // namespace infinio
