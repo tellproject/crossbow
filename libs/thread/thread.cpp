@@ -14,6 +14,9 @@
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
+#include <config.hpp>
+
+namespace crossbow {
 namespace {
 
 inline unsigned int rdtsc() {
@@ -59,8 +62,6 @@ unsigned get_num_cpus() {
 #endif
     return std::thread::hardware_concurrency();
 }
-
-constexpr size_t STACK_SIZE = 8192 * 1024;
 
 struct stack_allocator {
     static boost::lockfree::queue<char*, boost::lockfree::fixed_sized<true>, boost::lockfree::capacity<1024> > stacks;
@@ -145,8 +146,6 @@ void schedule(processor &p);
 
 } // namspace <anonymous>
 
-namespace crossbow {
-
 namespace impl {
 
 struct thread_impl {
@@ -174,7 +173,7 @@ struct thread_impl {
     }
     thread_impl(const thread_impl &) = delete;
     thread_impl(thread_impl && o)
-        : sp(o.sp), fun(std::move(o.fun)), ocontext(std::move(ocontext)), fc(o.fc),
+        : sp(o.sp), fun(std::move(o.fun)), ocontext(std::move(o.ocontext)), fc(o.fc),
           is_detached(o.is_detached) {
         o.sp = nullptr;
         o.fc = nullptr;
@@ -309,8 +308,6 @@ void sleep_until(const std::chrono::time_point<Clock, Duration> &sleep_time) {
 
 } // namespace this_thread
 
-} // namespace crossbow
-
 namespace {
 
 void run_function(intptr_t funptr) {
@@ -366,3 +363,5 @@ void schedule(processor &p) {
 }
 
 } // namespace anonymous
+} // namespace crossbow
+

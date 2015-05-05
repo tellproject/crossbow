@@ -1,8 +1,12 @@
 find_package(Boost 1.49 COMPONENTS context)
+set(CMAKE_THREAD_PREFER_PTHREAD ON)
+find_package(Threads)
 if (${Boost_FOUND})
+    set(STACK_SIZE "0x8000" CACHE STRING "The size of a stack")
+    configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.hpp)
+
     include_directories(${Boost_INCLUDE_DIR})
-    set(CMAKE_THREAD_PREFER_PTHREAD ON)
-    find_package(Threads REQUIRED)
+    include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
     set(SRC
         thread/thread.hpp
