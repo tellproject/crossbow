@@ -1,0 +1,7 @@
+set(SRC ${CMAKE_SOURCE_DIR}/thread/thread.hpp)
+file(GLOB files *.cpp)
+foreach(f ${files})
+    GET_FILENAME_COMPONENT(fname ${f} NAME_WE)
+    add_executable(${fname} ${f} ${SRC})
+    add_test("${fname}_test" ${fname})
+endforeach()

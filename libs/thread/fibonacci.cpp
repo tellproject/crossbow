@@ -48,18 +48,22 @@ struct test<Thread> {
     }
 };
 
-constexpr size_t num_measure = 10;
+constexpr size_t num_measure = 15;
 
 int main() {
     auto begin = std::chrono::system_clock::now();
     test<std::thread, num_measure>::run();
     auto end = std::chrono::system_clock::now();
     auto stdthread_time = end - begin;
+    std::cout << "With std::thread, test took "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(stdthread_time).count()
+        << " Milliseconds\n";
     begin = std::chrono::system_clock::now();
     test<crossbow::thread, num_measure>::run();
     end = std::chrono::system_clock::now();
     auto crossbow_time = end - begin;
-    std::cout << "With crossbow, test took " << std::chrono::duration_cast<std::chrono::milliseconds>(crossbow_time).count() << std::endl;
-    std::cout << "With std::thread, test took " << std::chrono::duration_cast<std::chrono::milliseconds>(stdthread_time).count() << std::endl;
+    std::cout << "With crossbow, test took "
+        << std::chrono::duration_cast<std::chrono::milliseconds>(crossbow_time).count()
+        << " Milliseconds\n";
     test<crossbow::thread, 1, 2, 10, 18>::run();
 }

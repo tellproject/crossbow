@@ -16,22 +16,16 @@ public:
     busy_mutex &operator= (const busy_mutex &) = delete;
 public:
     inline void lock() {
-        bool val = _m.load();
+        bool val = true;
         while (true) {
-            if (val) {
-                if (_m.compare_exchange_strong(val, false))
-                    return;
-            }
+            if (_m.compare_exchange_strong(val, false))
+                return;
         }
     }
 
     inline bool try_lock() {
-        bool val = _m.load();
-        if (val) {
-            if (_m.compare_exchange_strong(val, false))
-                return true;
-        }
-        return false;
+        bool val = true;
+        return _m.compare_exchange_strong(val, false);
     }
 
     inline void unlock() {

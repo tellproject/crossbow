@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 2.8.12)
 project(crossbow)
 
 # Declare build options
-option(ENABLE_TESTS "Build and execute tests (currently only supported on Clang/Mac OS X)" OFF)
+option(ENABLE_TESTS "Build and execute tests" ON)
+option(ENABLE_STRING_TESTS "enable tests for crossbow string (currently only supported for clang on OS X)" OFF)
 
 # Set default install paths
 set(CMAKE_INSTALL_DIR cmake CACHE PATH "Installation directory for CMake files")
@@ -28,10 +29,8 @@ install(DIRECTORY crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PAT
 add_subdirectory(libs)
 
 # Build Crossbow tests
-if(${ENABLE_TESTS})
-    enable_testing()
-    add_subdirectory(test)
-endif()
+enable_testing()
+add_subdirectory(test)
 
 # Create cmake config file
 configure_file(CrossbowConfig.cmake.in ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
