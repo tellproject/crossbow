@@ -1,7 +1,12 @@
 #pragma once
 #include <atomic>
+#include <boost/lockfree/queue.hpp>
 
 namespace crossbow {
+
+namespace impl {
+class thread_impl;
+} // namespace impl
 
 class busy_mutex {
     friend class mutex;
@@ -34,18 +39,12 @@ public:
 };
 
 class mutex {
-    std::atomic<bool> _m;
+    boost::lockfree::queue<impl::thread_impl*, boost::lockfree::fixed_sized<false>> queue;
+    std::atomic<int> mLock;
 public:
-    mutex() {}
-
-    mutex(const mutex &) = delete;
-
-    mutex &operator= (const mutex &) = delete;
-public:
+    mutex();
     void lock();
-
     bool try_lock();
-
     void unlock();
 };
 

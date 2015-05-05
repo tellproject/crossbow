@@ -10,16 +10,11 @@ struct thread_impl;
 
 } // namespace impl
 
-namespace this_thread {
-
-void yield();
-
-} // namespace this_thread
-
 class thread {
     impl::thread_impl* impl_ = nullptr;
     static impl::thread_impl* create_impl(std::function<void()>);
 public:
+    using id = impl::thread_impl*;
     thread() {}
     thread(const thread &) = delete;
     thread(thread && other);
@@ -35,5 +30,13 @@ public:
 
     void detach();
 };
+
+namespace this_thread {
+
+void yield();
+
+thread::id get_id();
+
+} // namespace this_thread
 
 } // namespace crossbow

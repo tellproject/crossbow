@@ -5,7 +5,6 @@
 #include <thread>
 #include <mutex>
 #include <unordered_map>
-#include <boost/lockfree/queue.hpp>
 #include <boost/context/all.hpp>
 #include <boost/version.hpp>
 #include <unistd.h>
@@ -14,9 +13,13 @@
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
+#include "common.hpp"
 #include <config.hpp>
 
 namespace crossbow {
+
+using namespace impl;
+
 namespace {
 
 inline unsigned int rdtsc() {
@@ -94,31 +97,23 @@ void free_stack(void* vp) {
 std::atomic<bool> initialized(false);
 std::mutex init_mutex;
 
-struct processor;
-void scheduler(processor &p);
-
-struct processor {
-    boost::lockfree::queue<crossbow::impl::thread_impl*, boost::lockfree::fixed_sized<true>, boost::lockfree::capacity<1024> > queue;
-    processor() {
-        auto t = std::thread([this]() {
-            scheduler(*this);
-        });
-        t.detach();
-    }
-    processor(bool main)
-    {}
-};
-
 processor** processors;
 volatile unsigned num_processors;
 crossbow::busy_mutex map_mutex;
 std::unordered_map<std::thread::id, processor*> this_thread_map;
 
-processor &this_processor() {
+} // anonymous namespace
+
+namespace impl {
+
+processor& this_processor() {
     std::lock_guard<decltype(map_mutex)> _(map_mutex);
     return *this_thread_map.at(std::this_thread::get_id());
 }
 
+} // namespace impl
+
+namespace {
 inline void default_init() {
     if (!initialized.load()) {
         std::lock_guard<std::mutex> _(init_mutex);
@@ -141,49 +136,14 @@ inline void default_init() {
 
 void run_function(intptr_t funptr);
 
-void scheduler(processor &p);
-void schedule(processor &p);
 
 } // namspace <anonymous>
 
 namespace impl {
 
-struct thread_impl {
-    enum class state {
-        RUNNING,
-        READY,
-        FINISHED,
-        BLOCKED
-    };
-
-    void* sp;
-    std::function<void()> fun;
-    boost::context::fcontext_t ocontext;
-#if BOOST_VERSION >= 105600
-    boost::context::fcontext_t fc;
-#else
-    boost::context::fcontext_t* fc;
-#endif
-    volatile bool is_detached;
-    volatile state state_;
-    volatile bool in_queue;
-    busy_mutex mutex;
-    thread_impl()
-        : sp(nullptr), fc(nullptr), is_detached(false), state_(state::READY), in_queue(true) {
-    }
-    thread_impl(const thread_impl &) = delete;
-    thread_impl(thread_impl && o)
-        : sp(o.sp), fun(std::move(o.fun)), ocontext(std::move(o.ocontext)), fc(o.fc),
-          is_detached(o.is_detached) {
-        o.sp = nullptr;
-        o.fc = nullptr;
-        ocontext = boost::context::fcontext_t {};
-    }
-    ~thread_impl() {
+thread_impl::~thread_impl() {
         free_stack(sp);
-    }
-};
-
+}
 } // namespace impl
 
 impl::thread_impl* thread::create_impl(std::function<void()> fun) {
@@ -262,27 +222,19 @@ void thread::detach() {
     impl_ = nullptr;
 }
 
-void mutex::lock() {
-    bool val = _m.load();
-    for (int i = 0; i < 100; ++i) {
-        if (val)
-            if (_m.compare_exchange_strong(val, false)) return;
-    }
-    auto &proc = this_processor();
-    while (true) {
-        schedule(proc);
-        for (int i = 0; i < 100; ++i) {
-            if (val)
-                if (_m.compare_exchange_strong(val, false)) return;
-        }
-    }
-}
-
 namespace this_thread {
 
 void yield() {
     auto &p = this_processor();
+    p.queue.push(p.currThread);
+    p.currThread->state_ = thread_impl::state::READY;
     schedule(p);
+}
+
+thread::id get_id()
+{
+    auto& p = this_processor();
+    return p.currThread;
 }
 
 template<class Rep, class Period>
@@ -321,7 +273,9 @@ void run_function(intptr_t funptr) {
 #endif
     assert(false); // never returns
 }
+} // namespace anonymous
 
+namespace impl {
 void scheduler(processor &p) {
     {
         std::lock_guard<decltype(map_mutex)> _(map_mutex);
@@ -351,7 +305,10 @@ void schedule(processor &p) {
             timpl->state_ = crossbow::impl::thread_impl::state::RUNNING;
         }
     }
-    if (do_run) boost::context::jump_fcontext(&(timpl->ocontext), timpl->fc, (intptr_t) timpl);
+    if (do_run) {
+        p.currThread = timpl;
+        boost::context::jump_fcontext(&(timpl->ocontext), timpl->fc, (intptr_t) timpl);
+    }
     // delete timpl, if it is detached
     bool do_delete = false;
     {
@@ -362,6 +319,6 @@ void schedule(processor &p) {
     if (do_delete) delete timpl;
 }
 
-} // namespace anonymous
+} // namespace impl
 } // namespace crossbow
 
