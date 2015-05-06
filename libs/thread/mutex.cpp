@@ -20,7 +20,7 @@ void mutex::lock() {
         p.currThread->state_ = thread_impl::state::BLOCKED;
         while (!queue.push(p.currThread));
         mLock.fetch_sub(1);
-        schedule(p);
+        doBlock();
     }
 }
 

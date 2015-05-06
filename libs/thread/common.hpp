@@ -61,5 +61,6 @@ struct processor {
 
 extern processor& this_processor();
 extern void schedule(processor &p);
+extern void doBlock();
 } // namespace impl
 } // namespace crossbow

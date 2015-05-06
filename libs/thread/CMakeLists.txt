@@ -10,8 +10,9 @@ if (${Boost_FOUND})
 
     set(SRC
         thread/thread.hpp
+        thread/mutex.hpp
+        thread/condition_variable.hpp
         thread.cpp
-        mutex.hpp
         mutex.cpp
         common.hpp
         )

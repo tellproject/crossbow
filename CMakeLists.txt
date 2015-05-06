@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 2.8.12)
 project(crossbow)
 
+# For vim autocompletion
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+
 # Declare build options
 option(ENABLE_TESTS "Build and execute tests" ON)
 option(ENABLE_STRING_TESTS "enable tests for crossbow string (currently only supported for clang on OS X)" OFF)
@@ -15,9 +18,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Set compile options
 if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -stdlib=libc++ -fPIC -Werror -march=native -ferror-limit=5")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ -fPIC -Werror -march=native -ferror-limit=5")
 else(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -fPIC -Werror -fmax-errors=5 -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC -Werror -fmax-errors=5 -march=native")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 endif(APPLE)

@@ -286,6 +286,15 @@ void scheduler(processor &p) {
     }
 }
 
+void doBlock() {
+    auto& p = this_processor();
+    auto curr = p.currThread;
+    curr->state_ = thread_impl::state::BLOCKED;
+    boost::context::jump_fcontext(&curr->fc, curr->ocontext, 0);
+    curr->state_ = thread_impl::state::RUNNING;
+    p.currThread = curr;
+}
+
 void schedule(processor &p) {
     processor* proc = &p;
     crossbow::impl::thread_impl* timpl;
