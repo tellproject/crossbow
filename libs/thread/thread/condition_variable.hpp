@@ -5,10 +5,13 @@
 #include <mutex>
 
 namespace crossbow {
+namespace impl {
+class processor;
+}
 
 class condition_variable {
     crossbow::busy_mutex mMutex;
-    std::queue<impl::thread_impl*> mQueue;
+    std::queue<std::pair<impl::processor*, impl::thread_impl*>> mQueue;
     bool mLastNotifyWasEmpty = false;
 public:
     condition_variable();

@@ -1,3 +1,3 @@
 #pragma once
-#include <crossbow/thread.hpp>
-#include <crossbow/mutex.hpp>
+#include "thread/thread.hpp"
+#include "thread/mutex.hpp"

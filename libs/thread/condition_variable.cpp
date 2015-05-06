@@ -24,7 +24,7 @@ void condition_variable::wait(std::unique_lock<crossbow::mutex>& lock)
     lock.unlock();
     auto myThread = this_processor().currThread;
     myThread->state_ = thread_impl::state::BLOCKED;
-    mQueue.push(myThread);
+    mQueue.push(std::make_pair(&this_processor(), myThread));
     _.unlock();
     doBlock();
     lock.lock();
@@ -38,8 +38,8 @@ void condition_variable::notify_one() {
     }
     auto n = mQueue.front();
     mQueue.pop();
-    n->state_ = thread_impl::state::READY;
-    this_processor().queue.push(n);
+    n.second->state_ = thread_impl::state::READY;
+    while (!n.first->queue.push(n.second));
 }
 
 void condition_variable::notify_all() {
@@ -50,8 +50,8 @@ void condition_variable::notify_all() {
     while (!mQueue.empty()) {
         auto n = mQueue.front();
         mQueue.pop();
-        n->state_ = thread_impl::state::READY;
-        this_processor().queue.push(n);
+        n.second->state_ = thread_impl::state::READY;
+        while (!n.first->queue.push(n.second));
     }
 }
 
