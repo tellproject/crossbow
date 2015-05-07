@@ -1,7 +1,5 @@
 #pragma once
 
-#include "BufferManager.hpp"
-
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/concurrent_map.hpp>
 
@@ -16,23 +14,23 @@
 namespace crossbow {
 namespace infinio {
 
+class DeviceContext;
 class EventDispatcher;
+class InfinibandBuffer;
 class SocketImplementation;
 
 /**
  * @brief The CompletionContext class manages a completion queue on the device
  *
- * Sets up a completion qeueu and manages any sockets associated with the completion queue.
+ * Sets up a completion queue and manages any sockets associated with the completion queue.
  */
 class CompletionContext {
 public:
-    CompletionContext(BufferManager& bufferManager, const InfinibandLimits& limits)
-            : mBufferManager(bufferManager),
+    CompletionContext(DeviceContext& device, const InfinibandLimits& limits)
+            : mDevice(device),
               mSendQueueLength(limits.sendQueueLength),
               mCompletionQueueLength(limits.completionQueueLength),
               mPollCycles(limits.pollCycles),
-              mProtectionDomain(nullptr),
-              mReceiveQueue(nullptr),
               mCompletionQueue(nullptr),
               mShutdown(false) {
     }
@@ -40,7 +38,7 @@ public:
     ~CompletionContext() {
     }
 
-    void init(struct ibv_pd* protectionDomain, struct ibv_srq* receiveQueue, boost::system::error_code& ec);
+    void init(boost::system::error_code& ec);
 
     void shutdown(boost::system::error_code& ec);
 
@@ -131,7 +129,7 @@ private:
     void processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl,
             boost::system::error_code& ec);
 
-    BufferManager& mBufferManager;
+    DeviceContext& mDevice;
 
     /// Size of the send queue to allocate for each connection
     uint32_t mSendQueueLength;
@@ -142,8 +140,6 @@ private:
     /// Number of iterations to poll when there is no work completion
     uint64_t mPollCycles;
 
-    struct ibv_pd* mProtectionDomain;
-    struct ibv_srq* mReceiveQueue;
     struct ibv_cq* mCompletionQueue;
 
     /// Map from queue number to the associated socket implementation
@@ -166,12 +162,17 @@ class DeviceContext {
 public:
     DeviceContext(EventDispatcher& dispatcher, const InfinibandLimits& limits, struct ibv_context* verbs)
             : mDispatcher(dispatcher),
-              mReceiveQueueLength(limits.receiveQueueLength),
+              mReceiveBufferCount(limits.receiveBufferCount),
+              mSendBufferCount(limits.sendBufferCount),
+              mBufferLength(limits.bufferLength),
               mVerbs(verbs),
               mProtectionDomain(nullptr),
+              mDataRegion(nullptr),
+              mReceiveData(nullptr),
               mReceiveQueue(nullptr),
-              mBufferManager(limits),
-              mCompletion(mBufferManager, limits),
+              mSendData(nullptr),
+              mSendBufferQueue(limits.sendBufferCount),
+              mCompletion(*this, limits),
               mShutdown(false) {
     }
 
@@ -221,35 +222,121 @@ public:
         mCompletion.removeConnection(impl, ec);
     }
 
+    /**
+     * @brief Maximum buffer length this buffer manager is able to allocate
+     */
     uint32_t bufferLength() const {
-        return mBufferManager.bufferLength();
+        return mBufferLength;
     }
 
-    InfinibandBuffer acquireBuffer(uint32_t length) {
-        return mBufferManager.acquireBuffer(length);
-    }
+    /**
+     * @brief Acquire a send buffer from the shared pool
+     *
+     * The given length is not allowed to exceed the maximum buffer size returned by DeviceContext::bufferLength();
+     *
+     * @param length The desired size of the buffer
+     * @return A newly acquired buffer or a buffer with invalid ID in case of an error
+     */
+    InfinibandBuffer acquireSendBuffer(uint32_t length);
 
-    void releaseBuffer(uint64_t id) {
-        mBufferManager.releaseBuffer(id);
-    }
+    /**
+     * @brief Releases the send buffer back to the pool
+     *
+     * The data referenced by this buffer should not be accessed anymore.
+     *
+     * Acquired buffers that were sent successfully do not have to be released only call this function if the send
+     * failed or you did not need the buffer after all.
+     *
+     * @param buffer The previously acquired send buffer
+     */
+    void releaseSendBuffer(InfinibandBuffer& buffer);
 
 private:
+    friend class CompletionContext;
+
     /**
-     * @brief Continously dispatches the Completion Context polling loop
+     * @brief Initializes the memory region for the shared receive and send buffers
+     *
+     * Pushes the IDs for the shared send buffers onto the send buffer queue.
+     *
+     * @param ec Error code in case the initialization failed
+     */
+    void initMemoryRegion(boost::system::error_code& ec);
+
+    /**
+     * @brief Shutsdown the memory region for the shared receive and send buffers
+     *
+     * @param ec Error code in case the shutdown failed
+     */
+    void shutdownMemoryRegion(boost::system::error_code& ec);
+
+    /**
+     * @brief Initializes the shared receive queue
+     *
+     * @param ec Error code in case the initialization failed
+     */
+    void initReceiveQueue(boost::system::error_code& ec);
+
+    /**
+     * @brief Continuously dispatches the Completion Context polling loop
      */
     void doPoll();
 
+    /**
+     * @brief The offset into the associated memory region for a buffer with given ID
+     */
+    uint64_t bufferOffset(uint16_t id) {
+        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mBufferLength));
+    }
+
+    /**
+     * @brief Releases a send buffer to the shared buffer queue
+     *
+     * @param id The ID of the send buffer
+     */
+    void releaseSendBuffer(uint16_t id);
+
+    /**
+     * @brief Posts the receive buffer with the given ID to the shared receive queue
+     *
+     * @param id The ID of the receive buffer
+     * @param ec Error code in case the post failed
+     */
+    void postReceiveBuffer(uint16_t id, boost::system::error_code& ec);
+
     EventDispatcher& mDispatcher;
 
-    /// Number of buffers to post on the shared receive queue
-    uint32_t mReceiveQueueLength;
+    /// Number of shared receive buffers to allocate
+    uint16_t mReceiveBufferCount;
 
+    /// Number of shared send buffers to allocated
+    uint16_t mSendBufferCount;
+
+    /// Size of the allocated shared buffer
+    uint32_t mBufferLength;
+
+    /// Infiniband context associated with this device
     struct ibv_context* mVerbs;
+
+    /// Protection domain associated with this device
     struct ibv_pd* mProtectionDomain;
 
+    /// Memory region registered to the shared receive / send buffer memory block
+    /// The block contains the receive buffers first and then the send buffers
+    struct ibv_mr* mDataRegion;
+
+    /// Pointer to the shared receive buffer arena
+    void* mReceiveData;
+
+    /// Shared receive queue associated with this device
     struct ibv_srq* mReceiveQueue;
 
-    BufferManager mBufferManager;
+    /// Pointer to the shared send buffer arena
+    void* mSendData;
+
+    /// Queue containing IDs of send buffers that are not in use
+    boost::lockfree::queue<uint16_t, boost::lockfree::fixed_sized<true>> mSendBufferQueue;
+
     CompletionContext mCompletion;
 
     std::atomic<bool> mShutdown;

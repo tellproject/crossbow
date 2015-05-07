@@ -23,8 +23,6 @@ set(SRCS
     include/crossbow/infinio/InfinibandSocket.hpp
     src/AddressHelper.cpp
     src/AddressHelper.hpp
-    src/BufferManager.hpp
-    src/BufferManager.cpp
     src/DeviceContext.hpp
     src/DeviceContext.cpp
     src/Endpoint.cpp
@@ -33,6 +31,7 @@ set(SRCS
     src/InfinibandSocket.cpp
     src/InfinibandSocketImpl.hpp
     src/Logging.hpp
+    src/WorkRequestId.hpp
 )
 
 # Add the InfinIO library

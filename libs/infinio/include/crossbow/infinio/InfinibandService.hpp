@@ -56,7 +56,7 @@ public:
 
     void disconnect(SocketImplementation* impl, boost::system::error_code& ec);
 
-    void send(SocketImplementation* impl, InfinibandBuffer& buffer, boost::system::error_code& ec);
+    void send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
 
 private:
     /**

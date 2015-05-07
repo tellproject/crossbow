@@ -1,16 +1,20 @@
 #include "DeviceContext.hpp"
 
 #include <crossbow/infinio/EventDispatcher.hpp>
+#include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include "AddressHelper.hpp"
 #include "ErrorCode.hpp"
 #include "InfinibandSocketImpl.hpp"
 #include "Logging.hpp"
+#include "WorkRequestId.hpp"
 
 #include <cerrno>
 #include <cstring>
 #include <vector>
+
+#include <sys/mman.h>
 
 #define COMPLETION_LOG(...) INFINIO_LOG("[CompletionContext] " __VA_ARGS__)
 #define DEVICE_LOG(...) INFINIO_LOG("[DeviceContext] " __VA_ARGS__)
@@ -18,42 +22,15 @@
 namespace crossbow {
 namespace infinio {
 
-namespace {
-
-/**
- * @brief Helper function posting the buffer to the shared receive queue
- */
-void postReceiveBuffer(struct ibv_srq* srq, InfinibandBuffer& buffer, boost::system::error_code& ec) {
-    // Prepare work request
-    struct ibv_recv_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.wr_id = ((buffer.id() << 1) | 0x1u);
-    wr.sg_list = buffer.handle();
-    wr.num_sge = 1;
-
-    // Repost receives on shared queue
-    struct ibv_recv_wr* bad_wr = nullptr;
-    if (auto res = ibv_post_srq_recv(srq, &wr, &bad_wr)) {
-        ec = boost::system::error_code(res, boost::system::system_category());
-        return;
-    }
-}
-
-} // anonymous namespace
-
-void CompletionContext::init(struct ibv_pd* protectionDomain, struct ibv_srq* receiveQueue,
-        boost::system::error_code& ec) {
+void CompletionContext::init(boost::system::error_code& ec) {
     if (mCompletionQueue) {
         ec = error::already_initialized;
         return;
     }
 
-    mProtectionDomain = protectionDomain;
-    mReceiveQueue = receiveQueue;
-
     COMPLETION_LOG("Create completion queue");
     errno = 0;
-    mCompletionQueue = ibv_create_cq(mProtectionDomain->context, mCompletionQueueLength, nullptr, nullptr, 0);
+    mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, nullptr, 0);
     if (mCompletionQueue == nullptr) {
         ec = boost::system::error_code(errno, boost::system::system_category());
         return;
@@ -80,12 +57,12 @@ void CompletionContext::addConnection(SocketImplementation* impl, boost::system:
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.send_cq = mCompletionQueue;
     qp_attr.recv_cq = mCompletionQueue;
-    qp_attr.srq = mReceiveQueue;
+    qp_attr.srq = mDevice.mReceiveQueue;
     qp_attr.cap.max_send_wr = mSendQueueLength;
     qp_attr.cap.max_send_sge = 1;
     qp_attr.qp_type = IBV_QPT_RC;
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
-    qp_attr.pd = mProtectionDomain;
+    qp_attr.pd = mDevice.mProtectionDomain;
 
     COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(impl->id));
     errno = 0;
@@ -168,11 +145,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     COMPLETION_LOG("Processing WC with ID %1% on queue %2% with status %3% %4%", wc->wr_id, wc->qp_num, wc->status,
             ibv_wc_status_str(wc->status));
 
-    // wc->opcode is not valid when status is not success - so we use the LSB of the wr_id to encode if the buffer came
-    // from a send or a receive (this is important so that we can repost the receive buffer to the shared queue)
-    auto op = (wc->wr_id & 0x1u);
-    auto bufferid = (wc->wr_id >> 1);
-    uint32_t byte_len = 0x0u;
+    WorkRequestId workId(wc->wr_id);
     boost::system::error_code ec;
 
     auto i = mSocketMap.at(wc->qp_num);
@@ -181,16 +154,24 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
 
         // In the case that we have no socket associated with the qp_num we just repost the buffer to the shared receive
         // queue or release the buffer in the case of send
-        if (op == 0x1u) {
-            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
-            postReceiveBuffer(mReceiveQueue, buffer, ec);
+        switch (workId.workType()) {
+
+        // In the case the work request was a receive, we try to repost the shared receive buffer
+        case WorkType::RECEIVE: {
+            mDevice.postReceiveBuffer(workId.bufferId(), ec);
             if (ec) {
-                mBufferManager.releaseBuffer(bufferid);
                 COMPLETION_LOG("Failed to post receive buffer on wc complete [errno = %1% - %2%]", ec, ec.message());
-                // TODO Error Handling
+                // TODO Error Handling (this is more or less a memory leak)
             }
-        } else {
-            mBufferManager.releaseBuffer(bufferid);
+        } break;
+
+        // In the case the work request was a send we just release the send buffer
+        case WorkType::SEND: {
+            mDevice.releaseSendBuffer(workId.bufferId());
+        } break;
+
+        default:
+            break;
         }
 
         return;
@@ -202,12 +183,11 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     if (wc->status != IBV_WC_SUCCESS) {
         ec = boost::system::error_code(wc->status, error::get_work_completion_category());
     } else {
-        byte_len = wc->byte_len;
-        if (op == 0x0u && wc->opcode != IBV_WC_SEND) {
+        if (workId.workType() == WorkType::SEND && wc->opcode != IBV_WC_SEND) {
             COMPLETION_LOG("Send buffer but opcode %1% not send", wc->opcode);
             // TODO Send buffer but opcode not send
         }
-        if (op == 0x1u && wc->opcode != IBV_WC_RECV) {
+        if (workId.workType() == WorkType::RECEIVE && wc->opcode != IBV_WC_RECV) {
             COMPLETION_LOG("Receive buffer but opcode %1% not receive", wc->opcode);
             // TODO receive buffer but opcode not receive
         }
@@ -216,18 +196,23 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     // Increase amount of work
     addWork(impl);
 
-    // Receive
-    if (op == 0x1u) {
-        dispatcher.post([this, impl, bufferid, byte_len, ec] () {
-            COMPLETION_LOG("Executing successful receive event of id %1%", bufferid);
 
-            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
-            impl->handler->onReceive(buffer, byte_len, ec);
+    switch (workId.workType()) {
+    case WorkType::RECEIVE: {
+        auto byte_len = wc->byte_len;
+        dispatcher.post([this, impl, workId, byte_len, ec] () {
+            COMPLETION_LOG("Executing successful receive event of id %1%", workId.bufferId());
+
+            if (workId.bufferId() >= mDevice.mReceiveBufferCount) {
+                // TODO Invalid buffer
+                return;
+            }
+            auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
+            impl->handler->onReceive(reinterpret_cast<const void*>(buffer), byte_len, ec);
 
             boost::system::error_code ec2;
-            postReceiveBuffer(mReceiveQueue, buffer, ec2);
+            mDevice.postReceiveBuffer(workId.bufferId(), ec2);
             if (ec2) {
-                mBufferManager.releaseBuffer(bufferid);
                 COMPLETION_LOG("Failed to post receive buffer on wc complete [errno = %1% - %2%]", ec2, ec2.message());
                 // TODO Error Handling
             }
@@ -235,18 +220,23 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             // Decrease amount of work
             removeWork(impl);
         });
-    } else {
-        dispatcher.post([this, impl, bufferid, byte_len, ec] () {
-            COMPLETION_LOG("Executing successful send event of id %1%", bufferid);
+    } break;
 
-            auto buffer = mBufferManager.acquireBuffer(bufferid, mBufferManager.bufferLength());
-            impl->handler->onSend(buffer, byte_len, ec);
+    case WorkType::SEND: {
+        dispatcher.post([this, impl, workId, ec] () {
+            COMPLETION_LOG("Executing successful send event of id %1%", workId.bufferId());
 
-            mBufferManager.releaseBuffer(bufferid);
+            impl->handler->onSend(workId.userId(), ec);
+            mDevice.releaseSendBuffer(workId.bufferId());
 
             // Decrease amount of work
             removeWork(impl);
         });
+    } break;
+
+    default: {
+        COMPLETION_LOG("Unknown work type");
+    } break;
     }
 }
 
@@ -315,37 +305,20 @@ void DeviceContext::init(boost::system::error_code& ec) {
         return;
     }
 
-    DEVICE_LOG("Create shared receive queue");
-    struct ibv_srq_init_attr srq_attr;
-    memset(&srq_attr, 0, sizeof(srq_attr));
-    srq_attr.attr.max_wr = mReceiveQueueLength;
-    srq_attr.attr.max_sge = 1;
-
-    errno = 0;
-    mReceiveQueue = ibv_create_srq(mProtectionDomain, &srq_attr);
-    if (mReceiveQueue == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
-        return;
-    }
-
-    DEVICE_LOG("Initialize buffer manager");
-    mBufferManager.init(mProtectionDomain, ec);
+    initMemoryRegion(ec);
     if (ec) {
         return;
     }
 
-    DEVICE_LOG("Post %1% buffers to shared receive queue", mReceiveQueueLength);
-    for (size_t i = 0; i < mReceiveQueueLength; ++i) {
-        auto buffer = mBufferManager.acquireBuffer(mBufferManager.bufferLength());
-        postReceiveBuffer(mReceiveQueue, buffer, ec);
-        if (ec) {
-            mBufferManager.releaseBuffer(buffer.id());
-            return;
-        }
+    initReceiveQueue(ec);
+    if (ec) {
+        return;
     }
 
-    DEVICE_LOG("Initialize completion context");
-    mCompletion.init(mProtectionDomain, mReceiveQueue, ec);
+    mCompletion.init(ec);
+    if (ec) {
+        return;
+    }
 
     DEVICE_LOG("Starting event polling");
     mDispatcher.post([this] () {
@@ -371,8 +344,7 @@ void DeviceContext::shutdown(boost::system::error_code& ec) {
         return;
     }
 
-    DEVICE_LOG("Shutdown buffer manager");
-    mBufferManager.shutdown(ec);
+    shutdownMemoryRegion(ec);
     if (ec) {
         return;
     }
@@ -381,6 +353,98 @@ void DeviceContext::shutdown(boost::system::error_code& ec) {
     if (auto res = ibv_dealloc_pd(mProtectionDomain) != 0) {
         ec = boost::system::error_code(res, boost::system::system_category());
         return;
+    }
+}
+
+InfinibandBuffer DeviceContext::acquireSendBuffer(uint32_t length) {
+    uint16_t id = 0x0u;
+    if (!mSendBufferQueue.pop(id)) {
+        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
+    }
+    if (length > mBufferLength) {
+        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
+    }
+
+    InfinibandBuffer buffer(id);
+    buffer.handle()->addr = reinterpret_cast<uintptr_t>(mSendData) + bufferOffset(id);
+    buffer.handle()->length = length;
+    buffer.handle()->lkey = mDataRegion->lkey;
+    return buffer;
+}
+
+void DeviceContext::releaseSendBuffer(InfinibandBuffer& buffer) {
+    if (buffer.handle()->lkey != mDataRegion->lkey) {
+        return;
+    }
+    releaseSendBuffer(buffer.id());
+}
+
+void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {
+    auto dataLength = bufferOffset(mReceiveBufferCount) + bufferOffset(mSendBufferCount);
+
+    DEVICE_LOG("Map %1% bytes of shared buffer space", dataLength);
+    errno = 0;
+    mReceiveData = mmap(nullptr, dataLength, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+    if (mReceiveData == MAP_FAILED) {
+        mReceiveData = nullptr;
+        ec = boost::system::error_code(errno, boost::system::system_category());
+        return;
+    }
+    mSendData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(mReceiveBufferCount));
+
+    DEVICE_LOG("Create memory region at %1%", mReceiveData);
+    errno = 0;
+    mDataRegion = ibv_reg_mr(mProtectionDomain, mReceiveData, dataLength, IBV_ACCESS_LOCAL_WRITE);
+    if (mDataRegion == nullptr) {
+        ec = boost::system::error_code(errno, boost::system::system_category());
+        return;
+    }
+
+    DEVICE_LOG("Add %1% buffers to send buffer queue", mSendBufferCount);
+    for (uint16_t id = 0x0u; id < mSendBufferCount; ++id) {
+        mSendBufferQueue.push(id);
+    }
+}
+
+void DeviceContext::shutdownMemoryRegion(boost::system::error_code& ec) {
+    DEVICE_LOG("Destroy memory region at %1%", mReceiveData);
+    if (auto res = ibv_dereg_mr(mDataRegion) != 0) {
+        ec = boost::system::error_code(res, boost::system::system_category());
+        return;
+    }
+
+    auto dataLength = bufferOffset(mReceiveBufferCount) + bufferOffset(mSendBufferCount);
+
+    // TODO Size has to be a multiple of the page size
+    DEVICE_LOG("Unmap buffer space at %1%", mReceiveData);
+    errno = 0;
+    if (munmap(mReceiveData, dataLength) != 0) {
+        ec = boost::system::error_code(errno, boost::system::system_category());
+    }
+    mReceiveData = nullptr;
+    mSendData = nullptr;
+}
+
+void DeviceContext::initReceiveQueue(boost::system::error_code& ec) {
+    DEVICE_LOG("Create shared receive queue");
+    struct ibv_srq_init_attr srq_attr;
+    memset(&srq_attr, 0, sizeof(srq_attr));
+    srq_attr.attr.max_wr = mReceiveBufferCount;
+    srq_attr.attr.max_sge = 1;
+
+    errno = 0;
+    mReceiveQueue = ibv_create_srq(mProtectionDomain, &srq_attr);
+    if (mReceiveQueue == nullptr) {
+        ec = boost::system::error_code(errno, boost::system::system_category());
+        return;
+    }
+
+    DEVICE_LOG("Post %1% buffers to shared receive queue", mReceiveBufferCount);
+    for (uint16_t i = 0; i < mReceiveBufferCount; ++i) {
+        postReceiveBuffer(i, ec);
+        if (ec) {
+            return;
+        }
     }
 }
 
@@ -398,6 +462,39 @@ void DeviceContext::doPoll() {
     mDispatcher.post([this] () {
         doPoll();
     });
+}
+
+void DeviceContext::releaseSendBuffer(uint16_t id) {
+    if (id == InfinibandBuffer::INVALID_ID) {
+        return;
+    }
+    mSendBufferQueue.push(id);
+}
+
+/**
+ * @brief Helper function posting the buffer to the shared receive queue
+ */
+void DeviceContext::postReceiveBuffer(uint16_t id, boost::system::error_code& ec) {
+    WorkRequestId workId(0x0u, id, WorkType::RECEIVE);
+
+    // Prepare work request
+    struct ibv_sge sge;
+    sge.addr = reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(id);
+    sge.length = mBufferLength;
+    sge.lkey = mDataRegion->lkey;
+
+    struct ibv_recv_wr wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.wr_id = workId.id();
+    wr.sg_list = &sge;
+    wr.num_sge = 1;
+
+    // Repost receives on shared queue
+    struct ibv_recv_wr* bad_wr = nullptr;
+    if (auto res = ibv_post_srq_recv(mReceiveQueue, &wr, &bad_wr)) {
+        ec = boost::system::error_code(res, boost::system::system_category());
+        return;
+    }
 }
 
 } // namespace infinio

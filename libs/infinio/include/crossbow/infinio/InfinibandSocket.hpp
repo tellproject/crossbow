@@ -80,13 +80,13 @@ public:
 
     void disconnect(boost::system::error_code& ec);
 
-    void send(InfinibandBuffer& buffer, boost::system::error_code& ec);
+    void send(InfinibandBuffer& buffer, uint32_t id, boost::system::error_code& ec);
 
     uint32_t bufferLength() const;
 
-    InfinibandBuffer acquireBuffer(uint32_t length);
+    InfinibandBuffer acquireSendBuffer(uint32_t length);
 
-    void releaseBuffer(uint32_t id);
+    void releaseSendBuffer(InfinibandBuffer& buffer);
 };
 
 /**
@@ -131,7 +131,7 @@ public:
      * @param length Number of bytes transmitted
      * @param ec Error in case the receive failed
      */
-    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) = 0;
+    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) = 0;
 
     /**
      * @brief Invoked whenever data was sent to the remote host
@@ -142,7 +142,7 @@ public:
      * @param length Number of bytes transmitted
      * @param ec Error in case the send failed
      */
-    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) = 0;
+    virtual void onSend(uint32_t id, const boost::system::error_code& ec) = 0;
 
     /**
      * @brief Invoked whenever the remote host disconnected
@@ -180,11 +180,9 @@ class InfinibandAcceptorHandler: public InfinibandBaseHandler {
 private:
     virtual void onConnected(const boost::system::error_code& ec) final override;
 
-    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) final
-        override;
+    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) final override;
 
-    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) final
-        override;
+    virtual void onSend(uint32_t id, const boost::system::error_code& ec) final override;
 
     virtual void onDisconnect() final override;
 

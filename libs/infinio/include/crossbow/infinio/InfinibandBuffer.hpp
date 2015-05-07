@@ -16,14 +16,14 @@ namespace infinio {
  */
 class InfinibandBuffer {
 public:
-    static constexpr uint64_t INVALID_ID = std::numeric_limits<uint64_t>::max();
+    static constexpr uint16_t INVALID_ID = std::numeric_limits<uint16_t>::max();
 
-    InfinibandBuffer(uint64_t id)
+    InfinibandBuffer(uint16_t id)
             : mId(id) {
         memset(&mHandle, 0, sizeof(mHandle));
     }
 
-    uint64_t id() const {
+    uint16_t id() const {
         return mId;
     }
 
@@ -46,7 +46,7 @@ public:
 private:
     struct ibv_sge mHandle;
 
-    uint64_t mId;
+    uint16_t mId;
 };
 
 } // namespace infinio

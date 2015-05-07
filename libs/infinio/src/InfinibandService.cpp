@@ -9,6 +9,7 @@
 #include "ErrorCode.hpp"
 #include "InfinibandSocketImpl.hpp"
 #include "Logging.hpp"
+#include "WorkRequestId.hpp"
 
 #include <cerrno>
 #include <chrono>
@@ -215,7 +216,8 @@ void InfinibandService::disconnect(SocketImplementation* impl, boost::system::er
     impl->state.store(ConnectionState::DISCONNECTING);
 }
 
-void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffer, boost::system::error_code& ec) {
+void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId,
+        boost::system::error_code& ec) {
     if (!impl->id) {
         ec = error::bad_descriptor;
         return;
@@ -226,10 +228,12 @@ void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffe
         return;
     }
 
+    WorkRequestId workId(userId, buffer.id(), WorkType::SEND);
+
     struct ibv_send_wr wr;
     memset(&wr, 0, sizeof(wr));
     wr.opcode = IBV_WR_SEND;
-    wr.wr_id = (buffer.id() << 1);
+    wr.wr_id = workId.id();
     wr.sg_list = buffer.handle();
     wr.num_sge = 1;
     wr.send_flags = IBV_SEND_SIGNALED;

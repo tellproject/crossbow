@@ -54,20 +54,20 @@ void InfinibandSocket::disconnect(boost::system::error_code& ec) {
     mTransport.disconnect(mImpl, ec);
 }
 
-void InfinibandSocket::send(InfinibandBuffer& buffer, boost::system::error_code& ec) {
-    mTransport.send(mImpl, buffer, ec);
+void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t id, boost::system::error_code& ec) {
+    mTransport.send(mImpl, buffer, id, ec);
 }
 
 uint32_t InfinibandSocket::bufferLength() const {
     return mImpl->device->bufferLength();
 }
 
-InfinibandBuffer InfinibandSocket::acquireBuffer(uint32_t length) {
-    return mImpl->device->acquireBuffer(length);
+InfinibandBuffer InfinibandSocket::acquireSendBuffer(uint32_t length) {
+    return mImpl->device->acquireSendBuffer(length);
 }
 
-void InfinibandSocket::releaseBuffer(uint32_t id) {
-    mImpl->device->releaseBuffer(id);
+void InfinibandSocket::releaseSendBuffer(InfinibandBuffer& buffer) {
+    mImpl->device->releaseSendBuffer(buffer);
 }
 
 InfinibandBaseHandler::~InfinibandBaseHandler() {
@@ -82,13 +82,11 @@ void InfinibandAcceptorHandler::onConnected(const boost::system::error_code& ec)
     // TODO This should never be called
 }
 
-void InfinibandAcceptorHandler::onReceive(const InfinibandBuffer& buffer, size_t length,
-        const boost::system::error_code& ec) {
+void InfinibandAcceptorHandler::onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) {
     // TODO This should never be called
 }
 
-void InfinibandAcceptorHandler::onSend(const InfinibandBuffer& buffer, size_t length,
-        const boost::system::error_code& ec) {
+void InfinibandAcceptorHandler::onSend(uint32_t id, const boost::system::error_code& ec) {
     // TODO This should never be called
 }
 

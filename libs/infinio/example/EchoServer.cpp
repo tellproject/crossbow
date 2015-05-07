@@ -22,9 +22,9 @@ public:
 private:
     virtual void onConnected(const boost::system::error_code& ec) override;
 
-    virtual void onReceive(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
 
-    virtual void onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onSend(uint32_t id, const boost::system::error_code& ec) override;
 
     virtual void onDisconnect() override;
 
@@ -43,28 +43,27 @@ void EchoConnection::onConnected(const boost::system::error_code& ec) {
     std::cout << "Connected" << std::endl;
 }
 
-void EchoConnection::onReceive(const InfinibandBuffer& buffer, size_t length,
-        const boost::system::error_code& /* ec */) {
+void EchoConnection::onReceive(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
     boost::system::error_code ec;
 
     // Acquire buffer with same size
-    auto sendbuffer = mSocket.acquireBuffer(length);
+    auto sendbuffer = mSocket.acquireSendBuffer(length);
     if (sendbuffer.id() == InfinibandBuffer::INVALID_ID) {
         handleError("Error acquiring buffer", ec);
         return;
     }
 
     // Copy received message into send buffer
-    memcpy(sendbuffer.data(), buffer.data(), length);
+    memcpy(sendbuffer.data(), buffer, length);
 
     // Send incoming message back to client
-    mSocket.send(sendbuffer, ec);
+    mSocket.send(sendbuffer, 0x0u, ec);
     if (ec) {
         handleError("Send failed", ec);
     }
 }
 
-void EchoConnection::onSend(const InfinibandBuffer& buffer, size_t length, const boost::system::error_code& /* ec */) {
+void EchoConnection::onSend(uint32_t id, const boost::system::error_code& /* ec */) {
 }
 
 void EchoConnection::onDisconnect() {

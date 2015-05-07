@@ -11,28 +11,28 @@ namespace infinio {
 struct InfinibandLimits {
 public:
     InfinibandLimits()
-            : bufferLength(1024),
-              bufferCount(8),
-              receiveQueueLength(4),
+            : receiveBufferCount(4),
+              sendBufferCount(8),
+              bufferLength(1024),
               sendQueueLength(10),
               completionQueueLength(10),
               pollCycles(1000000) {
     }
 
     /**
-     * @brief Number of buffers to be allocated
+     * @brief Number of shared receive buffers to allocate
      */
-    uint64_t bufferCount;
+    uint16_t receiveBufferCount;
+
+    /**
+     * @brief Number of shared send buffers to allocate
+     */
+    uint16_t sendBufferCount;
 
     /**
      * @brief Maximum size of any buffer
      */
     uint32_t bufferLength;
-
-    /**
-     * @brief Number of buffers to post on the shared receive queue
-     */
-    uint32_t receiveQueueLength;
 
     /**
      * @brief Size of the send queue to allocate for each connection
