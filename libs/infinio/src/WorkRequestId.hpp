@@ -9,8 +9,10 @@ enum class WorkType : uint16_t {
     UNKNOWN = 0x0u,
     RECEIVE = 0x1u,
     SEND = 0x2u,
+    READ = 0x3u,
+    WRITE = 0x4u,
 
-    LAST = WorkType::SEND,
+    LAST = WorkType::WRITE,
 };
 
 /**

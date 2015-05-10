@@ -82,6 +82,30 @@ public:
 
     void send(InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
 
+    /**
+     * @brief Start a RDMA read from the remote memory region with offset into the local target buffer
+     *
+     * @param src Remote memory region to read from
+     * @param offset Offset into the remote memory region
+     * @param dst Local buffer to write the data into
+     * @param userId User supplied ID passed to the completion handler
+     * @param ec Error in case the read failed
+     */
+    void read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
+            boost::system::error_code& ec);
+
+    /**
+     * @brief Start a RDMA write from the local source buffer into the remote memory region with offset
+     *
+     * @param src Local buffer to read the data from
+     * @param dst Remote memory region to write the data into
+     * @param offset Offset into the remote memory region
+     * @param userId User supplied ID passed to the completion handler
+     * @param ec Error in case the write failed
+     */
+    void write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            boost::system::error_code& ec);
+
     uint32_t bufferLength() const;
 
     InfinibandBuffer acquireSendBuffer(uint32_t length);
@@ -142,6 +166,22 @@ public:
      * @param ec Error in case the send failed
      */
     virtual void onSend(uint32_t userId, const boost::system::error_code& ec);
+
+    /**
+     * @brief Invoked whenever data was read from the remote host
+     *
+     * @param userId The user supplied ID of the read call
+     * @param ec Error in case the read failed
+     */
+    virtual void onRead(uint32_t userId, const boost::system::error_code& ec);
+
+    /**
+     * @brief Invoked whenever data was written to the remote host
+     *
+     * @param userId The user supplied ID of the write call
+     * @param ec Error in case the write failed
+     */
+    virtual void onWrite(uint32_t userId, const boost::system::error_code& ec);
 
     /**
      * @brief Invoked whenever the remote host disconnected

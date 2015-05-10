@@ -191,6 +191,14 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             COMPLETION_LOG("Receive buffer but opcode %1% not receive", wc->opcode);
             // TODO receive buffer but opcode not receive
         }
+        if (workId.workType() == WorkType::READ && wc->opcode != IBV_WC_RDMA_READ) {
+            COMPLETION_LOG("Read buffer but opcode %1% not read", wc->opcode);
+            // TODO read buffer but opcode not read
+        }
+        if (workId.workType() == WorkType::WRITE && wc->opcode != IBV_WC_RDMA_WRITE) {
+            COMPLETION_LOG("Write buffer but opcode %1% not write", wc->opcode);
+            // TODO write buffer but opcode not write
+        }
     }
 
     // Increase amount of work
@@ -228,6 +236,28 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
 
             impl->handler->onSend(workId.userId(), ec);
             mDevice.releaseSendBuffer(workId.bufferId());
+
+            // Decrease amount of work
+            removeWork(impl);
+        });
+    } break;
+
+    case WorkType::READ: {
+        dispatcher.post([this, impl, workId, ec] () {
+            COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
+
+            impl->handler->onRead(workId.userId(), ec);
+
+            // Decrease amount of work
+            removeWork(impl);
+        });
+    } break;
+
+    case WorkType::WRITE: {
+        dispatcher.post([this, impl, workId, ec] () {
+            COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
+
+            impl->handler->onWrite(workId.userId(), ec);
 
             // Decrease amount of work
             removeWork(impl);
@@ -377,6 +407,17 @@ void DeviceContext::releaseSendBuffer(InfinibandBuffer& buffer) {
         return;
     }
     releaseSendBuffer(buffer.id());
+}
+
+LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access,
+        boost::system::error_code& ec) {
+    DEVICE_LOG("Create memory region at %1%", data);
+    errno = 0;
+    mDataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
+    if (mDataRegion == nullptr) {
+        ec = boost::system::error_code(errno, boost::system::system_category());
+    }
+    return LocalMemoryRegion(mDataRegion);
 }
 
 void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {

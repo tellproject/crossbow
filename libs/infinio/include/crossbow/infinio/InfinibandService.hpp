@@ -17,6 +17,7 @@ class DeviceContext;
 class Endpoint;
 class EventDispatcher;
 class InfinibandBuffer;
+class RemoteMemoryRegion;
 class SocketImplementation;
 
 /**
@@ -58,6 +59,12 @@ public:
 
     void send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
 
+    void read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst,
+              uint32_t userId, boost::system::error_code& ec);
+
+    void write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
+            uint32_t userId, boost::system::error_code& ec);
+
 private:
     /**
      * @brief Gets the device context associated with the ibv_context
@@ -67,6 +74,8 @@ private:
      * error.
      */
     DeviceContext* getDevice(struct ibv_context* verbs);
+
+    void doSend(SocketImplementation* impl, struct ibv_send_wr* wr, boost::system::error_code& ec);
 
     /**
      * @brief Process the event received from the RDMA event channel

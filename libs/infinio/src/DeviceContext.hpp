@@ -17,6 +17,7 @@ namespace infinio {
 class DeviceContext;
 class EventDispatcher;
 class InfinibandBuffer;
+class LocalMemoryRegion;
 class SocketImplementation;
 
 /**
@@ -250,6 +251,17 @@ public:
      * @param buffer The previously acquired send buffer
      */
     void releaseSendBuffer(InfinibandBuffer& buffer);
+
+    /**
+     * @brief Registers a new local memory region
+     *
+     * @param data Start pointer to the memory region
+     * @param length Length of the memory region
+     * @param access Infiniband access flags
+     * @param ec Error code in case the registration failed
+     * @return The newly registered memory region
+     */
+    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, boost::system::error_code& ec);
 
 private:
     friend class CompletionContext;

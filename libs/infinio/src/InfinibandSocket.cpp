@@ -58,6 +58,16 @@ void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t userId, boost::sy
     mTransport.send(mImpl, buffer, userId, ec);
 }
 
+void InfinibandSocket::read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
+        boost::system::error_code& ec) {
+    mTransport.read(mImpl, src, offset, dst, userId, ec);
+}
+
+void InfinibandSocket::write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+        boost::system::error_code& ec) {
+    mTransport.write(mImpl, src, dst, offset, userId, ec);
+}
+
 uint32_t InfinibandSocket::bufferLength() const {
     return mImpl->device->bufferLength();
 }
@@ -87,6 +97,14 @@ void InfinibandSocketHandler::onReceive(const void* buffer, size_t length, const
 }
 
 void InfinibandSocketHandler::onSend(uint32_t userId, const boost::system::error_code& ec) {
+    // Empty default function
+}
+
+void InfinibandSocketHandler::onRead(uint32_t userId, const boost::system::error_code& ec) {
+    // Empty default function
+}
+
+void InfinibandSocketHandler::onWrite(uint32_t userId, const boost::system::error_code& ec) {
     // Empty default function
 }
 

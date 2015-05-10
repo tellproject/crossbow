@@ -217,16 +217,6 @@ void InfinibandService::disconnect(SocketImplementation* impl, boost::system::er
 
 void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId,
         boost::system::error_code& ec) {
-    if (!impl->id) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    if (impl->state == ConnectionState::DISCONNECTED) {
-        ec = error::disconnected;
-        return;
-    }
-
     WorkRequestId workId(userId, buffer.id(), WorkType::SEND);
 
     struct ibv_send_wr wr;
@@ -239,11 +229,55 @@ void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffe
 
     SERVICE_LOG("%1%: Send %2% bytes from buffer %3%", formatRemoteAddress(impl->id), buffer.length(),
                 buffer.id());
-    struct ibv_send_wr* bad_wr = nullptr;
-    if (auto res = ibv_post_send(impl->id->qp, &wr, &bad_wr) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+    doSend(impl, &wr, ec);
+}
+
+void InfinibandService::read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset,
+        InfinibandBuffer& dst, uint32_t userId, boost::system::error_code& ec) {
+    if (offset +  dst.length() > src.length()) {
+        ec = error::out_of_range;
         return;
     }
+
+    WorkRequestId workId(userId, dst.id(), WorkType::READ);
+
+    struct ibv_send_wr wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.opcode = IBV_WR_RDMA_READ;
+    wr.wr_id = workId.id();
+    wr.sg_list = dst.handle();
+    wr.num_sge = 1;
+    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.wr.rdma.remote_addr = src.address();
+    wr.wr.rdma.rkey = src.key();
+
+    SERVICE_LOG("%1%: RDMA read %2% bytes from remote %3% into buffer %4%", formatRemoteAddress(impl->id), dst.length(),
+            reinterpret_cast<void*>(src.address()), dst.id());
+    doSend(impl, &wr, ec);
+}
+
+void InfinibandService::write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst,
+        size_t offset, uint32_t userId, boost::system::error_code& ec) {
+    if (offset +  src.length() > dst.length()) {
+        ec = error::out_of_range;
+        return;
+    }
+
+    WorkRequestId workId(userId, src.id(), WorkType::WRITE);
+
+    struct ibv_send_wr wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.opcode = IBV_WR_RDMA_WRITE;
+    wr.wr_id = workId.id();
+    wr.sg_list = src.handle();
+    wr.num_sge = 1;
+    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.wr.rdma.remote_addr = dst.address();
+    wr.wr.rdma.rkey = dst.key();
+
+    SERVICE_LOG("%1%: RDMA write %2% bytes to remote %3% from buffer %4%", formatRemoteAddress(impl->id), src.length(),
+            reinterpret_cast<void*>(dst.address()), src.id());
+    doSend(impl, &wr, ec);
 }
 
 DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
@@ -266,6 +300,26 @@ DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
     }
 
     return mDevice.get();
+}
+
+void InfinibandService::doSend(SocketImplementation* impl, struct ibv_send_wr* wr, boost::system::error_code& ec) {
+    if (!impl->id) {
+        ec = error::bad_descriptor;
+        return;
+    }
+
+    if (impl->state == ConnectionState::DISCONNECTED) {
+        ec = error::disconnected;
+        return;
+    }
+
+    struct ibv_send_wr* bad_wr = nullptr;
+    if (auto res = ibv_post_send(impl->id->qp, wr, &bad_wr) != 0) {
+        ec = boost::system::error_code(res, boost::system::system_category());
+        return;
+    }
+
+    ec = boost::system::error_code();
 }
 
 void InfinibandService::processEvent(struct rdma_cm_event* event) {

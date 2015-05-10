@@ -27,6 +27,7 @@ set(SRCS
     src/DeviceContext.cpp
     src/Endpoint.cpp
     src/ErrorCode.hpp
+    src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
     src/InfinibandSocketImpl.hpp

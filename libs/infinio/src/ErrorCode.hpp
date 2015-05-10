@@ -15,6 +15,9 @@ namespace error {
  */
 enum basic_errors {
     already_initialized,
+
+    /// Memory access out of range
+    out_of_range,
 };
 
 /**
@@ -27,9 +30,16 @@ public:
     }
 
     std::string message(int value) const {
-        if (value == error::already_initialized)
+        switch (value) {
+        case error::already_initialized:
             return "Already initialized";
-        return "infinio.basic error";
+
+        case error::out_of_range:
+            return "Memory access out of range";
+
+        default:
+            return "infinio.basic error";
+        }
     }
 };
 

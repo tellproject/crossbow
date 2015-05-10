@@ -1,10 +1,12 @@
 #pragma once
 
-#include <rdma/rdma_cma.h>
+#include <boost/system/error_code.hpp>
 
 #include <cstddef>
 #include <cstring>
 #include <limits>
+
+#include <rdma/rdma_cma.h>
 
 namespace crossbow {
 namespace infinio {
@@ -47,6 +49,92 @@ private:
     struct ibv_sge mHandle;
 
     uint16_t mId;
+};
+
+/**
+ * @brief The LocalMemoryRegion class provides access to a memory region on the local host
+ *
+ * Can be used to let a remote host read and write to the memory region or read/write data from this region to a remote
+ * memory region.
+ */
+class LocalMemoryRegion {
+public:
+    LocalMemoryRegion(struct ibv_mr* dataRegion)
+            : mDataRegion(dataRegion) {
+    }
+
+    ~LocalMemoryRegion() {
+        boost::system::error_code ec;
+        releaseMemoryRegion(ec);
+        if (ec) {
+            // TODO Log error?
+        }
+    }
+
+    /**
+     * @brief Deregisters the memory region
+     *
+     * The data referenced by this memory region should not be used in any further RDMA operations.
+     */
+    void releaseMemoryRegion(boost::system::error_code& ec);
+
+    uintptr_t address() const {
+        return reinterpret_cast<uintptr_t>(mDataRegion->addr);
+    }
+
+    size_t length() const {
+        return mDataRegion->length;
+    }
+
+    uint32_t key() const {
+        return mDataRegion->rkey;
+    }
+
+    /**
+     * @brief Acquire a buffer from the memory region for use in RDMA read and write requests
+     *
+     * The user has to take care that buffers do not overlap or read/writes are serialized.
+     *
+     * @param id User specified buffer ID
+     * @param offset Offset into the memory region the buffer should start
+     * @param length Length of the buffer
+     * @return A newly acquired buffer or a buffer with invalid ID in case of an error
+     */
+    InfinibandBuffer acquireBuffer(uint16_t id, uint64_t offset, uint32_t length);
+
+private:
+    struct ibv_mr* mDataRegion;
+};
+
+/**
+ * @brief The RemoteMemoryRegion class provides access to a memory region on a remote host
+ *
+ * Can be used to read and write from/to the remote memory.
+ */
+class RemoteMemoryRegion {
+public:
+    RemoteMemoryRegion(uintptr_t address, size_t length, uint32_t key)
+            : mAddress(address),
+              mLength(length),
+              mKey(key) {
+    }
+
+    uintptr_t address() const {
+        return mAddress;
+    }
+
+    size_t length() const {
+        return mLength;
+    }
+
+    uint32_t key() const {
+        return mKey;
+    }
+
+private:
+    uintptr_t mAddress;
+    size_t mLength;
+    uint32_t mKey;
 };
 
 } // namespace infinio
