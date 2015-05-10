@@ -106,19 +106,23 @@ void InfinibandService::shutdown(boost::system::error_code& ec) {
         }
     }
 
-    SERVICE_LOG("Destroy event channel");
-    errno = 0;
-    rdma_destroy_event_channel(mChannel);
-    if (errno) {
-        std::cerr << "Unable to destroy RDMA Event Channel [errno = " << errno << " " << strerror(errno) << "]"
-                  << std::endl;
-        return;
+    if (mChannel) {
+        SERVICE_LOG("Destroy event channel");
+        errno = 0;
+        rdma_destroy_event_channel(mChannel);
+        if (errno) {
+            std::cerr << "Unable to destroy RDMA Event Channel [errno = " << errno << " " << strerror(errno) << "]"
+                      << std::endl;
+            return;
+        }
+        mChannel = nullptr;
     }
-    mChannel = nullptr;
 
-    SERVICE_LOG("Wait for event poll thread");
-    // TODO: Ask Jonas whether there is a better solution to thish
-    mPollingThread.detach();
+    if (mPollingThread.joinable()) {
+        SERVICE_LOG("Wait for event poll thread");
+        // TODO: Ask Jonas whether there is a better solution to thish
+        mPollingThread.detach();
+    }
 }
 
 void InfinibandService::open(SocketImplementation* impl, boost::system::error_code& ec) {
