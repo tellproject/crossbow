@@ -24,8 +24,6 @@ private:
 
     virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
 
-    virtual void onSend(uint32_t id, const boost::system::error_code& ec) override;
-
     virtual void onDisconnect() override;
 
     virtual void onDisconnected() override;
@@ -63,9 +61,6 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const boost::s
     }
 }
 
-void EchoConnection::onSend(uint32_t id, const boost::system::error_code& /* ec */) {
-}
-
 void EchoConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
     boost::system::error_code ec;
@@ -88,7 +83,7 @@ void EchoConnection::handleError(std::string message, boost::system::error_code&
     }
 }
 
-class EchoAcceptor: protected InfinibandAcceptorHandler {
+class EchoAcceptor: protected InfinibandSocketHandler {
 public:
     EchoAcceptor(InfinibandService& service)
             : mAcceptor(service) {

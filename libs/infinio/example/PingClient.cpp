@@ -27,8 +27,6 @@ private:
 
     virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
 
-    virtual void onSend(uint32_t userId, const boost::system::error_code& ec) override;
-
     virtual void onDisconnect() override;
 
     virtual void onDisconnected() override;
@@ -88,9 +86,6 @@ void PingConnection::onReceive(const void* buffer, size_t length, const boost::s
             std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
         }
     }
-}
-
-void PingConnection::onSend(uint32_t userId, const boost::system::error_code& /* ec */) {
 }
 
 void PingConnection::onDisconnect() {

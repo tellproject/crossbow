@@ -38,7 +38,7 @@ void InfinibandBaseSocket::bind(const Endpoint& addr, boost::system::error_code&
     mTransport.bind(mImpl, addr, ec);
 }
 
-void InfinibandBaseSocket::setHandler(InfinibandBaseHandler* handler) {
+void InfinibandBaseSocket::setHandler(InfinibandSocketHandler* handler) {
     mImpl->handler = handler;
 }
 
@@ -54,8 +54,8 @@ void InfinibandSocket::disconnect(boost::system::error_code& ec) {
     mTransport.disconnect(mImpl, ec);
 }
 
-void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t id, boost::system::error_code& ec) {
-    mTransport.send(mImpl, buffer, id, ec);
+void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec) {
+    mTransport.send(mImpl, buffer, userId, ec);
 }
 
 uint32_t InfinibandSocket::bufferLength() const {
@@ -70,32 +70,32 @@ void InfinibandSocket::releaseSendBuffer(InfinibandBuffer& buffer) {
     mImpl->device->releaseSendBuffer(buffer);
 }
 
-InfinibandBaseHandler::~InfinibandBaseHandler() {
+InfinibandSocketHandler::~InfinibandSocketHandler() {
 }
 
 bool InfinibandSocketHandler::onConnection(InfinibandSocket socket) {
-    // TODO This should never be called
+    // Empty default function
     return false;
 }
 
-void InfinibandAcceptorHandler::onConnected(const boost::system::error_code& ec) {
-    // TODO This should never be called
+void InfinibandSocketHandler::onConnected(const boost::system::error_code& ec) {
+    // Empty default function
 }
 
-void InfinibandAcceptorHandler::onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) {
-    // TODO This should never be called
+void InfinibandSocketHandler::onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) {
+    // Empty default function
 }
 
-void InfinibandAcceptorHandler::onSend(uint32_t id, const boost::system::error_code& ec) {
-    // TODO This should never be called
+void InfinibandSocketHandler::onSend(uint32_t userId, const boost::system::error_code& ec) {
+    // Empty default function
 }
 
-void InfinibandAcceptorHandler::onDisconnect() {
-    // TODO This should never be called
+void InfinibandSocketHandler::onDisconnect() {
+    // Empty default function
 }
 
-void InfinibandAcceptorHandler::onDisconnected() {
-    // TODO This should never be called
+void InfinibandSocketHandler::onDisconnected() {
+    // Empty default function
 }
 
 } // namespace infinio

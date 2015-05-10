@@ -9,7 +9,7 @@ namespace crossbow {
 namespace infinio {
 
 class DeviceContext;
-class InfinibandBaseHandler;
+class InfinibandSocketHandler;
 
 /**
  * @brief State of a socket
@@ -52,7 +52,7 @@ struct SocketImplementation {
     DeviceContext* device;
 
     /// Callback handlers for events occuring on this socket
-    InfinibandBaseHandler* handler;
+    InfinibandSocketHandler* handler;
 
     /// Number of handlers pending their execution
     std::atomic<uint64_t> work;

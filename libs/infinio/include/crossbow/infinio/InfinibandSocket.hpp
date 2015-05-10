@@ -13,7 +13,7 @@ namespace infinio {
 
 class Endpoint;
 class InfinibandService;
-class InfinibandBaseHandler;
+class InfinibandSocketHandler;
 class SocketImplementation;
 
 /**
@@ -31,7 +31,7 @@ public:
 
     void bind(const Endpoint& addr, boost::system::error_code& ec);
 
-    void setHandler(InfinibandBaseHandler* handler);
+    void setHandler(InfinibandSocketHandler* handler);
 
 protected:
     InfinibandBaseSocket(InfinibandService& transport)
@@ -80,7 +80,7 @@ public:
 
     void disconnect(boost::system::error_code& ec);
 
-    void send(InfinibandBuffer& buffer, uint32_t id, boost::system::error_code& ec);
+    void send(InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
 
     uint32_t bufferLength() const;
 
@@ -92,9 +92,9 @@ public:
 /**
  * @brief Interface class containing callbacks for various socket events
  */
-class InfinibandBaseHandler {
+class InfinibandSocketHandler {
 public:
-    virtual ~InfinibandBaseHandler();
+    virtual ~InfinibandSocketHandler();
 
     /**
      * @brief Handle a new incoming connection
@@ -108,7 +108,7 @@ public:
      *
      * @return True if the connection was accepted, false if it was rejected
      */
-    virtual bool onConnection(InfinibandSocket socket) = 0;
+    virtual bool onConnection(InfinibandSocket socket);
 
     /**
      * @brief Invoked when the connection to the remote host was established
@@ -120,7 +120,7 @@ public:
      *
      * @param ec Error in case the connection attempt failed
      */
-    virtual void onConnected(const boost::system::error_code& ec) = 0;
+    virtual void onConnected(const boost::system::error_code& ec);
 
     /**
      * @brief Invoked whenever data was received from the remote host
@@ -131,18 +131,17 @@ public:
      * @param length Number of bytes transmitted
      * @param ec Error in case the receive failed
      */
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) = 0;
+    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec);
 
     /**
      * @brief Invoked whenever data was sent to the remote host
      *
      * The function must not release the buffer containing the data.
      *
-     * @param buffer Pointer to the transmitted data
-     * @param length Number of bytes transmitted
+     * @param userId The user supplied ID of the send call
      * @param ec Error in case the send failed
      */
-    virtual void onSend(uint32_t id, const boost::system::error_code& ec) = 0;
+    virtual void onSend(uint32_t userId, const boost::system::error_code& ec);
 
     /**
      * @brief Invoked whenever the remote host disconnected
@@ -151,42 +150,14 @@ public:
      *
      * Receives may be triggered even after this callback was invoked from remaining packets that were in flight.
      */
-    virtual void onDisconnect() = 0;
+    virtual void onDisconnect();
 
     /**
      * @brief Invoked whenever the connection is disconnected
      *
      * Any remaining in flight packets were processed, it is now safe to clean up the connection.
      */
-    virtual void onDisconnected() = 0;
-};
-
-/**
- * @brief Handler interface to handle events of an InfinibandSocket
- *
- * Hides any methods that are not applicable on this type of socket.
- */
-class InfinibandSocketHandler: public InfinibandBaseHandler {
-private:
-    virtual bool onConnection(InfinibandSocket socket) final override;
-};
-
-/**
- * @brief Handler interface to handle events of an InfinibandAcceptor
- *
- * Hides any methods that are not applicable on this type of socket.
- */
-class InfinibandAcceptorHandler: public InfinibandBaseHandler {
-private:
-    virtual void onConnected(const boost::system::error_code& ec) final override;
-
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) final override;
-
-    virtual void onSend(uint32_t id, const boost::system::error_code& ec) final override;
-
-    virtual void onDisconnect() final override;
-
-    virtual void onDisconnected() final override;
+    virtual void onDisconnected();
 };
 
 } // namespace infinio
