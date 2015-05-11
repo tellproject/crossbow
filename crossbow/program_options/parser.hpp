@@ -1,4 +1,6 @@
 #pragma once
+#include <limits>
+#include <stdexcept>
 #include <string>
 
 namespace crossbow {
@@ -22,6 +24,21 @@ struct parser<char> {
             throw parse_error("Could not parse char: " + std::string(str));
         }
         return str[0];
+    }
+};
+
+template<>
+struct parser<short> {
+    short operator()(const char* str) const {
+        try {
+            int val = std::stoi(std::string(str));
+            if (val < std::numeric_limits<short>::min() || val > std::numeric_limits<short>::max()) {
+                throw std::out_of_range("Invalid range");
+            }
+            return static_cast<short>(val);
+        } catch (...) {
+            throw parse_error(str + std::string(" is not a valid short"));
+        }
     }
 };
 
@@ -54,6 +71,21 @@ struct parser<long long> {
             return std::stoll(std::string(str));
         } catch (...) {
             throw parse_error(str + std::string("is not a valid long long"));
+        }
+    }
+};
+
+template<>
+struct parser<unsigned short> {
+    unsigned short operator()(const char* str) const {
+        try {
+            unsigned long val = std::stoul(std::string(str));
+            if (val > std::numeric_limits<unsigned short>::max()) {
+                throw std::out_of_range("Invalid range");
+            }
+            return static_cast<unsigned short>(val);
+        } catch (...) {
+            throw parse_error(str + std::string(" is not a valid unsigned short"));
         }
     }
 };
