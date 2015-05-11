@@ -152,7 +152,7 @@ int main(int argc, const char** argv) {
     bool help = false;
     int count = 5;
     crossbow::string server;
-    int port = 4488;
+    uint16_t port = 4488;
     auto opts = crossbow::program_options::create_options(argv[0],
             crossbow::program_options::toggle<'h'>("help", help),
             crossbow::program_options::value<'c'>("count", count),
@@ -170,11 +170,6 @@ int main(int argc, const char** argv) {
     if (help) {
         crossbow::program_options::print_help(std::cout, opts);
         return 0;
-    }
-
-    if (port > std::numeric_limits<uint16_t>::max()) {
-        std::cerr << "Invalid port number" << std::endl;
-        return 1;
     }
 
     std::cout << "Starting ping client" << std::endl;
