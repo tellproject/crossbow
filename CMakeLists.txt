@@ -45,8 +45,10 @@ install(DIRECTORY crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PAT
 add_subdirectory(libs)
 
 # Build Crossbow tests
-enable_testing()
-add_subdirectory(test)
+if (${ENABLE_TESTS})
+    enable_testing()
+    add_subdirectory(test)
+endif()
 
 # Create cmake config file
 configure_file(CrossbowConfig.cmake.in ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
