@@ -1,41 +1,56 @@
-find_package(Boost 1.49 COMPONENTS context)
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads)
-if (${Boost_FOUND})
-    set(STACK_SIZE "0x800000" CACHE STRING "The size of a stack")
-    configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.hpp)
 
-    include_directories(${Boost_INCLUDE_DIR})
-    include_directories(${CMAKE_CURRENT_BINARY_DIR})
+find_package(Boost 1.49 COMPONENTS context)
+if (NOT ${Boost_FOUND})
+    message(STATUS "Did not find Boost Context, thread will not be built")
+    return()
+endif()
 
-    set(SRC
-        thread/thread.hpp
-        thread/mutex.hpp
-        thread/condition_variable.hpp
-        thread.cpp
-        mutex.cpp
-        common.hpp
-        )
+set(STACK_SIZE "0x800000" CACHE STRING "The size of a stack")
+configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.hpp)
 
-    add_library(crossbow_thread ${SRC})
-    target_link_libraries(crossbow_thread ${Boost_LIBRARIES} ${CMAKE_DL_LIBS})
+set(SRC
+    thread/thread.hpp
+    thread/mutex.hpp
+    thread/condition_variable.hpp
+    thread.cpp
+    mutex.cpp
+    common.hpp
+)
 
-    install(FILES "thread.hpp" DESTINATION include/crossbow)
-    install(DIRECTORY "thread" DESTINATION include/crossbow)
-    install(TARGETS crossbow_thread DESTINATION lib)
+# Add the Thread library
+add_library(crossbow_thread STATIC ${SRC})
+target_include_directories(crossbow_thread PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
+# Link against Threads
+target_link_libraries(crossbow_thread PUBLIC ${CMAKE_THREAD_LIBS_INIT})
+
+# Link against Boost
+target_include_directories(crossbow_thread PUBLIC ${Boost_INCLUDE_DIRS})
+target_link_libraries(crossbow_thread PUBLIC ${Boost_LIBRARIES})
+
+# Install the library
+install(TARGETS crossbow_thread
+        EXPORT CrossbowThreadTargets
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR})
+
+# Add the thread unit tests
+macro(do_test exec)
+    add_executable(${exec} ${exec}.cpp)
+    target_link_libraries(${exec} crossbow_thread)
+    add_test("${exec}_test" ${exec})
+endmacro(do_test)
+
+if(${ENABLE_TESTS})
     enable_testing()
-
-    macro(do_test exec)
-        add_executable(${exec} ${exec}.cpp)
-        target_link_libraries(${exec} crossbow_thread ${Boost_LIBRARIES})
-        add_test(${exec}_test ${exec})
-    endmacro(do_test)
-
     do_test(simple_test)
     do_test(fibonacci)
-    set(HAS_THREAD True)
-else()
-    message(STATUS "Could not find Boost - won't build thread library")
-    set(HAS_THREAD False)
 endif()
+
+# Install Crossbow Thread headers
+install(DIRECTORY thread DESTINATION ${INCLUDE_INSTALL_DIR}/crossbow FILES_MATCHING PATTERN "*.hpp")
+install(FILES "thread.hpp" DESTINATION ${INCLUDE_INSTALL_DIR}/crossbow)
+
+# Install the cmake target
+install(EXPORT CrossbowThreadTargets DESTINATION ${CMAKE_INSTALL_DIR})
