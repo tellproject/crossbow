@@ -94,9 +94,13 @@ template<>
 struct parser<unsigned> {
     unsigned operator()(const char* str) const {
         try {
-            return std::stoul(std::string(str));
+            unsigned long val = std::stoul(std::string(str));
+            if (val > std::numeric_limits<unsigned>::max()) {
+                throw std::out_of_range("Invalid range");
+            }
+            return static_cast<unsigned>(val);
         } catch (...) {
-            throw parse_error(str + std::string("is not a valid unsigned"));
+            throw parse_error(str + std::string(" is not a valid unsigned"));
         }
     }
 };
