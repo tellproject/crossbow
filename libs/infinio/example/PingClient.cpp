@@ -154,7 +154,7 @@ int main(int argc, const char** argv) {
     crossbow::string server;
     uint16_t port = 4488;
     auto opts = crossbow::program_options::create_options(argv[0],
-            crossbow::program_options::toggle<'h'>("help", help),
+            crossbow::program_options::value<'h'>("help", help),
             crossbow::program_options::value<'c'>("count", count),
             crossbow::program_options::value<'s'>("server", server),
             crossbow::program_options::value<'p'>("port", port));
