@@ -17,6 +17,7 @@ set(SRC
     thread.cpp
     mutex.cpp
     common.hpp
+    condition_variable.cpp
 )
 
 # Add the Thread library
