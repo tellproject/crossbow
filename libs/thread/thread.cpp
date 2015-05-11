@@ -290,7 +290,11 @@ void doBlock() {
     auto& p = this_processor();
     auto curr = p.currThread;
     curr->state_ = thread_impl::state::BLOCKED;
+#if BOOST_VERSION >= 105600
     boost::context::jump_fcontext(&curr->fc, curr->ocontext, 0);
+#else
+    boost::context::jump_fcontext(curr->fc, &(curr->ocontext), 0);
+#endif
     curr->state_ = thread_impl::state::RUNNING;
     p.currThread = curr;
 }
