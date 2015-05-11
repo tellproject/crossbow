@@ -35,7 +35,7 @@ RdmaBuffer::RdmaBuffer(infinityverbs::core::Context* context, void* buffer,
 
 	this->context = context;
 	this->sizeInBytes = sizeInBytes;
-	this->data = data;
+	this->data = buffer;
 
 	this->ibvMemoryRegion = ibv_reg_mr(this->context->getInfiniBandProtectionDomain(), this->data, this->sizeInBytes, IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ);
 
@@ -48,7 +48,7 @@ RdmaBuffer::RdmaBuffer(infinityverbs::core::Context* context, ibv_mr* mr,
 
 	this->context = context;
 	this->sizeInBytes = sizeInBytes;
-	this->data = data;
+	this->data = buffer;
 	this->ibvMemoryRegion = mr;
 
 	deregOnDelete = false;

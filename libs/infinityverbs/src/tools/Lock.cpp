@@ -28,7 +28,7 @@ void Lock::unlock() {
 
 inline int Lock::tas(volatile char* lockFlag) {
 
-	register char res = 1;
+	char res = 1;
 
 	#if defined(__i386__) || defined(__x86_64__)
 		__asm__ __volatile__ (

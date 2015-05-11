@@ -170,7 +170,7 @@ opid_t Context::getNextOperationId() {
 }
 
 void Context::waitUntilOperationCompleted(opid_t operationId) {
-	while(!checkIfOperationCompleted(operationId));
+	while(!checkIfOperationCompleted(operationId)) {}
 	INFINITY_VERBS_DEBUG_STATUS(1, "[INFINITYVERBS][CORE][CONTEXT] Request %lu completed\n", operationId);
 }
 
