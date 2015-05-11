@@ -1,22 +1,25 @@
-#include <crossbow/program_options.hpp>
+#include "../../crossbow/program_options.hpp"
 
 using namespace crossbow::program_options;
 
 int main(int argc, const char** argv) {
     bool all = false;
     bool bar = false;
+    bool bar2 = false;
+    bool all2 = false;
     bool b = false;
     char foo = '\0';
     crossbow::string str;
     auto opts
         = create_options(argv[0],
-                         value < 'a' > ("all", all, tag::ignore_short<true> {}, tag::description {"All Test"}),
-                         toggle < 'b' > ("all2", tag::ignore_long<true> {}),
-                         toggle < -1 > ("bar", tag::ignore_short<true> {}),
-    value < 's' > ("string", str, tag::callback([](crossbow::string & str) {
-        std::cout << "Callback with " << str << " on -s" << std::endl;
-    })),
-                         value < 'f' > ("foo", foo));
+                         value <'a'>("all", all, tag::ignore_short<true> {}, tag::description {"All Test"})
+                         , value < 'b' > ("all2", all2, tag::ignore_long<true> {})
+                         , value < -1 > ("bar", bar2, tag::ignore_short<true> {})
+                         , value < 's' > ("string", str, tag::callback([](crossbow::string & str) {
+                                std::cout << "Callback with " << str << " on -s" << std::endl;
+                         }))
+                         , value < 'f' > ("foo", foo)
+        );
     std::cout << "Size of options: " << sizeof(opts) << std::endl;
     print_help(std::cout, opts);
     auto idx = parse(opts, argc, argv);

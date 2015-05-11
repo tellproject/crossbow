@@ -160,13 +160,8 @@ struct option {
         if (value_ptr)
             *value_ptr = value;
     }
-    option(string longoption, Opts... opts)
-        : longoption(longoption), this_opts(opts...) {}
-    option(string longoption, value_type* value, Opts... opts)
-        : longoption(longoption), value_ptr(value), this_opts(opts...) {}
-    option(value_type* value, Opts... opts)
-        : value_ptr(value), this_opts(opts...) {}
-    option(Opts... opts) : this_opts(opts...) {}
+    option(const std::string& longoption, value_type& value, Opts... opts)
+        : longoption(longoption), value_ptr(&value), this_opts(opts...) {}
 
     std::ostream &print_help(std::ostream &os) const {
         if (ignore_short && ignore_long) return os;
@@ -312,6 +307,26 @@ struct options<> {
     }
 };
 
+template<char Name, class T, class... Opts>
+struct OptionType {
+    using type = option<Name, T, tag::ignore_long<true>, Opts...>;
+};
+
+template<char Name, class T, class... Opts>
+struct OptionType<Name, const std::string&, T, Opts...> {
+    using type = option<Name, T, Opts...>;
+};
+
+template<char Name, class T, class... Opts>
+struct OptionType<Name, const char*, T, Opts...> {
+    using type = option<Name, T, Opts...>;
+};
+
+template<char Name, class T, class... Opts>
+struct OptionType<Name, char*, T, Opts...> {
+    using type = option<Name, T, Opts...>;
+};
+
 } // namespace impl
 
 template<char Name, class O>
@@ -326,49 +341,10 @@ std::unique_ptr<impl::options<Opts...>> create_options(const string &name, Opts 
     return std::unique_ptr<res_type>(new res_type {name, std::forward<Opts>(opts)...});
 }
 
-template<char Name, class T, class... Opts>
-impl::option<Name, T, Opts...> value(const string &longopt, T &val, Opts... opts) {
-    return impl::option<Name, T, Opts...> {longopt, &val, opts...};
-}
-
-template<char Name, class T, class... Opts>
-impl::option<Name, T, Opts...> value(const char* longopt, T &val, Opts... opts) {
-    return value<Name, T, Opts...>(string {longopt}, val, opts...);
-}
-
-template<char Name, class T, class... Opts>
-impl::option<Name, T, tag::ignore_long<true>, Opts...> value(T &val, Opts... opts) {
-    return impl::option<Name, T, tag::ignore_long<true>, Opts...> {&val, tag::ignore_long<true>{}, opts...};
-}
-
 template<char Name, class... Opts>
-impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(Opts... opts) {
-    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {tag::ignore_long<true>{}, opts...};
-}
-
-template<char Name, class... Opts>
-impl::option<Name, bool, tag::ignore_long<true>, Opts...> toggle(bool &value, Opts... opts) {
-    return impl::option<Name, bool, tag::ignore_long<true>, Opts...> {&value, opts...};
-}
-
-template<char Name, class... Opts>
-impl::option<Name, bool, Opts...> toggle(const string &longopt, Opts... opts) {
-    return impl::option<Name, bool, Opts...> {longopt, opts...};
-}
-
-template<char Name, class... Opts>
-impl::option<Name, bool, Opts...> toggle(const char* longopt, Opts... opts) {
-    return toggle<Name, Opts...>(string {longopt}, opts...);
-}
-
-template<char Name, class... Opts>
-impl::option<Name, bool, Opts...> toggle(const string &longopt, bool &value, Opts... opts) {
-    return impl::option<Name, bool, Opts...> {longopt, &value, opts...};
-}
-
-template<char Name, class... Opts>
-impl::option<Name, bool, Opts...> toggle(const char* longopt, bool &value, Opts... opts) {
-    return toggle<Name, Opts...>(string {longopt}, value, opts...);
+typename impl::OptionType<Name, Opts...>::type value(Opts... opts) {
+    using res_type = typename impl::OptionType<Name, Opts...>::type;
+    return res_type {opts...};
 }
 
 template<class O>
