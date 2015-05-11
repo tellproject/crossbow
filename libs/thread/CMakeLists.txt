@@ -21,6 +21,8 @@ set(SRC
 
 # Add the Thread library
 add_library(crossbow_thread STATIC ${SRC})
+target_include_directories(crossbow_thread PUBLIC
+        $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 target_include_directories(crossbow_thread PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Link against Threads
