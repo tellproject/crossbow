@@ -12,13 +12,13 @@ int main(int argc, const char** argv) {
     crossbow::string str;
     auto opts
         = create_options(argv[0],
-                         value <'a'>("all", all, tag::ignore_short<true> {}, tag::description {"All Test"})
-                         , value < 'b' > ("all2", all2, tag::ignore_long<true> {})
-                         , value < -1 > ("bar", bar2, tag::ignore_short<true> {})
-                         , value < 's' > ("string", str, tag::callback([](crossbow::string & str) {
+                         value <'a'>("all", &all, tag::ignore_short<true> {}, tag::description {"All Test"})
+                         , value < 'b' > ("all2", &all2, tag::ignore_long<true> {})
+                         , value < -1 > ("bar", &bar2, tag::ignore_short<true> {})
+                         , value < 's' > ("string", &str, tag::callback([](crossbow::string & str) {
                                 std::cout << "Callback with " << str << " on -s" << std::endl;
                          }))
-                         , value < 'f' > ("foo", foo)
+                         , value < 'f' > ("foo", &foo)
         );
     std::cout << "Size of options: " << sizeof(opts) << std::endl;
     print_help(std::cout, opts);

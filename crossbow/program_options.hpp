@@ -143,7 +143,7 @@ struct o_options<> {
 template<char Name, class T, class... Opts>
 struct option {
     using my_options = o_options<Opts...>;
-    using value_type = T;
+    using value_type = typename std::remove_cv<typename std::remove_pointer<T>::type>::type;
     constexpr static bool ignore_short = my_options::ignore_short_option;
     constexpr static bool ignore_long = my_options::ignore_long_option;
     constexpr static char name = Name;
@@ -160,8 +160,11 @@ struct option {
         if (value_ptr)
             *value_ptr = value;
     }
-    option(const std::string& longoption, value_type& value, Opts... opts)
-        : longoption(longoption), value_ptr(&value), this_opts(opts...) {}
+    option(const std::string& longoption, value_type* value, Opts... opts)
+        : longoption(longoption)
+        , value_ptr(value)
+        , value()
+        , this_opts(opts...) {}
 
     std::ostream &print_help(std::ostream &os) const {
         if (ignore_short && ignore_long) return os;
