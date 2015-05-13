@@ -57,7 +57,7 @@ public:
      */
     WorkType workType() {
         auto value = (mId & 0xFFFFu);
-        if (mId > static_cast<uint64_t>(WorkType::LAST)) {
+        if (value > static_cast<uint64_t>(WorkType::LAST)) {
             return WorkType::UNKNOWN;
         }
         return static_cast<WorkType>(value);
@@ -65,8 +65,8 @@ public:
 
 private:
     static uint64_t buildId(uint32_t userId, uint16_t bufferId, WorkType type) {
-        return ( (static_cast<uint64_t>(userId) >> 32)
-               | (static_cast<uint64_t>(bufferId) >> 16)
+        return ( (static_cast<uint64_t>(userId) << 32)
+               | (static_cast<uint64_t>(bufferId) << 16)
                |  static_cast<uint64_t>(type));
     }
 
