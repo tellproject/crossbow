@@ -481,8 +481,8 @@ void DeviceContext::initReceiveQueue(boost::system::error_code& ec) {
     }
 
     DEVICE_LOG("Post %1% buffers to shared receive queue", mReceiveBufferCount);
-    for (uint16_t i = 0; i < mReceiveBufferCount; ++i) {
-        postReceiveBuffer(i, ec);
+    for (uint16_t id = 0x0u; id < mReceiveBufferCount; ++id) {
+        postReceiveBuffer(id, ec);
         if (ec) {
             return;
         }
