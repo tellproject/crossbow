@@ -108,6 +108,8 @@ public:
 
     uint32_t bufferLength() const;
 
+    InfinibandBuffer acquireSendBuffer();
+
     InfinibandBuffer acquireSendBuffer(uint32_t length);
 
     void releaseSendBuffer(InfinibandBuffer& buffer);

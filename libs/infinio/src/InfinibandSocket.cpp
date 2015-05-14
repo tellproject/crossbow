@@ -72,6 +72,10 @@ uint32_t InfinibandSocket::bufferLength() const {
     return mImpl->device->bufferLength();
 }
 
+InfinibandBuffer InfinibandSocket::acquireSendBuffer() {
+    return mImpl->device->acquireSendBuffer();
+}
+
 InfinibandBuffer InfinibandSocket::acquireSendBuffer(uint32_t length) {
     return mImpl->device->acquireSendBuffer(length);
 }

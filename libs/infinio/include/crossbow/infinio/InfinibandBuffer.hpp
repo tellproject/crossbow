@@ -33,6 +33,20 @@ public:
         return mHandle.length;
     }
 
+    /**
+     * @brief Shrinks the buffer space to the given length
+     *
+     * The new buffer length has to be smaller than the current length.
+     *
+     * @param length The new length of the buffer
+     */
+    void shrink(uint32_t length) {
+        if (mHandle.length <= length) {
+            return;
+        }
+        mHandle.length = length;
+    }
+
     void* data() {
         return const_cast<void*>(const_cast<const InfinibandBuffer*>(this)->data());
     }

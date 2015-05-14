@@ -1,5 +1,6 @@
 #pragma once
 
+#include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/concurrent_map.hpp>
 
@@ -228,6 +229,15 @@ public:
      */
     uint32_t bufferLength() const {
         return mBufferLength;
+    }
+
+    /**
+     * @brief Acquire a send buffer from the shared pool with maximum size
+     *
+     * @return A newly acquired buffer or a buffer with invalid ID in case of an error
+     */
+    InfinibandBuffer acquireSendBuffer() {
+        return acquireSendBuffer(mBufferLength);
     }
 
     /**
