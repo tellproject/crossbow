@@ -52,6 +52,7 @@ void dispatchConnectionError(EventDispatcher& dispatcher, struct rdma_cm_id* id,
 
 InfinibandService::InfinibandService(EventDispatcher& dispatcher, const InfinibandLimits& limits)
         : mDispatcher(dispatcher),
+          mLimits(limits),
           mDevice(nullptr),
           mShutdown(false) {
     SERVICE_LOG("Create event channel");
