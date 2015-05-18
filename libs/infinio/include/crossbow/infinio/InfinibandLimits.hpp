@@ -11,11 +11,11 @@ namespace infinio {
 struct InfinibandLimits {
 public:
     InfinibandLimits()
-            : receiveBufferCount(4),
-              sendBufferCount(8),
-              bufferLength(1024),
-              sendQueueLength(10),
-              completionQueueLength(10),
+            : receiveBufferCount(64),
+              sendBufferCount(64),
+              bufferLength(256),
+              sendQueueLength(64),
+              completionQueueLength(128),
               pollCycles(1000000) {
     }
 
@@ -47,7 +47,7 @@ public:
     /**
      * @brief Number of iterations to poll when there is no work completion
      */
-    uint64_t pollCycles = 1000000;
+    uint64_t pollCycles;
 };
 
 } // namespace infinio
