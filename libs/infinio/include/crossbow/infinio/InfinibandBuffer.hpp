@@ -34,6 +34,13 @@ public:
     }
 
     /**
+     * @brief Whether the buffer is valid
+     */
+    bool valid() const {
+        return (mId != INVALID_ID);
+    }
+
+    /**
      * @brief Shrinks the buffer space to the given length
      *
      * The new buffer length has to be smaller than the current length.
