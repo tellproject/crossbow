@@ -16,7 +16,9 @@
 #include <sys/mman.h>
 
 #define COMPLETION_LOG(...) INFINIO_LOG("[CompletionContext] " __VA_ARGS__)
+#define COMPLETION_ERROR(...) INFINIO_ERROR("[CompletionContext] " __VA_ARGS__)
 #define DEVICE_LOG(...) INFINIO_LOG("[DeviceContext] " __VA_ARGS__)
+#define DEVICE_ERROR(...) INFINIO_ERROR("[DeviceContext] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -159,7 +161,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         case WorkType::RECEIVE: {
             mDevice.postReceiveBuffer(workId.bufferId(), ec);
             if (ec) {
-                COMPLETION_LOG("Failed to post receive buffer on wc complete [errno = %1% - %2%]", ec, ec.message());
+                COMPLETION_ERROR("Failed to post receive buffer on wc complete [errno = %1% - %2%]", ec, ec.message());
                 // TODO Error Handling (this is more or less a memory leak)
             }
         } break;
@@ -183,19 +185,19 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         ec = boost::system::error_code(wc->status, error::get_work_completion_category());
     } else {
         if (workId.workType() == WorkType::SEND && wc->opcode != IBV_WC_SEND) {
-            COMPLETION_LOG("Send buffer but opcode %1% not send", wc->opcode);
+            COMPLETION_ERROR("Send buffer but opcode %1% not send", wc->opcode);
             // TODO Send buffer but opcode not send
         }
         if (workId.workType() == WorkType::RECEIVE && wc->opcode != IBV_WC_RECV) {
-            COMPLETION_LOG("Receive buffer but opcode %1% not receive", wc->opcode);
+            COMPLETION_ERROR("Receive buffer but opcode %1% not receive", wc->opcode);
             // TODO receive buffer but opcode not receive
         }
         if (workId.workType() == WorkType::READ && wc->opcode != IBV_WC_RDMA_READ) {
-            COMPLETION_LOG("Read buffer but opcode %1% not read", wc->opcode);
+            COMPLETION_ERROR("Read buffer but opcode %1% not read", wc->opcode);
             // TODO read buffer but opcode not read
         }
         if (workId.workType() == WorkType::WRITE && wc->opcode != IBV_WC_RDMA_WRITE) {
-            COMPLETION_LOG("Write buffer but opcode %1% not write", wc->opcode);
+            COMPLETION_ERROR("Write buffer but opcode %1% not write", wc->opcode);
             // TODO write buffer but opcode not write
         }
     }
@@ -220,7 +222,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             boost::system::error_code ec2;
             mDevice.postReceiveBuffer(workId.bufferId(), ec2);
             if (ec2) {
-                COMPLETION_LOG("Failed to post receive buffer on wc complete [errno = %1% - %2%]", ec2, ec2.message());
+                COMPLETION_ERROR("Failed to post receive buffer on wc complete [error = %1% %2%]", ec2, ec2.message());
                 // TODO Error Handling
             }
 
@@ -483,6 +485,7 @@ void DeviceContext::initReceiveQueue(boost::system::error_code& ec) {
     for (uint16_t id = 0x0u; id < mReceiveBufferCount; ++id) {
         postReceiveBuffer(id, ec);
         if (ec) {
+            DEVICE_ERROR("Failed to post receive buffer on wc complete [error = %1% %2%]");
             return;
         }
     }
@@ -496,7 +499,7 @@ void DeviceContext::doPoll() {
     boost::system::error_code ec;
     mCompletion.poll(mDispatcher, ec);
     if (ec) {
-        DEVICE_LOG("Failure while processing completion queue [errcode = %1% %2%]", ec, ec.message());
+        DEVICE_ERROR("Failure while processing completion queue [error = %1% %2%]", ec, ec.message());
     }
 
     mDispatcher.post([this] () {

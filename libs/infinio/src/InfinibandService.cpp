@@ -18,6 +18,7 @@
 #include <iostream>
 
 #define SERVICE_LOG(...) INFINIO_LOG("[InfinibandService] " __VA_ARGS__)
+#define SERVICE_ERROR(...) INFINIO_ERROR("[InfinibandService] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -293,14 +294,14 @@ DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
         boost::system::error_code ec;
         mDevice->init(ec);
         if (ec) {
-            SERVICE_LOG("Failure to initialize context [%1%: %2%]", ec, ec.message());
+            SERVICE_ERROR("Failure to initialize context [%1%: %2%]", ec, ec.message());
             std::terminate();
         }
     }
 
     // Right now we only support one device
     if (verbs != mDevice->context()) {
-        SERVICE_LOG("Incoming connection from different device context");
+        SERVICE_ERROR("Incoming connection from different device context");
         std::terminate();
     }
 

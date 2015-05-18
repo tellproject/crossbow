@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef INFINIO_DEBUG
-
 #include <boost/format.hpp>
 
 #include <iostream>
@@ -32,6 +30,9 @@ static void infinioLog(const std::string& message, Args... args) {
     std::cout << formatter.str() << std::endl;
 }
 
+#define INFINIO_ERROR(...) infinioLog(__VA_ARGS__)
+
+#ifdef INFINIO_DEBUG
 #define INFINIO_LOG(...) infinioLog(__VA_ARGS__)
 #else
 #define INFINIO_LOG(...)
