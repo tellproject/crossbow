@@ -160,7 +160,7 @@ int main(int argc, const char** argv) {
     }
 
     std::cout << "Starting echo server" << std::endl;
-    EventDispatcher dispatcher;
+    EventDispatcher dispatcher(1);
     InfinibandService service(dispatcher);
     EchoAcceptor echo(service);
     echo.open(port);

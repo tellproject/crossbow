@@ -1,5 +1,6 @@
 #pragma once
 
+#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/concurrent_map.hpp>
@@ -16,7 +17,6 @@ namespace crossbow {
 namespace infinio {
 
 class DeviceContext;
-class EventDispatcher;
 class InfinibandBuffer;
 class LocalMemoryRegion;
 class SocketImplementation;

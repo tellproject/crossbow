@@ -1,5 +1,6 @@
 #pragma once
 
+#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 
 #include <boost/system/error_code.hpp>
@@ -15,7 +16,6 @@ namespace infinio {
 
 class DeviceContext;
 class Endpoint;
-class EventDispatcher;
 class InfinibandBuffer;
 class RemoteMemoryRegion;
 class SocketImplementation;

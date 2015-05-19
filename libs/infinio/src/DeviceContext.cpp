@@ -1,6 +1,5 @@
 #include "DeviceContext.hpp"
 
-#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include "AddressHelper.hpp"

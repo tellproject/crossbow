@@ -173,7 +173,7 @@ int main(int argc, const char** argv) {
     }
 
     std::cout << "Starting ping client" << std::endl;
-    EventDispatcher dispatcher;
+    EventDispatcher dispatcher(1);
     InfinibandService service(dispatcher);
     PingConnection con(dispatcher, service, count);
     con.open(server, port);

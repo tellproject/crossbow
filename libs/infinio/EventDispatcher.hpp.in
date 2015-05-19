@@ -1,0 +1,11 @@
+#pragma once
+
+#cmakedefine USE_ASIO_IMPLEMENTATION
+#ifdef USE_ASIO_IMPLEMENTATION
+#include <crossbow/infinio/AsioEventDispatcher.hpp>
+#endif
+
+#cmakedefine USE_TBB_IMPLEMENTATION
+#ifdef USE_TBB_IMPLEMENTATION
+#include <crossbow/infinio/TbbEventDispatcher.hpp>
+#endif

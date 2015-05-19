@@ -1,7 +1,6 @@
 #include <crossbow/infinio/InfinibandService.hpp>
 
 #include <crossbow/infinio/Endpoint.hpp>
-#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include "AddressHelper.hpp"
