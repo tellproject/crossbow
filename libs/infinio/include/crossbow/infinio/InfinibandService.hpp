@@ -3,10 +3,9 @@
 #include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 
-#include <boost/system/error_code.hpp>
-
 #include <atomic>
 #include <memory>
+#include <system_error>
 #include <thread>
 
 #include <rdma/rdma_cma.h>
@@ -40,30 +39,30 @@ public:
     /**
      * @brief Shutsdown the Infiniband service
      */
-    void shutdown(boost::system::error_code& ec);
+    void shutdown(std::error_code& ec);
 
 
     // TODO The following members should only be accessed by the InfinibandSocket
 
-    void open(SocketImplementation* impl, boost::system::error_code& ec);
+    void open(SocketImplementation* impl, std::error_code& ec);
 
-    void close(SocketImplementation* impl, boost::system::error_code& ec);
+    void close(SocketImplementation* impl, std::error_code& ec);
 
-    void bind(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec);
+    void bind(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec);
 
-    void listen(SocketImplementation* impl, int backlog, boost::system::error_code& ec);
+    void listen(SocketImplementation* impl, int backlog, std::error_code& ec);
 
-    void connect(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec);
+    void connect(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec);
 
-    void disconnect(SocketImplementation* impl, boost::system::error_code& ec);
+    void disconnect(SocketImplementation* impl, std::error_code& ec);
 
-    void send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
+    void send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec);
 
     void read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst,
-              uint32_t userId, boost::system::error_code& ec);
+              uint32_t userId, std::error_code& ec);
 
     void write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
-            uint32_t userId, boost::system::error_code& ec);
+            uint32_t userId, std::error_code& ec);
 
 private:
     /**
@@ -75,7 +74,7 @@ private:
      */
     DeviceContext* getDevice(struct ibv_context* verbs);
 
-    void doSend(SocketImplementation* impl, struct ibv_send_wr* wr, boost::system::error_code& ec);
+    void doSend(SocketImplementation* impl, struct ibv_send_wr* wr, std::error_code& ec);
 
     /**
      * @brief Process the event received from the RDMA event channel

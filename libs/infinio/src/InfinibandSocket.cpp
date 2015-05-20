@@ -9,7 +9,7 @@
 namespace crossbow {
 namespace infinio {
 
-void InfinibandBaseSocket::open(boost::system::error_code& ec) {
+void InfinibandBaseSocket::open(std::error_code& ec) {
     if (mImpl) {
         ec = error::already_open;
         return;
@@ -19,7 +19,7 @@ void InfinibandBaseSocket::open(boost::system::error_code& ec) {
     mTransport.open(mImpl, ec);
 }
 
-void InfinibandBaseSocket::close(boost::system::error_code& ec) {
+void InfinibandBaseSocket::close(std::error_code& ec) {
     if (!mImpl) {
         ec = error::bad_descriptor;
         return;
@@ -34,7 +34,7 @@ void InfinibandBaseSocket::close(boost::system::error_code& ec) {
     mImpl = nullptr;
 }
 
-void InfinibandBaseSocket::bind(const Endpoint& addr, boost::system::error_code& ec) {
+void InfinibandBaseSocket::bind(const Endpoint& addr, std::error_code& ec) {
     mTransport.bind(mImpl, addr, ec);
 }
 
@@ -42,29 +42,29 @@ void InfinibandBaseSocket::setHandler(InfinibandSocketHandler* handler) {
     mImpl->handler = handler;
 }
 
-void InfinibandAcceptor::listen(int backlog, boost::system::error_code& ec) {
+void InfinibandAcceptor::listen(int backlog, std::error_code& ec) {
     mTransport.listen(mImpl, backlog, ec);
 }
 
-void InfinibandSocket::connect(const Endpoint& addr, boost::system::error_code& ec) {
+void InfinibandSocket::connect(const Endpoint& addr, std::error_code& ec) {
     mTransport.connect(mImpl, addr, ec);
 }
 
-void InfinibandSocket::disconnect(boost::system::error_code& ec) {
+void InfinibandSocket::disconnect(std::error_code& ec) {
     mTransport.disconnect(mImpl, ec);
 }
 
-void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec) {
+void InfinibandSocket::send(InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec) {
     mTransport.send(mImpl, buffer, userId, ec);
 }
 
 void InfinibandSocket::read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
-        boost::system::error_code& ec) {
+        std::error_code& ec) {
     mTransport.read(mImpl, src, offset, dst, userId, ec);
 }
 
 void InfinibandSocket::write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
-        boost::system::error_code& ec) {
+        std::error_code& ec) {
     mTransport.write(mImpl, src, dst, offset, userId, ec);
 }
 
@@ -92,23 +92,23 @@ bool InfinibandSocketHandler::onConnection(InfinibandSocket socket) {
     return false;
 }
 
-void InfinibandSocketHandler::onConnected(const boost::system::error_code& ec) {
+void InfinibandSocketHandler::onConnected(const std::error_code& ec) {
     // Empty default function
 }
 
-void InfinibandSocketHandler::onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) {
+void InfinibandSocketHandler::onReceive(const void* buffer, size_t length, const std::error_code& ec) {
     // Empty default function
 }
 
-void InfinibandSocketHandler::onSend(uint32_t userId, const boost::system::error_code& ec) {
+void InfinibandSocketHandler::onSend(uint32_t userId, const std::error_code& ec) {
     // Empty default function
 }
 
-void InfinibandSocketHandler::onRead(uint32_t userId, const boost::system::error_code& ec) {
+void InfinibandSocketHandler::onRead(uint32_t userId, const std::error_code& ec) {
     // Empty default function
 }
 
-void InfinibandSocketHandler::onWrite(uint32_t userId, const boost::system::error_code& ec) {
+void InfinibandSocketHandler::onWrite(uint32_t userId, const std::error_code& ec) {
     // Empty default function
 }
 

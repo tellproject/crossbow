@@ -1,8 +1,8 @@
 #pragma once
 
-#include <boost/system/error_code.hpp>
-
 #include <cstdint>
+#include <system_error>
+#include <type_traits>
 
 #include <rdma/rdma_cma.h>
 
@@ -23,7 +23,7 @@ enum basic_errors {
 /**
  * @brief Category for basic errors
  */
-class basic_category : public boost::system::error_category {
+class basic_category : public std::error_category {
 public:
     const char* name() const noexcept {
         return "infinio.basic";
@@ -43,13 +43,13 @@ public:
     }
 };
 
-inline const boost::system::error_category& get_basic_category() {
+inline const std::error_category& get_basic_category() {
     static basic_category instance;
     return instance;
 }
 
-inline boost::system::error_code make_error_code(basic_errors e) {
-    return boost::system::error_code(static_cast<int>(e), get_basic_category());
+inline std::error_code make_error_code(basic_errors e) {
+    return std::error_code(static_cast<int>(e), get_basic_category());
 }
 
 /**
@@ -84,7 +84,7 @@ enum network_errors {
 /**
  * @brief Category for network errors
  */
-class network_category : public boost::system::error_category {
+class network_category : public std::error_category {
 public:
     const char* name() const noexcept {
         return "infinio.network";
@@ -119,19 +119,19 @@ public:
     }
 };
 
-inline const boost::system::error_category& get_network_category() {
+inline const std::error_category& get_network_category() {
     static network_category instance;
     return instance;
 }
 
-inline boost::system::error_code make_error_code(network_errors e) {
-    return boost::system::error_code(static_cast<int>(e), get_network_category());
+inline std::error_code make_error_code(network_errors e) {
+    return std::error_code(static_cast<int>(e), get_network_category());
 }
 
 /**
  * @brief Category ibverbs ibv_wc_status error codes
  */
-class work_completion_category : public boost::system::error_category {
+class work_completion_category : public std::error_category {
 public:
     const char* name() const noexcept {
         return "infinio.wc";
@@ -142,36 +142,31 @@ public:
     }
 };
 
-inline const boost::system::error_category& get_work_completion_category() {
+inline const std::error_category& get_work_completion_category() {
     static work_completion_category instance;
     return instance;
 }
 
-inline boost::system::error_code make_error_code(ibv_wc_status e) {
-    return boost::system::error_code(static_cast<int>(e), get_work_completion_category());
+inline std::error_code make_error_code(ibv_wc_status e) {
+    return std::error_code(static_cast<int>(e), get_work_completion_category());
 }
 
 } // namespace error
 } // namespace infinio
 } // namespace crossbow
 
-namespace boost {
-namespace system {
+namespace std {
 
 template<>
-struct is_error_code_enum<crossbow::infinio::error::basic_errors> {
-    static const bool value = true;
+struct is_error_code_enum<crossbow::infinio::error::basic_errors> : public std::true_type {
 };
 
 template<>
-struct is_error_code_enum<crossbow::infinio::error::network_errors> {
-    static const bool value = true;
+struct is_error_code_enum<crossbow::infinio::error::network_errors> : public std::true_type {
 };
 
 template<>
-struct is_error_code_enum<ibv_wc_status> {
-    static const bool value = true;
+struct is_error_code_enum<ibv_wc_status> : public std::true_type {
 };
 
-} // namespace system
-} // namespace boost
+} // namespace std

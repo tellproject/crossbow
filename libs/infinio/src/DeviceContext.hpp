@@ -5,11 +5,11 @@
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/concurrent_map.hpp>
 
+#include <boost/lockfree/queue.hpp>
+
 #include <atomic>
 #include <cstddef>
-
-#include <boost/lockfree/queue.hpp>
-#include <boost/system/error_code.hpp>
+#include <system_error>
 
 #include <rdma/rdma_cma.h>
 
@@ -40,9 +40,9 @@ public:
     ~CompletionContext() {
     }
 
-    void init(boost::system::error_code& ec);
+    void init(std::error_code& ec);
 
-    void shutdown(boost::system::error_code& ec);
+    void shutdown(std::error_code& ec);
 
     /**
      * @brief Add a new connection to completion queue
@@ -55,7 +55,7 @@ public:
      * @param impl The socket implementation to add
      * @param ec Error code in case the initialization failed
      */
-    void addConnection(SocketImplementation* impl, boost::system::error_code& ec);
+    void addConnection(SocketImplementation* impl, std::error_code& ec);
 
     /**
      * @brief Drains any events from a previously added connection
@@ -67,7 +67,7 @@ public:
      * @param impl The socket implementation to drain
      * @param ec Error code in case the draining failed
      */
-    void drainConnection(SocketImplementation* impl, boost::system::error_code& ec);
+    void drainConnection(SocketImplementation* impl, std::error_code& ec);
 
     /**
      * @brief Removes a previously added connection from the completion queue
@@ -79,7 +79,7 @@ public:
      * @param impl The socket implementation to remove
      * @param ec Error in case the removal failed
      */
-    void removeConnection(SocketImplementation* impl, boost::system::error_code& ec);
+    void removeConnection(SocketImplementation* impl, std::error_code& ec);
 
     /**
      * @brief Poll the completion queue and process any work completions
@@ -87,7 +87,7 @@ public:
      * @param dispatcher The dispatcher to execute the callback functions
      * @param ec Error in case the polling process failed
      */
-    void poll(EventDispatcher& dispatcher, boost::system::error_code& ec);
+    void poll(EventDispatcher& dispatcher, std::error_code& ec);
 
 private:
     /**
@@ -128,8 +128,7 @@ private:
      * @param impl Socket implementation that was drained
      * @param ec Error in case the removal failed
      */
-    void processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl,
-            boost::system::error_code& ec);
+    void processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl, std::error_code& ec);
 
     DeviceContext& mDevice;
 
@@ -179,7 +178,7 @@ public:
     }
 
     ~DeviceContext() {
-        boost::system::error_code ec;
+        std::error_code ec;
         shutdown(ec);
         if (ec) {
             // TODO Log error?
@@ -201,25 +200,25 @@ public:
      *
      * @param ec Error code in case the initialization failed
      */
-    void init(boost::system::error_code& ec);
+    void init(std::error_code& ec);
 
     /**
      * @brief Shuts the device down and destroys all associated ressources
      *
      * @param ec Error code in case the initialization failed
      */
-    void shutdown(boost::system::error_code& ec);
+    void shutdown(std::error_code& ec);
 
-    void addConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+    void addConnection(SocketImplementation* impl, std::error_code& ec) {
         mCompletion.addConnection(impl, ec);
     }
 
-    void drainConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+    void drainConnection(SocketImplementation* impl, std::error_code& ec) {
         // TODO This function has to be invoked on the completion context associated with impl
         mCompletion.drainConnection(impl, ec);
     }
 
-    void removeConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+    void removeConnection(SocketImplementation* impl, std::error_code& ec) {
         // TODO This function has to be invoked on the completion context associated with impl
         mCompletion.removeConnection(impl, ec);
     }
@@ -271,7 +270,7 @@ public:
      * @param ec Error code in case the registration failed
      * @return The newly registered memory region
      */
-    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, boost::system::error_code& ec);
+    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec);
 
 private:
     friend class CompletionContext;
@@ -283,21 +282,21 @@ private:
      *
      * @param ec Error code in case the initialization failed
      */
-    void initMemoryRegion(boost::system::error_code& ec);
+    void initMemoryRegion(std::error_code& ec);
 
     /**
      * @brief Shutsdown the memory region for the shared receive and send buffers
      *
      * @param ec Error code in case the shutdown failed
      */
-    void shutdownMemoryRegion(boost::system::error_code& ec);
+    void shutdownMemoryRegion(std::error_code& ec);
 
     /**
      * @brief Initializes the shared receive queue
      *
      * @param ec Error code in case the initialization failed
      */
-    void initReceiveQueue(boost::system::error_code& ec);
+    void initReceiveQueue(std::error_code& ec);
 
     /**
      * @brief Continuously dispatches the Completion Context polling loop
@@ -324,7 +323,7 @@ private:
      * @param id The ID of the receive buffer
      * @param ec Error code in case the post failed
      */
-    void postReceiveBuffer(uint16_t id, boost::system::error_code& ec);
+    void postReceiveBuffer(uint16_t id, std::error_code& ec);
 
     EventDispatcher& mDispatcher;
 

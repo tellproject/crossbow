@@ -10,7 +10,7 @@ if(NOT ${Rdmacm_FOUND})
     return()
 endif()
 
-find_package(Boost COMPONENTS system REQUIRED)
+find_package(Boost REQUIRED)
 
 find_package(Threads REQUIRED)
 
@@ -69,7 +69,6 @@ target_link_libraries(crossbow_infinio PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 # Link against Boost
 target_include_directories(crossbow_infinio PUBLIC ${Boost_INCLUDE_DIRS})
-target_link_libraries(crossbow_infinio PUBLIC ${Boost_LIBRARIES})
 
 # Link against ibverbs
 target_include_directories(crossbow_infinio PUBLIC ${Ibverbs_INCLUDE_DIRS})

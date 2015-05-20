@@ -22,7 +22,7 @@
 namespace crossbow {
 namespace infinio {
 
-void CompletionContext::init(boost::system::error_code& ec) {
+void CompletionContext::init(std::error_code& ec) {
     if (mCompletionQueue) {
         ec = error::already_initialized;
         return;
@@ -32,27 +32,27 @@ void CompletionContext::init(boost::system::error_code& ec) {
     errno = 0;
     mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, nullptr, 0);
     if (mCompletionQueue == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 }
 
-void CompletionContext::shutdown(boost::system::error_code& ec) {
+void CompletionContext::shutdown(std::error_code& ec) {
     if (mShutdown.load()) {
-        ec = boost::system::error_code();
+        ec = std::error_code();
         return;
     }
     mShutdown.store(true);
 
     COMPLETION_LOG("Destroy completion queue");
     if (auto res = ibv_destroy_cq(mCompletionQueue) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
     mCompletionQueue = nullptr;
 }
 
-void CompletionContext::addConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+void CompletionContext::addConnection(SocketImplementation* impl, std::error_code& ec) {
     struct ibv_qp_init_attr_ex qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.send_cq = mCompletionQueue;
@@ -67,7 +67,7 @@ void CompletionContext::addConnection(SocketImplementation* impl, boost::system:
     COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(impl->id));
     errno = 0;
     if (rdma_create_qp_ex(impl->id, &qp_attr) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -77,11 +77,11 @@ void CompletionContext::addConnection(SocketImplementation* impl, boost::system:
     }
 }
 
-void CompletionContext::drainConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+void CompletionContext::drainConnection(SocketImplementation* impl, std::error_code& ec) {
     mDrainingQueue.push(impl);
 }
 
-void CompletionContext::removeConnection(SocketImplementation* impl, boost::system::error_code& ec) {
+void CompletionContext::removeConnection(SocketImplementation* impl, std::error_code& ec) {
     if (!mSocketMap.erase(impl->id->qp->qp_num).first) {
         // TODO Socket not associated with this completion context
     }
@@ -90,12 +90,12 @@ void CompletionContext::removeConnection(SocketImplementation* impl, boost::syst
     errno = 0;
     rdma_destroy_qp(impl->id);
     if (errno != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 }
 
-void CompletionContext::poll(EventDispatcher& dispatcher, boost::system::error_code& ec) {
+void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
     std::vector<SocketImplementation*> draining;
     struct ibv_wc wc[mCompletionQueueLength];
 
@@ -115,7 +115,7 @@ void CompletionContext::poll(EventDispatcher& dispatcher, boost::system::error_c
         // Check if polling the completion queue failed
         if (num < 0) {
             if (!mShutdown.load()) {
-                ec = boost::system::error_code(errno, boost::system::system_category());
+                ec = std::error_code(errno, std::system_category());
             }
             return;
         }
@@ -146,7 +146,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             ibv_wc_status_str(wc->status));
 
     WorkRequestId workId(wc->wr_id);
-    boost::system::error_code ec;
+    std::error_code ec;
 
     auto i = mSocketMap.at(wc->qp_num);
     if (!i.first) {
@@ -181,7 +181,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     // TODO Better error handling
     // Right now we just propagate the error to the connection
     if (wc->status != IBV_WC_SUCCESS) {
-        ec = boost::system::error_code(wc->status, error::get_work_completion_category());
+        ec = std::error_code(wc->status, error::get_work_completion_category());
     } else {
         if (workId.workType() == WorkType::SEND && wc->opcode != IBV_WC_SEND) {
             COMPLETION_ERROR("Send buffer but opcode %1% not send", wc->opcode);
@@ -218,7 +218,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
             impl->handler->onReceive(reinterpret_cast<const void*>(buffer), byte_len, ec);
 
-            boost::system::error_code ec2;
+            std::error_code ec2;
             mDevice.postReceiveBuffer(workId.bufferId(), ec2);
             if (ec2) {
                 COMPLETION_ERROR("Failed to post receive buffer on wc complete [error = %1% %2%]", ec2, ec2.message());
@@ -282,7 +282,7 @@ void CompletionContext::removeWork(SocketImplementation* impl) {
             return;
         }
 
-        boost::system::error_code ec;
+        std::error_code ec;
         removeConnection(impl, ec);
 
         // Post on io service?
@@ -291,7 +291,7 @@ void CompletionContext::removeWork(SocketImplementation* impl) {
 }
 
 void CompletionContext::processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl,
-        boost::system::error_code& ec) {
+        std::error_code& ec) {
     auto state = ConnectionState::DISCONNECTING;
 
     // If the work count is not 0 then the connection has running handlers, we have to set the state to DRAINING
@@ -322,7 +322,7 @@ void CompletionContext::processDrainedConnection(EventDispatcher& dispatcher, So
     });
 }
 
-void DeviceContext::init(boost::system::error_code& ec) {
+void DeviceContext::init(std::error_code& ec) {
     if (mProtectionDomain) {
         return; // Already initialized
     }
@@ -331,7 +331,7 @@ void DeviceContext::init(boost::system::error_code& ec) {
     errno = 0;
     mProtectionDomain = ibv_alloc_pd(mVerbs);
     if (mProtectionDomain == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -356,7 +356,7 @@ void DeviceContext::init(boost::system::error_code& ec) {
     });
 }
 
-void DeviceContext::shutdown(boost::system::error_code& ec) {
+void DeviceContext::shutdown(std::error_code& ec) {
     if (mShutdown.load()) {
         return;
     }
@@ -370,7 +370,7 @@ void DeviceContext::shutdown(boost::system::error_code& ec) {
 
     DEVICE_LOG("Destroy shared receive queue");
     if (auto res = ibv_destroy_srq(mReceiveQueue) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
 
@@ -381,7 +381,7 @@ void DeviceContext::shutdown(boost::system::error_code& ec) {
 
     DEVICE_LOG("Destroy protection domain");
     if (auto res = ibv_dealloc_pd(mProtectionDomain) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
 }
@@ -409,18 +409,17 @@ void DeviceContext::releaseSendBuffer(InfinibandBuffer& buffer) {
     releaseSendBuffer(buffer.id());
 }
 
-LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access,
-        boost::system::error_code& ec) {
+LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
     DEVICE_LOG("Create memory region at %1%", data);
     errno = 0;
     mDataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
     if (mDataRegion == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
     }
     return LocalMemoryRegion(mDataRegion);
 }
 
-void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {
+void DeviceContext::initMemoryRegion(std::error_code& ec) {
     auto dataLength = bufferOffset(mReceiveBufferCount) + bufferOffset(mSendBufferCount);
 
     DEVICE_LOG("Map %1% bytes of shared buffer space", dataLength);
@@ -428,7 +427,7 @@ void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {
     mReceiveData = mmap(nullptr, dataLength, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
     if (mReceiveData == MAP_FAILED) {
         mReceiveData = nullptr;
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
     mSendData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(mReceiveBufferCount));
@@ -437,7 +436,7 @@ void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {
     errno = 0;
     mDataRegion = ibv_reg_mr(mProtectionDomain, mReceiveData, dataLength, IBV_ACCESS_LOCAL_WRITE);
     if (mDataRegion == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -447,10 +446,10 @@ void DeviceContext::initMemoryRegion(boost::system::error_code& ec) {
     }
 }
 
-void DeviceContext::shutdownMemoryRegion(boost::system::error_code& ec) {
+void DeviceContext::shutdownMemoryRegion(std::error_code& ec) {
     DEVICE_LOG("Destroy memory region at %1%", mReceiveData);
     if (auto res = ibv_dereg_mr(mDataRegion) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
 
@@ -460,13 +459,13 @@ void DeviceContext::shutdownMemoryRegion(boost::system::error_code& ec) {
     DEVICE_LOG("Unmap buffer space at %1%", mReceiveData);
     errno = 0;
     if (munmap(mReceiveData, dataLength) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
     }
     mReceiveData = nullptr;
     mSendData = nullptr;
 }
 
-void DeviceContext::initReceiveQueue(boost::system::error_code& ec) {
+void DeviceContext::initReceiveQueue(std::error_code& ec) {
     DEVICE_LOG("Create shared receive queue");
     struct ibv_srq_init_attr srq_attr;
     memset(&srq_attr, 0, sizeof(srq_attr));
@@ -476,7 +475,7 @@ void DeviceContext::initReceiveQueue(boost::system::error_code& ec) {
     errno = 0;
     mReceiveQueue = ibv_create_srq(mProtectionDomain, &srq_attr);
     if (mReceiveQueue == nullptr) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -495,7 +494,7 @@ void DeviceContext::doPoll() {
         return;
     }
 
-    boost::system::error_code ec;
+    std::error_code ec;
     mCompletion.poll(mDispatcher, ec);
     if (ec) {
         DEVICE_ERROR("Failure while processing completion queue [error = %1% %2%]", ec, ec.message());
@@ -516,7 +515,7 @@ void DeviceContext::releaseSendBuffer(uint16_t id) {
 /**
  * @brief Helper function posting the buffer to the shared receive queue
  */
-void DeviceContext::postReceiveBuffer(uint16_t id, boost::system::error_code& ec) {
+void DeviceContext::postReceiveBuffer(uint16_t id, std::error_code& ec) {
     WorkRequestId workId(0x0u, id, WorkType::RECEIVE);
 
     // Prepare work request
@@ -534,7 +533,7 @@ void DeviceContext::postReceiveBuffer(uint16_t id, boost::system::error_code& ec
     // Repost receives on shared queue
     struct ibv_recv_wr* bad_wr = nullptr;
     if (auto res = ibv_post_srq_recv(mReceiveQueue, &wr, &bad_wr)) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
 }

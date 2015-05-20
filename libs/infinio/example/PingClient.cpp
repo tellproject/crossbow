@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <system_error>
 
 using namespace crossbow::infinio;
 
@@ -23,15 +24,15 @@ public:
     void open(const crossbow::string& server, uint16_t port);
 
 private:
-    virtual void onConnected(const boost::system::error_code& ec) override;
+    virtual void onConnected(const std::error_code& ec) override;
 
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec) override;
 
     virtual void onDisconnect() override;
 
     virtual void onDisconnected() override;
 
-    void handleError(std::string message, boost::system::error_code& ec);
+    void handleError(std::string message, std::error_code& ec);
 
     void sendMessage();
 
@@ -45,7 +46,7 @@ private:
 };
 
 void PingConnection::open(const crossbow::string& server, uint16_t port) {
-    boost::system::error_code ec;
+    std::error_code ec;
 
     // Open socket
     mSocket.open(ec);
@@ -63,20 +64,20 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
     std::cout << "Connecting to server" << std::endl;
 }
 
-void PingConnection::onConnected(const boost::system::error_code& ec) {
+void PingConnection::onConnected(const std::error_code& ec) {
     std::cout << "Connected" << std::endl;
 
     sendMessage();
 }
 
-void PingConnection::onReceive(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
+void PingConnection::onReceive(const void* buffer, size_t length, const std::error_code& /* ec */) {
     // Calculate RTT
     auto now = std::chrono::steady_clock::now().time_since_epoch();
     auto start = std::chrono::nanoseconds(*reinterpret_cast<const uint64_t*>(buffer));
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(now) - start;
     std::cout << "RTT is " << duration.count() << "ns" << std::endl;
 
-    boost::system::error_code ec;
+    std::error_code ec;
     if (mSend < mMaxSend) {
         sendMessage();
     } else {
@@ -90,7 +91,7 @@ void PingConnection::onReceive(const void* buffer, size_t length, const boost::s
 
 void PingConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
-    boost::system::error_code ec;
+    std::error_code ec;
     mSocket.disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
@@ -99,7 +100,7 @@ void PingConnection::onDisconnect() {
 
 void PingConnection::onDisconnected() {
     std::cout << "Disconnected" << std::endl;
-    boost::system::error_code ec;
+    std::error_code ec;
     mSocket.close(ec);
     if (ec) {
         std::cout << "Close failed " << ec.value() << " - " << ec.message() << std::endl;
@@ -115,7 +116,7 @@ void PingConnection::onDisconnected() {
     mDispatcher.stop();
 }
 
-void PingConnection::handleError(std::string message, boost::system::error_code& ec) {
+void PingConnection::handleError(std::string message, std::error_code& ec) {
     std::cout << message << " [" << ec << " - " << ec.message() << "]" << std::endl;
     std::cout << "Disconnecting after error" << std::endl;
     mSocket.disconnect(ec);
@@ -125,7 +126,7 @@ void PingConnection::handleError(std::string message, boost::system::error_code&
 }
 
 void PingConnection::sendMessage() {
-    boost::system::error_code ec;
+    std::error_code ec;
 
     // Acquire buffer
     auto sbuffer = mSocket.acquireSendBuffer(8);

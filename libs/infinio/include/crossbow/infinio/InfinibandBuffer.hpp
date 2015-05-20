@@ -1,10 +1,9 @@
 #pragma once
 
-#include <boost/system/error_code.hpp>
-
 #include <cstddef>
 #include <cstring>
 #include <limits>
+#include <system_error>
 
 #include <rdma/rdma_cma.h>
 
@@ -85,7 +84,7 @@ public:
     }
 
     ~LocalMemoryRegion() {
-        boost::system::error_code ec;
+        std::error_code ec;
         releaseMemoryRegion(ec);
         if (ec) {
             // TODO Log error?
@@ -97,7 +96,7 @@ public:
      *
      * The data referenced by this memory region should not be used in any further RDMA operations.
      */
-    void releaseMemoryRegion(boost::system::error_code& ec);
+    void releaseMemoryRegion(std::error_code& ec);
 
     uintptr_t address() const {
         return reinterpret_cast<uintptr_t>(mDataRegion->addr);

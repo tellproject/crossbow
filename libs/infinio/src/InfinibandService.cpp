@@ -35,7 +35,7 @@ constexpr std::chrono::milliseconds gTimeout = std::chrono::milliseconds(10);
 void dispatchConnectionError(EventDispatcher& dispatcher, struct rdma_cm_id* id, error::network_errors res) {
     auto impl = reinterpret_cast<SocketImplementation*>(id->context);
     dispatcher.post([impl, res] () {
-        boost::system::error_code ec;
+        std::error_code ec;
         impl->device->removeConnection(impl, ec);
         if (ec) {
             // There is nothing we can do if removing the incomplete connection failed
@@ -85,7 +85,7 @@ InfinibandService::InfinibandService(EventDispatcher& dispatcher, const Infiniba
 }
 
 InfinibandService::~InfinibandService() {
-    boost::system::error_code ec;
+    std::error_code ec;
     shutdown(ec);
     if (ec) {
         std::cerr << "Error while shutting down Infiniband service [errno = " << ec << " " << ec.message() << "]"
@@ -93,7 +93,7 @@ InfinibandService::~InfinibandService() {
     }
 }
 
-void InfinibandService::shutdown(boost::system::error_code& ec) {
+void InfinibandService::shutdown(std::error_code& ec) {
     if (mShutdown.load()) {
         return;
     }
@@ -126,7 +126,7 @@ void InfinibandService::shutdown(boost::system::error_code& ec) {
     }
 }
 
-void InfinibandService::open(SocketImplementation* impl, boost::system::error_code& ec) {
+void InfinibandService::open(SocketImplementation* impl, std::error_code& ec) {
     if (impl->id || impl->state.load() != ConnectionState::CLOSED) {
         ec = error::already_open;
         return;
@@ -135,13 +135,13 @@ void InfinibandService::open(SocketImplementation* impl, boost::system::error_co
     SERVICE_LOG("Open socket");
     errno = 0;
     if (rdma_create_id(mChannel, &impl->id, impl, RDMA_PS_TCP) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
     impl->state.store(ConnectionState::OPEN);
 }
 
-void InfinibandService::close(SocketImplementation* impl, boost::system::error_code& ec) {
+void InfinibandService::close(SocketImplementation* impl, std::error_code& ec) {
     if (!impl->id) {
         ec = error::bad_descriptor;
         return;
@@ -150,14 +150,14 @@ void InfinibandService::close(SocketImplementation* impl, boost::system::error_c
     SERVICE_LOG("Close socket");
     errno = 0;
     if (rdma_destroy_id(impl->id) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
     impl->id = nullptr;
     impl->state.store(ConnectionState::CLOSED);
 }
 
-void InfinibandService::bind(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec) {
+void InfinibandService::bind(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec) {
     if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
         ec = error::bad_descriptor;
         return;
@@ -166,12 +166,12 @@ void InfinibandService::bind(SocketImplementation* impl, const Endpoint& addr, b
     SERVICE_LOG("Bind on address %1%", addr);
     errno = 0;
     if (rdma_bind_addr(impl->id, const_cast<Endpoint&>(addr).handle()) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 }
 
-void InfinibandService::listen(SocketImplementation* impl, int backlog, boost::system::error_code& ec) {
+void InfinibandService::listen(SocketImplementation* impl, int backlog, std::error_code& ec) {
     if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
         ec = error::bad_descriptor;
         return;
@@ -180,13 +180,13 @@ void InfinibandService::listen(SocketImplementation* impl, int backlog, boost::s
     SERVICE_LOG("Listen on socket with backlog %1%", backlog);
     errno = 0;
     if (rdma_listen(impl->id, backlog) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
     impl->state.store(ConnectionState::LISTENING);
 }
 
-void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr, boost::system::error_code& ec) {
+void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec) {
     if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
         ec = error::bad_descriptor;
         return;
@@ -195,7 +195,7 @@ void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr
     SERVICE_LOG("%1%: Connect to address", addr);
     errno = 0;
     if (rdma_resolve_addr(impl->id, nullptr, const_cast<Endpoint&>(addr).handle(), gTimeout.count()) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -203,7 +203,7 @@ void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr
     impl->state.store(ConnectionState::CONNECTING);
 }
 
-void InfinibandService::disconnect(SocketImplementation* impl, boost::system::error_code& ec) {
+void InfinibandService::disconnect(SocketImplementation* impl, std::error_code& ec) {
     if (!impl->id) {
         ec = error::bad_descriptor;
         return;
@@ -212,7 +212,7 @@ void InfinibandService::disconnect(SocketImplementation* impl, boost::system::er
     SERVICE_LOG("%1%: Disconnect from address", formatRemoteAddress(impl->id));
     errno = 0;
     if (rdma_disconnect(impl->id) != 0) {
-        ec = boost::system::error_code(errno, boost::system::system_category());
+        ec = std::error_code(errno, std::system_category());
         return;
     }
 
@@ -221,7 +221,7 @@ void InfinibandService::disconnect(SocketImplementation* impl, boost::system::er
 }
 
 void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId,
-        boost::system::error_code& ec) {
+        std::error_code& ec) {
     WorkRequestId workId(userId, buffer.id(), WorkType::SEND);
 
     struct ibv_send_wr wr;
@@ -238,7 +238,7 @@ void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffe
 }
 
 void InfinibandService::read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset,
-        InfinibandBuffer& dst, uint32_t userId, boost::system::error_code& ec) {
+        InfinibandBuffer& dst, uint32_t userId, std::error_code& ec) {
     if (offset +  dst.length() > src.length()) {
         ec = error::out_of_range;
         return;
@@ -262,7 +262,7 @@ void InfinibandService::read(SocketImplementation* impl, const RemoteMemoryRegio
 }
 
 void InfinibandService::write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst,
-        size_t offset, uint32_t userId, boost::system::error_code& ec) {
+        size_t offset, uint32_t userId, std::error_code& ec) {
     if (offset +  src.length() > dst.length()) {
         ec = error::out_of_range;
         return;
@@ -290,7 +290,7 @@ DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
         SERVICE_LOG("Initialize device context");
         mDevice.reset(new DeviceContext(mDispatcher, mLimits, verbs));
 
-        boost::system::error_code ec;
+        std::error_code ec;
         mDevice->init(ec);
         if (ec) {
             SERVICE_ERROR("Failure to initialize context [%1%: %2%]", ec, ec.message());
@@ -307,7 +307,7 @@ DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
     return mDevice.get();
 }
 
-void InfinibandService::doSend(SocketImplementation* impl, struct ibv_send_wr* wr, boost::system::error_code& ec) {
+void InfinibandService::doSend(SocketImplementation* impl, struct ibv_send_wr* wr, std::error_code& ec) {
     if (!impl->id) {
         ec = error::bad_descriptor;
         return;
@@ -320,11 +320,11 @@ void InfinibandService::doSend(SocketImplementation* impl, struct ibv_send_wr* w
 
     struct ibv_send_wr* bad_wr = nullptr;
     if (auto res = ibv_post_send(impl->id->qp, wr, &bad_wr) != 0) {
-        ec = boost::system::error_code(res, boost::system::system_category());
+        ec = std::error_code(res, std::system_category());
         return;
     }
 
-    ec = boost::system::error_code();
+    ec = std::error_code();
 }
 
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
@@ -391,7 +391,7 @@ void InfinibandService::onAddressResolved(struct rdma_cm_id* id) {
         auto impl = reinterpret_cast<SocketImplementation*>(id->context);
         auto res = errno;
         mDispatcher.post([impl, res] () {
-            boost::system::error_code ec(res, boost::system::system_category());
+            std::error_code ec(res, std::system_category());
             impl->handler->onConnected(ec);
         });
     }
@@ -401,7 +401,7 @@ void InfinibandService::onAddressError(struct rdma_cm_id* id) {
     SERVICE_LOG("%1%: Address resolve failed", formatRemoteAddress(id));
     auto impl = reinterpret_cast<SocketImplementation*>(id->context);
     mDispatcher.post([impl] () {
-        boost::system::error_code ec = error::address_resolution;
+        std::error_code ec = error::address_resolution;
         impl->handler->onConnected(ec);
     });
 }
@@ -415,7 +415,7 @@ void InfinibandService::onRouteResolved(struct rdma_cm_id* id) {
         impl->device = device;
 
         // Add connection to queue handler
-        boost::system::error_code ec;
+        std::error_code ec;
         device->addConnection(impl, ec);
         if (ec) {
             impl->handler->onConnected(ec);
@@ -436,7 +436,7 @@ void InfinibandService::onRouteResolved(struct rdma_cm_id* id) {
                         ec.message());
             }
 
-            boost::system::error_code ec(res, boost::system::system_category());
+            std::error_code ec(res, std::system_category());
             impl->handler->onConnected(ec);
         }
     });
@@ -446,7 +446,7 @@ void InfinibandService::onRouteError(rdma_cm_id* id) {
     SERVICE_LOG("%1%: Route resolve failed", formatRemoteAddress(id));
     auto impl = reinterpret_cast<SocketImplementation*>(id->context);
     mDispatcher.post([impl] () {
-        boost::system::error_code ec = error::route_resolution;
+        std::error_code ec = error::route_resolution;
         impl->handler->onConnected(ec);
     });
 }
@@ -471,7 +471,7 @@ void InfinibandService::onConnectionRequest(struct rdma_cm_id* listener, struct 
         }
 
         // Add connection to queue handler
-        boost::system::error_code ec;
+        std::error_code ec;
         device->addConnection(impl, ec);
         if (ec) {
             impl->handler->onConnected(ec);
@@ -492,7 +492,7 @@ void InfinibandService::onConnectionRequest(struct rdma_cm_id* listener, struct 
                         ec.message());
             }
 
-            boost::system::error_code ec(res, boost::system::system_category());
+            std::error_code ec(res, std::system_category());
             impl->handler->onConnected(ec);
         }
     });
@@ -513,7 +513,7 @@ void InfinibandService::onRejected(rdma_cm_id* id) {
 void InfinibandService::onEstablished(struct rdma_cm_id* id) {
     auto impl = reinterpret_cast<SocketImplementation*>(id->context);
     mDispatcher.post([impl] () {
-        boost::system::error_code ec;
+        std::error_code ec;
         impl->handler->onConnected(ec);
     });
 }
@@ -530,7 +530,7 @@ void InfinibandService::onDisconnected(struct rdma_cm_id* id) {
 void InfinibandService::onTimewaitExit(struct rdma_cm_id* id) {
     auto impl = reinterpret_cast<SocketImplementation*>(id->context);
     mDispatcher.post([impl] () {
-        boost::system::error_code ec;
+        std::error_code ec;
         impl->device->drainConnection(impl, ec);
         if (ec) {
             // TODO How to handle this?

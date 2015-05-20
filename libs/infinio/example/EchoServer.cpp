@@ -8,6 +8,7 @@
 #include <iostream>
 #include <memory>
 #include <unordered_set>
+#include <system_error>
 
 using namespace crossbow::infinio;
 
@@ -20,15 +21,15 @@ public:
     void init();
 
 private:
-    virtual void onConnected(const boost::system::error_code& ec) override;
+    virtual void onConnected(const std::error_code& ec) override;
 
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec) override;
+    virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec) override;
 
     virtual void onDisconnect() override;
 
     virtual void onDisconnected() override;
 
-    void handleError(std::string message, boost::system::error_code& ec);
+    void handleError(std::string message, std::error_code& ec);
 
     InfinibandSocket mSocket;
 };
@@ -37,12 +38,12 @@ void EchoConnection::init() {
     mSocket.setHandler(this);
 }
 
-void EchoConnection::onConnected(const boost::system::error_code& ec) {
+void EchoConnection::onConnected(const std::error_code& ec) {
     std::cout << "Connected" << std::endl;
 }
 
-void EchoConnection::onReceive(const void* buffer, size_t length, const boost::system::error_code& /* ec */) {
-    boost::system::error_code ec;
+void EchoConnection::onReceive(const void* buffer, size_t length, const std::error_code& /* ec */) {
+    std::error_code ec;
 
     // Acquire buffer with same size
     auto sendbuffer = mSocket.acquireSendBuffer(length);
@@ -63,7 +64,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const boost::s
 
 void EchoConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
-    boost::system::error_code ec;
+    std::error_code ec;
     mSocket.disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
@@ -74,7 +75,7 @@ void EchoConnection::onDisconnected() {
     std::cout << "Disconnected" << std::endl;
 }
 
-void EchoConnection::handleError(std::string message, boost::system::error_code& ec) {
+void EchoConnection::handleError(std::string message, std::error_code& ec) {
     std::cout << message << " [" << ec << " - " << ec.message() << "]" << std::endl;
     std::cout << "Disconnecting after error" << std::endl;
     mSocket.disconnect(ec);
@@ -101,7 +102,7 @@ private:
 };
 
 void EchoAcceptor::open(uint16_t port) {
-    boost::system::error_code ec;
+    std::error_code ec;
 
     // Open socket
     mAcceptor.open(ec);

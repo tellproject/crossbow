@@ -2,9 +2,8 @@
 
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 
-#include <boost/system/error_code.hpp>
-
 #include <cstdint>
+#include <system_error>
 
 #include <rdma/rdma_cma.h>
 
@@ -21,15 +20,15 @@ class SocketImplementation;
  */
 class InfinibandBaseSocket {
 public:
-    void open(boost::system::error_code& ec);
+    void open(std::error_code& ec);
 
     bool isOpen() const {
         return (mImpl != nullptr);
     }
 
-    void close(boost::system::error_code& ec);
+    void close(std::error_code& ec);
 
-    void bind(const Endpoint& addr, boost::system::error_code& ec);
+    void bind(const Endpoint& addr, std::error_code& ec);
 
     void setHandler(InfinibandSocketHandler* handler);
 
@@ -60,7 +59,7 @@ public:
             : InfinibandBaseSocket(transport) {
     }
 
-    void listen(int backlog, boost::system::error_code& ec);
+    void listen(int backlog, std::error_code& ec);
 };
 
 /**
@@ -76,11 +75,11 @@ public:
             : InfinibandBaseSocket(transport, impl) {
     }
 
-    void connect(const Endpoint& addr, boost::system::error_code& ec);
+    void connect(const Endpoint& addr, std::error_code& ec);
 
-    void disconnect(boost::system::error_code& ec);
+    void disconnect(std::error_code& ec);
 
-    void send(InfinibandBuffer& buffer, uint32_t userId, boost::system::error_code& ec);
+    void send(InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec);
 
     /**
      * @brief Start a RDMA read from the remote memory region with offset into the local target buffer
@@ -92,7 +91,7 @@ public:
      * @param ec Error in case the read failed
      */
     void read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
-            boost::system::error_code& ec);
+            std::error_code& ec);
 
     /**
      * @brief Start a RDMA write from the local source buffer into the remote memory region with offset
@@ -104,7 +103,7 @@ public:
      * @param ec Error in case the write failed
      */
     void write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
-            boost::system::error_code& ec);
+            std::error_code& ec);
 
     uint32_t bufferLength() const;
 
@@ -146,7 +145,7 @@ public:
      *
      * @param ec Error in case the connection attempt failed
      */
-    virtual void onConnected(const boost::system::error_code& ec);
+    virtual void onConnected(const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was received from the remote host
@@ -157,7 +156,7 @@ public:
      * @param length Number of bytes transmitted
      * @param ec Error in case the receive failed
      */
-    virtual void onReceive(const void* buffer, size_t length, const boost::system::error_code& ec);
+    virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was sent to the remote host
@@ -167,7 +166,7 @@ public:
      * @param userId The user supplied ID of the send call
      * @param ec Error in case the send failed
      */
-    virtual void onSend(uint32_t userId, const boost::system::error_code& ec);
+    virtual void onSend(uint32_t userId, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was read from the remote host
@@ -175,7 +174,7 @@ public:
      * @param userId The user supplied ID of the read call
      * @param ec Error in case the read failed
      */
-    virtual void onRead(uint32_t userId, const boost::system::error_code& ec);
+    virtual void onRead(uint32_t userId, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was written to the remote host
@@ -183,7 +182,7 @@ public:
      * @param userId The user supplied ID of the write call
      * @param ec Error in case the write failed
      */
-    virtual void onWrite(uint32_t userId, const boost::system::error_code& ec);
+    virtual void onWrite(uint32_t userId, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever the remote host disconnected
