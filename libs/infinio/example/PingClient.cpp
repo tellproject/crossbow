@@ -16,7 +16,7 @@ public:
     PingConnection(EventDispatcher& dispatcher, InfinibandService& transport, uint64_t maxSend)
             : mDispatcher(dispatcher),
               mTransport(transport),
-              mSocket(transport),
+              mSocket(new InfinibandSocket(transport)),
               mMaxSend(maxSend),
               mSend(0) {
     }
@@ -39,7 +39,7 @@ private:
     EventDispatcher& mDispatcher;
     InfinibandService& mTransport;
 
-    InfinibandSocket mSocket;
+    InfinibandSocket* mSocket;
 
     uint64_t mMaxSend;
     uint64_t mSend;
@@ -49,14 +49,15 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
     std::error_code ec;
 
     // Open socket
-    mSocket.open(ec);
+    mSocket->open(ec);
     if (ec) {
         std::cout << "Open failed " << ec << " - " << ec.message() << std::endl;
     }
-    mSocket.setHandler(this);
+    mSocket->setHandler(this);
 
     // Connect to remote server
-    mSocket.connect(Endpoint(Endpoint::ipv4(), server, port), ec);
+    Endpoint ep(Endpoint::ipv4(), server, port);
+    mSocket->connect(ep, ec);
     if (ec) {
         std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
     }
@@ -65,6 +66,10 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
 }
 
 void PingConnection::onConnected(const std::error_code& ec) {
+    if (ec) {
+        std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
+        return;
+    }
     std::cout << "Connected" << std::endl;
 
     sendMessage();
@@ -82,7 +87,7 @@ void PingConnection::onReceive(const void* buffer, size_t length, const std::err
         sendMessage();
     } else {
         std::cout << "Disconnecting after " << mSend << " pings" << std::endl;
-        mSocket.disconnect(ec);
+        mSocket->disconnect(ec);
         if (ec) {
             std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
         }
@@ -92,7 +97,7 @@ void PingConnection::onReceive(const void* buffer, size_t length, const std::err
 void PingConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
     std::error_code ec;
-    mSocket.disconnect(ec);
+    mSocket->disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
     }
@@ -101,7 +106,7 @@ void PingConnection::onDisconnect() {
 void PingConnection::onDisconnected() {
     std::cout << "Disconnected" << std::endl;
     std::error_code ec;
-    mSocket.close(ec);
+    mSocket->close(ec);
     if (ec) {
         std::cout << "Close failed " << ec.value() << " - " << ec.message() << std::endl;
         return;
@@ -119,7 +124,7 @@ void PingConnection::onDisconnected() {
 void PingConnection::handleError(std::string message, std::error_code& ec) {
     std::cout << message << " [" << ec << " - " << ec.message() << "]" << std::endl;
     std::cout << "Disconnecting after error" << std::endl;
-    mSocket.disconnect(ec);
+    mSocket->disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed [" << ec << " - " << ec.message() << "]" << std::endl;
     }
@@ -129,7 +134,7 @@ void PingConnection::sendMessage() {
     std::error_code ec;
 
     // Acquire buffer
-    auto sbuffer = mSocket.acquireSendBuffer(8);
+    auto sbuffer = mSocket->acquireSendBuffer(8);
     if (sbuffer.id() == InfinibandBuffer::INVALID_ID) {
         handleError("Error acquiring buffer", ec);
         return;
@@ -143,7 +148,7 @@ void PingConnection::sendMessage() {
     *reinterpret_cast<uint64_t*>(sbuffer.data()) = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
 
     // Send message to server
-    mSocket.send(sbuffer, 0x0u, ec);
+    mSocket->send(sbuffer, 0x0u, ec);
     if (ec) {
         handleError("Send failed", ec);
     }

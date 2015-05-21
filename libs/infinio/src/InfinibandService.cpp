@@ -3,10 +3,10 @@
 #include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
+#include <crossbow/infinio/ErrorCode.hpp>
+
 #include "AddressHelper.hpp"
 #include "DeviceContext.hpp"
-#include "ErrorCode.hpp"
-#include "InfinibandSocketImpl.hpp"
 #include "Logging.hpp"
 #include "WorkRequestId.hpp"
 
@@ -21,34 +21,6 @@
 
 namespace crossbow {
 namespace infinio {
-
-namespace {
-
-/**
- * @brief Timeout value for resolving addresses and routes
- */
-constexpr std::chrono::milliseconds gTimeout = std::chrono::milliseconds(10);
-
-/**
- * @brief Helper function to dispatch any errors while connecting
- */
-void dispatchConnectionError(EventDispatcher& dispatcher, struct rdma_cm_id* id, error::network_errors res) {
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    dispatcher.post([impl, res] () {
-        std::error_code ec;
-        impl->device->removeConnection(impl, ec);
-        if (ec) {
-            // There is nothing we can do if removing the incomplete connection failed
-            SERVICE_LOG("%1%: Removing invalid connection failed [%2%: %3%]", formatRemoteAddress(impl->id), ec,
-                    ec.message());
-        }
-
-        ec = res;
-        impl->handler->onConnected(ec);
-    });
-}
-
-} // anonymous namespace
 
 InfinibandService::InfinibandService(EventDispatcher& dispatcher, const InfinibandLimits& limits)
         : mDispatcher(dispatcher),
@@ -126,165 +98,6 @@ void InfinibandService::shutdown(std::error_code& ec) {
     }
 }
 
-void InfinibandService::open(SocketImplementation* impl, std::error_code& ec) {
-    if (impl->id || impl->state.load() != ConnectionState::CLOSED) {
-        ec = error::already_open;
-        return;
-    }
-
-    SERVICE_LOG("Open socket");
-    errno = 0;
-    if (rdma_create_id(mChannel, &impl->id, impl, RDMA_PS_TCP) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-    impl->state.store(ConnectionState::OPEN);
-}
-
-void InfinibandService::close(SocketImplementation* impl, std::error_code& ec) {
-    if (!impl->id) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    SERVICE_LOG("Close socket");
-    errno = 0;
-    if (rdma_destroy_id(impl->id) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-    impl->id = nullptr;
-    impl->state.store(ConnectionState::CLOSED);
-}
-
-void InfinibandService::bind(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec) {
-    if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    SERVICE_LOG("Bind on address %1%", addr);
-    errno = 0;
-    if (rdma_bind_addr(impl->id, const_cast<Endpoint&>(addr).handle()) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-}
-
-void InfinibandService::listen(SocketImplementation* impl, int backlog, std::error_code& ec) {
-    if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    SERVICE_LOG("Listen on socket with backlog %1%", backlog);
-    errno = 0;
-    if (rdma_listen(impl->id, backlog) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-    impl->state.store(ConnectionState::LISTENING);
-}
-
-void InfinibandService::connect(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec) {
-    if (!impl->id || impl->state.load() != ConnectionState::OPEN) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    SERVICE_LOG("%1%: Connect to address", addr);
-    errno = 0;
-    if (rdma_resolve_addr(impl->id, nullptr, const_cast<Endpoint&>(addr).handle(), gTimeout.count()) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-
-    // TODO Compare and swap?
-    impl->state.store(ConnectionState::CONNECTING);
-}
-
-void InfinibandService::disconnect(SocketImplementation* impl, std::error_code& ec) {
-    if (!impl->id) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    SERVICE_LOG("%1%: Disconnect from address", formatRemoteAddress(impl->id));
-    errno = 0;
-    if (rdma_disconnect(impl->id) != 0) {
-        ec = std::error_code(errno, std::system_category());
-        return;
-    }
-
-    // TODO Compare and swap?
-    impl->state.store(ConnectionState::DISCONNECTING);
-}
-
-void InfinibandService::send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId,
-        std::error_code& ec) {
-    WorkRequestId workId(userId, buffer.id(), WorkType::SEND);
-
-    struct ibv_send_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.opcode = IBV_WR_SEND;
-    wr.wr_id = workId.id();
-    wr.sg_list = buffer.handle();
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
-
-    SERVICE_LOG("%1%: Send %2% bytes from buffer %3%", formatRemoteAddress(impl->id), buffer.length(),
-                buffer.id());
-    doSend(impl, &wr, ec);
-}
-
-void InfinibandService::read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset,
-        InfinibandBuffer& dst, uint32_t userId, std::error_code& ec) {
-    if (offset +  dst.length() > src.length()) {
-        ec = error::out_of_range;
-        return;
-    }
-
-    WorkRequestId workId(userId, dst.id(), WorkType::READ);
-
-    struct ibv_send_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.opcode = IBV_WR_RDMA_READ;
-    wr.wr_id = workId.id();
-    wr.sg_list = dst.handle();
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
-    wr.wr.rdma.remote_addr = src.address();
-    wr.wr.rdma.rkey = src.key();
-
-    SERVICE_LOG("%1%: RDMA read %2% bytes from remote %3% into buffer %4%", formatRemoteAddress(impl->id), dst.length(),
-            reinterpret_cast<void*>(src.address()), dst.id());
-    doSend(impl, &wr, ec);
-}
-
-void InfinibandService::write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst,
-        size_t offset, uint32_t userId, std::error_code& ec) {
-    if (offset +  src.length() > dst.length()) {
-        ec = error::out_of_range;
-        return;
-    }
-
-    WorkRequestId workId(userId, src.id(), WorkType::WRITE);
-
-    struct ibv_send_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.opcode = IBV_WR_RDMA_WRITE;
-    wr.wr_id = workId.id();
-    wr.sg_list = src.handle();
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
-    wr.wr.rdma.remote_addr = dst.address();
-    wr.wr.rdma.rkey = dst.key();
-
-    SERVICE_LOG("%1%: RDMA write %2% bytes to remote %3% from buffer %4%", formatRemoteAddress(impl->id), src.length(),
-            reinterpret_cast<void*>(dst.address()), src.id());
-    doSend(impl, &wr, ec);
-}
-
 DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
     if (!mDevice) {
         SERVICE_LOG("Initialize device context");
@@ -307,236 +120,52 @@ DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
     return mDevice.get();
 }
 
-void InfinibandService::doSend(SocketImplementation* impl, struct ibv_send_wr* wr, std::error_code& ec) {
-    if (!impl->id) {
-        ec = error::bad_descriptor;
-        return;
-    }
-
-    if (impl->state == ConnectionState::DISCONNECTED) {
-        ec = error::disconnected;
-        return;
-    }
-
-    struct ibv_send_wr* bad_wr = nullptr;
-    if (auto res = ibv_post_send(impl->id->qp, wr, &bad_wr) != 0) {
-        ec = std::error_code(res, std::system_category());
-        return;
-    }
-
-    ec = std::error_code();
-}
-
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
     SERVICE_LOG("Processing event %1%", rdma_event_str(event->event));
 
+#define HANDLE_EVENT(__case, __handler, ...)\
+    case __case: {\
+        auto id = event->id;\
+        mDispatcher.post([id] () {\
+            reinterpret_cast<InfinibandSocket*>(id->context)->__handler(__VA_ARGS__);\
+        });\
+    } break;
+
     switch (event->event) {
-    case RDMA_CM_EVENT_ADDR_RESOLVED:
-        onAddressResolved(event->id);
-        break;
+    HANDLE_EVENT(RDMA_CM_EVENT_ADDR_RESOLVED, onAddressResolved);
+    HANDLE_EVENT(RDMA_CM_EVENT_ADDR_ERROR, onAddressError);
 
-    case RDMA_CM_EVENT_ADDR_ERROR:
-        onAddressError(event->id);
-        break;
+    case RDMA_CM_EVENT_ROUTE_RESOLVED: {
+        auto id = event->id;
+        mDispatcher.post([this, id] () {
+            auto device = getDevice(id->verbs);
+            reinterpret_cast<InfinibandSocket*>(id->context)->onRouteResolved(device);
+        });
+    } break;
 
-    case RDMA_CM_EVENT_ROUTE_RESOLVED:
-        onRouteResolved(event->id);
-        break;
+    HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onRouteError);
 
-    case RDMA_CM_EVENT_ROUTE_ERROR:
-        onRouteError(event->id);
-        break;
+    case RDMA_CM_EVENT_CONNECT_REQUEST: {
+        auto listen_id = event->listen_id;
+        auto id = event->id;
+        mDispatcher.post([this, listen_id, id] () {
+            auto device = getDevice(id->verbs);
+            ConnectionRequest request(new InfinibandSocket(id, device));
+            reinterpret_cast<InfinibandAcceptor*>(listen_id->context)->onConnectionRequest(std::move(request));
+        });
+    } break;
 
-    case RDMA_CM_EVENT_CONNECT_REQUEST:
-        onConnectionRequest(event->listen_id, event->id);
-        break;
+    HANDLE_EVENT(RDMA_CM_EVENT_CONNECT_ERROR, onConnectionError, error::connection_error);
+    HANDLE_EVENT(RDMA_CM_EVENT_UNREACHABLE, onConnectionError, error::unreachable);
+    HANDLE_EVENT(RDMA_CM_EVENT_REJECTED, onConnectionError, error::connection_rejected);
 
-    case RDMA_CM_EVENT_CONNECT_RESPONSE:
-        // TODO Do we have to do something here? We do not support UD so we have always a QP associated
-        break;
-
-    case RDMA_CM_EVENT_CONNECT_ERROR:
-        onConnectionError(event->id);
-        break;
-
-    case RDMA_CM_EVENT_UNREACHABLE:
-        onUnreachable(event->id);
-        break;
-
-    case RDMA_CM_EVENT_REJECTED:
-        onRejected(event->id);
-        break;
-
-    case RDMA_CM_EVENT_ESTABLISHED:
-        onEstablished(event->id);
-        break;
-
-    case RDMA_CM_EVENT_DISCONNECTED:
-        onDisconnected(event->id);
-        break;
-
-    case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-        onTimewaitExit(event->id);
-        break;
+    HANDLE_EVENT(RDMA_CM_EVENT_ESTABLISHED, onConnectionEstablished);
+    HANDLE_EVENT(RDMA_CM_EVENT_DISCONNECTED, onDisconnected);
+    HANDLE_EVENT(RDMA_CM_EVENT_TIMEWAIT_EXIT, onTimewaitExit);
 
     default:
         break;
     }
-}
-
-void InfinibandService::onAddressResolved(struct rdma_cm_id* id) {
-    SERVICE_LOG("%1%: Address resolved", formatRemoteAddress(id));
-    errno = 0;
-    if (rdma_resolve_route(id, gTimeout.count()) != 0) {
-        auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-        auto res = errno;
-        mDispatcher.post([impl, res] () {
-            std::error_code ec(res, std::system_category());
-            impl->handler->onConnected(ec);
-        });
-    }
-}
-
-void InfinibandService::onAddressError(struct rdma_cm_id* id) {
-    SERVICE_LOG("%1%: Address resolve failed", formatRemoteAddress(id));
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([impl] () {
-        std::error_code ec = error::address_resolution;
-        impl->handler->onConnected(ec);
-    });
-}
-
-void InfinibandService::onRouteResolved(struct rdma_cm_id* id) {
-    SERVICE_LOG("%1%: Route resolved", formatRemoteAddress(id));
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([this, impl] () {
-        // Set the device context on the socket (this can not be done earlier because the context might not exist)
-        auto device = getDevice(impl->id->verbs);
-        impl->device = device;
-
-        // Add connection to queue handler
-        std::error_code ec;
-        device->addConnection(impl, ec);
-        if (ec) {
-            impl->handler->onConnected(ec);
-            return;
-        }
-
-        struct rdma_conn_param cm_params;
-        memset(&cm_params, 0, sizeof(cm_params));
-
-        errno = 0;
-        if (rdma_connect(impl->id, &cm_params) != 0) {
-            auto res = errno;
-
-            device->removeConnection(impl, ec);
-            if (ec) {
-                // There is nothing we can do if removing the incomplete connection failed
-                SERVICE_LOG("%1%: Remove of invalid connection failed [%2%: %3%]", formatRemoteAddress(impl->id), ec,
-                        ec.message());
-            }
-
-            std::error_code ec(res, std::system_category());
-            impl->handler->onConnected(ec);
-        }
-    });
-}
-
-void InfinibandService::onRouteError(rdma_cm_id* id) {
-    SERVICE_LOG("%1%: Route resolve failed", formatRemoteAddress(id));
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([impl] () {
-        std::error_code ec = error::route_resolution;
-        impl->handler->onConnected(ec);
-    });
-}
-
-void InfinibandService::onConnectionRequest(struct rdma_cm_id* listener, struct rdma_cm_id* id) {
-    auto limpl = reinterpret_cast<SocketImplementation*>(listener->context);
-    mDispatcher.post([this, limpl, id] () {
-        auto device = getDevice(id->verbs);
-        auto impl = new SocketImplementation(id, device);
-        id->context = impl;
-
-        // Invoke the connection handler
-        if (!limpl->handler->onConnection(InfinibandSocket(*this, impl))) {
-            delete impl;
-            errno = 0;
-            if (rdma_reject(id, nullptr, 0) != 0) {
-                // There is nothing we can do if rejecting the incomplete connection failed
-                SERVICE_LOG("%1%: Rejecting invalid connection failed [%2% - %3%]", formatRemoteAddress(id), errno,
-                        strerror(errno));
-            }
-            return;
-        }
-
-        // Add connection to queue handler
-        std::error_code ec;
-        device->addConnection(impl, ec);
-        if (ec) {
-            impl->handler->onConnected(ec);
-            return;
-        }
-
-        struct rdma_conn_param cm_params;
-        memset(&cm_params, 0, sizeof(cm_params));
-
-        errno = 0;
-        if (rdma_accept(id, &cm_params) != 0) {
-            auto res = errno;
-
-            device->removeConnection(impl, ec);
-            if (ec) {
-                // There is nothing we can do if removing the incomplete connection failed
-                SERVICE_LOG("%1%: Removing invalid connection failed [%2%: %3%]", formatRemoteAddress(id), ec,
-                        ec.message());
-            }
-
-            std::error_code ec(res, std::system_category());
-            impl->handler->onConnected(ec);
-        }
-    });
-}
-
-void InfinibandService::onConnectionError(rdma_cm_id* id) {
-    dispatchConnectionError(mDispatcher, id, error::connection_error);
-}
-
-void InfinibandService::onUnreachable(rdma_cm_id* id) {
-    dispatchConnectionError(mDispatcher, id, error::unreachable);
-}
-
-void InfinibandService::onRejected(rdma_cm_id* id) {
-    dispatchConnectionError(mDispatcher, id, error::connection_rejected);
-}
-
-void InfinibandService::onEstablished(struct rdma_cm_id* id) {
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([impl] () {
-        std::error_code ec;
-        impl->handler->onConnected(ec);
-    });
-}
-
-void InfinibandService::onDisconnected(struct rdma_cm_id* id) {
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([impl] () {
-        impl->handler->onDisconnect();
-
-        // TODO Call disconnect here directly? The socket has to call it anyway to succesfully shutdown the connection
-    });
-}
-
-void InfinibandService::onTimewaitExit(struct rdma_cm_id* id) {
-    auto impl = reinterpret_cast<SocketImplementation*>(id->context);
-    mDispatcher.post([impl] () {
-        std::error_code ec;
-        impl->device->drainConnection(impl, ec);
-        if (ec) {
-            // TODO How to handle this?
-            SERVICE_LOG("%1%: Draining connection failed [%2%: %3%]", formatRemoteAddress(impl->id), ec, ec.message());
-        }
-    });
 }
 
 } // namespace infinio

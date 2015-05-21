@@ -1,10 +1,9 @@
 #include "DeviceContext.hpp"
 
+#include <crossbow/infinio/ErrorCode.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include "AddressHelper.hpp"
-#include "ErrorCode.hpp"
-#include "InfinibandSocketImpl.hpp"
 #include "Logging.hpp"
 #include "WorkRequestId.hpp"
 
@@ -52,7 +51,7 @@ void CompletionContext::shutdown(std::error_code& ec) {
     mCompletionQueue = nullptr;
 }
 
-void CompletionContext::addConnection(SocketImplementation* impl, std::error_code& ec) {
+void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code& ec) {
     struct ibv_qp_init_attr_ex qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.send_cq = mCompletionQueue;
@@ -64,31 +63,35 @@ void CompletionContext::addConnection(SocketImplementation* impl, std::error_cod
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
     qp_attr.pd = mDevice.mProtectionDomain;
 
-    COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(impl->id));
+    auto id = socket->mId;
+
+    COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(id));
     errno = 0;
-    if (rdma_create_qp_ex(impl->id, &qp_attr) != 0) {
+    if (rdma_create_qp_ex(id, &qp_attr) != 0) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
 
-    if (!mSocketMap.insert(impl->id->qp->qp_num, impl).first) {
+    if (!mSocketMap.insert(id->qp->qp_num, socket).first) {
         // TODO Insert failed
         return;
     }
 }
 
-void CompletionContext::drainConnection(SocketImplementation* impl, std::error_code& ec) {
-    mDrainingQueue.push(impl);
+void CompletionContext::drainConnection(InfinibandSocket* socket, std::error_code& ec) {
+    mDrainingQueue.push(socket);
 }
 
-void CompletionContext::removeConnection(SocketImplementation* impl, std::error_code& ec) {
-    if (!mSocketMap.erase(impl->id->qp->qp_num).first) {
+void CompletionContext::removeConnection(InfinibandSocket* socket, std::error_code& ec) {
+    auto id = socket->mId;
+
+    if (!mSocketMap.erase(id->qp->qp_num).first) {
         // TODO Socket not associated with this completion context
     }
 
-    COMPLETION_LOG("%1%: Destroying queue pair", formatRemoteAddress(impl->id));
+    COMPLETION_LOG("%1%: Destroying queue pair", formatRemoteAddress(id));
     errno = 0;
-    rdma_destroy_qp(impl->id);
+    rdma_destroy_qp(id);
     if (errno != 0) {
         ec = std::error_code(errno, std::system_category());
         return;
@@ -96,16 +99,16 @@ void CompletionContext::removeConnection(SocketImplementation* impl, std::error_
 }
 
 void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
-    std::vector<SocketImplementation*> draining;
+    std::vector<InfinibandSocket*> draining;
     struct ibv_wc wc[mCompletionQueueLength];
 
     for (size_t j = 0; j < mPollCycles; ++j) {
         while (true) {
-            SocketImplementation* impl = nullptr;
-            if (!mDrainingQueue.pop(impl)) {
+            InfinibandSocket* socket = nullptr;
+            if (!mDrainingQueue.pop(socket)) {
                 break;
             }
-            draining.push_back(impl);
+            draining.push_back(socket);
         }
 
         // Poll the completion queue
@@ -126,11 +129,8 @@ void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
         }
 
         // Process all drained connections
-        for (auto impl: draining) {
-            processDrainedConnection(dispatcher, impl, ec);
-            if (ec) {
-                return;
-            }
+        for (auto socket: draining) {
+            processDrainedConnection(dispatcher, socket);
         }
         draining.clear();
 
@@ -176,7 +176,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
 
         return;
     }
-    SocketImplementation* impl = i.second;
+    InfinibandSocket* socket = i.second;
 
     // TODO Better error handling
     // Right now we just propagate the error to the connection
@@ -202,13 +202,12 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     }
 
     // Increase amount of work
-    addWork(impl);
-
+    socket->addWork();
 
     switch (workId.workType()) {
     case WorkType::RECEIVE: {
         auto byte_len = wc->byte_len;
-        dispatcher.post([this, impl, workId, byte_len, ec] () {
+        dispatcher.post([this, socket, workId, byte_len, ec] () {
             COMPLETION_LOG("Executing successful receive event of id %1%", workId.bufferId());
 
             if (workId.bufferId() >= mDevice.mReceiveBufferCount) {
@@ -216,7 +215,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
                 return;
             }
             auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
-            impl->handler->onReceive(reinterpret_cast<const void*>(buffer), byte_len, ec);
+            socket->onReceive(reinterpret_cast<const void*>(buffer), byte_len, ec);
 
             std::error_code ec2;
             mDevice.postReceiveBuffer(workId.bufferId(), ec2);
@@ -226,41 +225,41 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             }
 
             // Decrease amount of work
-            removeWork(impl);
+            socket->removeWork();
         });
     } break;
 
     case WorkType::SEND: {
-        dispatcher.post([this, impl, workId, ec] () {
+        dispatcher.post([this, socket, workId, ec] () {
             COMPLETION_LOG("Executing successful send event of id %1%", workId.bufferId());
 
-            impl->handler->onSend(workId.userId(), ec);
+            socket->onSend(workId.userId(), ec);
             mDevice.releaseSendBuffer(workId.bufferId());
 
             // Decrease amount of work
-            removeWork(impl);
+            socket->removeWork();
         });
     } break;
 
     case WorkType::READ: {
-        dispatcher.post([this, impl, workId, ec] () {
+        dispatcher.post([this, socket, workId, ec] () {
             COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
 
-            impl->handler->onRead(workId.userId(), ec);
+            socket->onRead(workId.userId(), ec);
 
             // Decrease amount of work
-            removeWork(impl);
+            socket->removeWork();
         });
     } break;
 
     case WorkType::WRITE: {
-        dispatcher.post([this, impl, workId, ec] () {
+        dispatcher.post([this, socket, workId, ec] () {
             COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
 
-            impl->handler->onWrite(workId.userId(), ec);
+            socket->onWrite(workId.userId(), ec);
 
             // Decrease amount of work
-            removeWork(impl);
+            socket->removeWork();
         });
     } break;
 
@@ -270,55 +269,9 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
     }
 }
 
-void CompletionContext::addWork(SocketImplementation* impl) {
-    ++(impl->work);
-}
-
-void CompletionContext::removeWork(SocketImplementation* impl) {
-    auto work = --(impl->work);
-    auto state = impl->state.load();
-    if (work == 0 && state == ConnectionState::DRAINING) {
-        if (!impl->state.compare_exchange_strong(state, ConnectionState::DISCONNECTED)) {
-            return;
-        }
-
-        std::error_code ec;
-        removeConnection(impl, ec);
-
-        // Post on io service?
-        impl->handler->onDisconnected();
-    }
-}
-
-void CompletionContext::processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl,
-        std::error_code& ec) {
-    auto state = ConnectionState::DISCONNECTING;
-
-    // If the work count is not 0 then the connection has running handlers, we have to set the state to DRAINING
-    // so the handlers can cleanup the connection once they are done
-    if (impl->work.load() != 0) {
-        impl->state.store(ConnectionState::DRAINING);
-
-        // If the work count dropped to zero while setting the new state we might have to cleanup the connection
-        if (impl->work.load() != 0) {
-            return;
-        }
-        state = ConnectionState::DRAINING;
-    }
-
-    // Try to mark the connection as disconnected, if this fails somebody else already disconnected
-    if (!impl->state.compare_exchange_strong(state, ConnectionState::DISCONNECTED)) {
-        return;
-    }
-
-    // Remove the connection
-    removeConnection(impl, ec);
-    if (ec) {
-        return;
-    }
-
-    dispatcher.post([impl] () {
-        impl->handler->onDisconnected();
+void CompletionContext::processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket) {
+    dispatcher.post([socket] () {
+        socket->onDrained();
     });
 }
 

@@ -18,8 +18,8 @@ namespace infinio {
 
 class DeviceContext;
 class InfinibandBuffer;
+class InfinibandSocket;
 class LocalMemoryRegion;
-class SocketImplementation;
 
 /**
  * @brief The CompletionContext class manages a completion queue on the device
@@ -52,10 +52,10 @@ public:
      *
      * The connection has to be associated with the device this context belongs to.
      *
-     * @param impl The socket implementation to add
+     * @param socket The socket to add
      * @param ec Error code in case the initialization failed
      */
-    void addConnection(SocketImplementation* impl, std::error_code& ec);
+    void addConnection(InfinibandSocket* socket, std::error_code& ec);
 
     /**
      * @brief Drains any events from a previously added connection
@@ -64,10 +64,10 @@ public:
      * execution the connection gets removed. This function may only be called when the queue or the associated
      * completion queue will no longer receive any work completions (i.e. when disconnecting the connection).
      *
-     * @param impl The socket implementation to drain
+     * @param socket The socket to drain
      * @param ec Error code in case the draining failed
      */
-    void drainConnection(SocketImplementation* impl, std::error_code& ec);
+    void drainConnection(InfinibandSocket* socket, std::error_code& ec);
 
     /**
      * @brief Removes a previously added connection from the completion queue
@@ -76,10 +76,10 @@ public:
      * queue or the associated completion queue has no pending events (i.e. in case the connection failed before it was
      * established correctly).
      *
-     * @param impl The socket implementation to remove
+     * @param socket The socket to remove
      * @param ec Error in case the removal failed
      */
-    void removeConnection(SocketImplementation* impl, std::error_code& ec);
+    void removeConnection(InfinibandSocket* socket, std::error_code& ec);
 
     /**
      * @brief Poll the completion queue and process any work completions
@@ -99,36 +99,15 @@ private:
     void processWorkComplete(EventDispatcher& dispatcher, struct ibv_wc* wc);
 
     /**
-     * @brief Mark a new handler as active
-     *
-     * This function should be called before a handler associated with a callback on the socket is dispatched to the
-     * EventDispatcher.
-     *
-     * @param impl Socket implementation the handler is associated with
-     */
-    void addWork(SocketImplementation* impl);
-
-    /**
-     * @brief Mark an active handler as completed
-     *
-     * This function should be called after the callback on the socket was executed.
-     *
-     * Tries to shutdown the connection in case the connection is draining and no more handlers are active.
-     *
-     * @param impl Socket implementation the handler was associated with
-     */
-    void removeWork(SocketImplementation* impl);
-
-    /**
      * @brief Process a connection that was drained (i.e. has no more work completions on the completion queue)
      *
      * Tries to shutdown the connection in case the connection is draining and no more handlers are active.
      *
      * @param dispatcher The dispatcher to execute the callback functions
-     * @param impl Socket implementation that was drained
+     * @param socket The socket that was drained
      * @param ec Error in case the removal failed
      */
-    void processDrainedConnection(EventDispatcher& dispatcher, SocketImplementation* impl, std::error_code& ec);
+    void processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket);
 
     DeviceContext& mDevice;
 
@@ -143,12 +122,12 @@ private:
 
     struct ibv_cq* mCompletionQueue;
 
-    /// Map from queue number to the associated socket implementation
-    crossbow::concurrent_map<uint32_t, SocketImplementation*> mSocketMap;
+    /// Map from queue number to the associated socket
+    crossbow::concurrent_map<uint32_t, InfinibandSocket*> mSocketMap;
 
     // TODO Use datastructure where capacity can be unbounded
     /// Queue containing connections waiting to be drained
-    boost::lockfree::queue<SocketImplementation*, boost::lockfree::capacity<1024>> mDrainingQueue;
+    boost::lockfree::queue<InfinibandSocket*, boost::lockfree::capacity<1024>> mDrainingQueue;
 
     std::atomic<bool> mShutdown;
 };
@@ -209,18 +188,18 @@ public:
      */
     void shutdown(std::error_code& ec);
 
-    void addConnection(SocketImplementation* impl, std::error_code& ec) {
-        mCompletion.addConnection(impl, ec);
+    void addConnection(InfinibandSocket* socket, std::error_code& ec) {
+        mCompletion.addConnection(socket, ec);
     }
 
-    void drainConnection(SocketImplementation* impl, std::error_code& ec) {
-        // TODO This function has to be invoked on the completion context associated with impl
-        mCompletion.drainConnection(impl, ec);
+    void drainConnection(InfinibandSocket* socket, std::error_code& ec) {
+        // TODO This function has to be invoked on the completion context associated with socket
+        mCompletion.drainConnection(socket, ec);
     }
 
-    void removeConnection(SocketImplementation* impl, std::error_code& ec) {
-        // TODO This function has to be invoked on the completion context associated with impl
-        mCompletion.removeConnection(impl, ec);
+    void removeConnection(InfinibandSocket* socket, std::error_code& ec) {
+        // TODO This function has to be invoked on the completion context associated with socket
+        mCompletion.removeConnection(socket, ec);
     }
 
     /**

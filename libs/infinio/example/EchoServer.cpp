@@ -14,8 +14,8 @@ using namespace crossbow::infinio;
 
 class EchoConnection: private InfinibandSocketHandler {
 public:
-    EchoConnection(InfinibandSocket socket)
-            : mSocket(std::move(socket)) {
+    EchoConnection(InfinibandSocket* socket)
+            : mSocket(socket) {
     }
 
     void init();
@@ -31,11 +31,11 @@ private:
 
     void handleError(std::string message, std::error_code& ec);
 
-    InfinibandSocket mSocket;
+    InfinibandSocket* mSocket;
 };
 
 void EchoConnection::init() {
-    mSocket.setHandler(this);
+    mSocket->setHandler(this);
 }
 
 void EchoConnection::onConnected(const std::error_code& ec) {
@@ -46,7 +46,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const std::err
     std::error_code ec;
 
     // Acquire buffer with same size
-    auto sendbuffer = mSocket.acquireSendBuffer(length);
+    auto sendbuffer = mSocket->acquireSendBuffer(length);
     if (sendbuffer.id() == InfinibandBuffer::INVALID_ID) {
         handleError("Error acquiring buffer", ec);
         return;
@@ -56,7 +56,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const std::err
     memcpy(sendbuffer.data(), buffer, length);
 
     // Send incoming message back to client
-    mSocket.send(sendbuffer, 0x0u, ec);
+    mSocket->send(sendbuffer, 0x0u, ec);
     if (ec) {
         handleError("Send failed", ec);
     }
@@ -65,7 +65,7 @@ void EchoConnection::onReceive(const void* buffer, size_t length, const std::err
 void EchoConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
     std::error_code ec;
-    mSocket.disconnect(ec);
+    mSocket->disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
     }
@@ -78,25 +78,25 @@ void EchoConnection::onDisconnected() {
 void EchoConnection::handleError(std::string message, std::error_code& ec) {
     std::cout << message << " [" << ec << " - " << ec.message() << "]" << std::endl;
     std::cout << "Disconnecting after error" << std::endl;
-    mSocket.disconnect(ec);
+    mSocket->disconnect(ec);
     if (ec) {
         std::cout << "Disconnect failed [" << ec << " - " << ec.message() << "]" << std::endl;
     }
 }
 
-class EchoAcceptor: protected InfinibandSocketHandler {
+class EchoAcceptor: protected InfinibandAcceptorHandler {
 public:
     EchoAcceptor(InfinibandService& service)
-            : mAcceptor(service) {
+            : mAcceptor(new InfinibandAcceptor(service)) {
     }
 
     void open(uint16_t port);
 
 protected:
-    virtual bool onConnection(InfinibandSocket socket) override;
+    virtual void onConnection(ConnectionRequest request) override;
 
 private:
-    InfinibandAcceptor mAcceptor;
+    InfinibandAcceptor* mAcceptor;
 
     std::unordered_set<std::unique_ptr<EchoConnection>> mConnections;
 };
@@ -105,22 +105,23 @@ void EchoAcceptor::open(uint16_t port) {
     std::error_code ec;
 
     // Open socket
-    mAcceptor.open(ec);
+    mAcceptor->open(ec);
     if (ec) {
         std::cout << "Open failed " << ec << " - " << ec.message() << std::endl;
         std::terminate();
     }
-    mAcceptor.setHandler(this);
+    mAcceptor->setHandler(this);
 
     // Bind socket
-    mAcceptor.bind(Endpoint(Endpoint::ipv4(), port), ec);
+    Endpoint ep(Endpoint::ipv4(), port);
+    mAcceptor->bind(ep, ec);
     if (ec) {
         std::cout << "Bind failed " << ec << " - " << ec.message() << std::endl;
         std::terminate();
     }
 
     // Start listening
-    mAcceptor.listen(10, ec);
+    mAcceptor->listen(10, ec);
     if (ec) {
         std::cout << "Listen failed " << ec << " - " << ec.message() << std::endl;
         std::terminate();
@@ -129,15 +130,19 @@ void EchoAcceptor::open(uint16_t port) {
     std::cout << "Echo server started up" << std::endl;
 }
 
-bool EchoAcceptor::onConnection(InfinibandSocket socket) {
+void EchoAcceptor::onConnection(ConnectionRequest request) {
     std::cout << "New incoming connection" << std::endl;
 
-    std::unique_ptr<EchoConnection> con(new EchoConnection(std::move(socket)));
+    std::error_code ec;
+    auto socket = request.accept(ec);
+    if (ec) {
+        std::cout << "Accepting connection failed " << ec << " - " << ec.message() << std::endl;
+        return;
+    }
+    std::unique_ptr<EchoConnection> con(new EchoConnection(socket));
     con->init();
 
     mConnections.emplace(std::move(con));
-
-    return true;
 }
 
 int main(int argc, const char** argv) {

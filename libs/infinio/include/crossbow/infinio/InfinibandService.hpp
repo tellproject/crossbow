@@ -14,10 +14,6 @@ namespace crossbow {
 namespace infinio {
 
 class DeviceContext;
-class Endpoint;
-class InfinibandBuffer;
-class RemoteMemoryRegion;
-class SocketImplementation;
 
 /**
  * @brief Class handling all Infiniband related management tasks
@@ -41,30 +37,10 @@ public:
      */
     void shutdown(std::error_code& ec);
 
-
-    // TODO The following members should only be accessed by the InfinibandSocket
-
-    void open(SocketImplementation* impl, std::error_code& ec);
-
-    void close(SocketImplementation* impl, std::error_code& ec);
-
-    void bind(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec);
-
-    void listen(SocketImplementation* impl, int backlog, std::error_code& ec);
-
-    void connect(SocketImplementation* impl, const Endpoint& addr, std::error_code& ec);
-
-    void disconnect(SocketImplementation* impl, std::error_code& ec);
-
-    void send(SocketImplementation* impl, InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec);
-
-    void read(SocketImplementation* impl, const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst,
-              uint32_t userId, std::error_code& ec);
-
-    void write(SocketImplementation* impl, InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
-            uint32_t userId, std::error_code& ec);
-
 private:
+    friend class InfinibandAcceptor;
+    friend class InfinibandSocket;
+
     /**
      * @brief Gets the device context associated with the ibv_context
      *
@@ -74,92 +50,14 @@ private:
      */
     DeviceContext* getDevice(struct ibv_context* verbs);
 
-    void doSend(SocketImplementation* impl, struct ibv_send_wr* wr, std::error_code& ec);
+    struct rdma_event_channel* channel() {
+        return mChannel;
+    }
 
     /**
      * @brief Process the event received from the RDMA event channel
      */
     void processEvent(struct rdma_cm_event* event);
-
-    /**
-     * @brief The address to the remote host was successfully resolved
-     *
-     * Continue by resolving the route to the remote host.
-     */
-    void onAddressResolved(struct rdma_cm_id* id);
-
-    /**
-     * @brief Error while resolving address
-     *
-     * Invoke the onConnected handler to inform the socket that the connection attempt failed.
-     */
-    void onAddressError(struct rdma_cm_id* id);
-
-    /**
-     * @brief The route to the remote host was successfully resolved
-     *
-     * Setup the socket and establish the connection to the remote host.
-     */
-    void onRouteResolved(struct rdma_cm_id* id);
-
-    /**
-     * @brief Error while resolving route
-     *
-     * Invoke the onConnected handler to inform the socket that the connection attempt failed.
-     */
-    void onRouteError(struct rdma_cm_id* id);
-
-    /**
-     * @brief The listen socket received a new connection request
-     *
-     * Invoke the onConnection handler to pass the new connection to the listen socket. Accepts or rejects the
-     * connection depending on the return value of the handler.
-     */
-    void onConnectionRequest(struct rdma_cm_id* listener, struct rdma_cm_id* id);
-
-    /**
-     * @brief An error has occured while establishing a connection
-     *
-     * Invoke the onConnected handler to inform the socket that the connection attempt failed.
-     */
-    void onConnectionError(struct rdma_cm_id* id);
-
-    /**
-     * @brief The remote host was unreachable
-     *
-     * Invoke the onConnected handler to inform the socket that the connection attempt failed.
-     */
-    void onUnreachable(struct rdma_cm_id* id);
-
-    /**
-     * @brief The outgoing connection has been rejected by the remote host
-     *
-     * Invoke the onConnected handler to inform the socket it was rejected.
-     */
-    void onRejected(struct rdma_cm_id* id);
-
-    /**
-     * @brief The connection has been established
-     *
-     * Invoke the onConnected handler to inform the socket it is now connected.
-     */
-    void onEstablished(struct rdma_cm_id* id);
-
-    /**
-     * @brief The remote connection has been disconnected
-     *
-     * Executed when the remote host triggered a disconnect. Invoke the onDisconnect handler so that the socket can
-     * close on the local host.
-     */
-    void onDisconnected(struct rdma_cm_id* id);
-
-    /**
-     * @brief The connection has exited the Timewait state
-     *
-     * After disconnecting the connection any packets that were still in flight have now been processed by the NIC. Tell
-     * the connection to drain the completion queue so it can be disconnected.
-     */
-    void onTimewaitExit(struct rdma_cm_id* id);
 
     /// Dispatcher to execute all actions on
     EventDispatcher& mDispatcher;

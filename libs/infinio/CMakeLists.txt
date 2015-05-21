@@ -26,6 +26,7 @@ endif()
 set(SRCS
     include/crossbow/infinio/AsioEventDispatcher.hpp
     include/crossbow/infinio/Endpoint.hpp
+    include/crossbow/infinio/ErrorCode.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
     include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
@@ -36,11 +37,9 @@ set(SRCS
     src/DeviceContext.hpp
     src/DeviceContext.cpp
     src/Endpoint.cpp
-    src/ErrorCode.hpp
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
-    src/InfinibandSocketImpl.hpp
     src/Logging.hpp
     src/WorkRequestId.hpp
 )
