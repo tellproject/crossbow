@@ -216,7 +216,7 @@ class InfinibandSocket: public InfinibandBaseSocket {
 public:
     InfinibandSocket(InfinibandService& service)
             : InfinibandBaseSocket(service.channel(), this),
-              mDevice(nullptr),
+              mDevice(service.device()),
               mHandler(nullptr),
               mWork(1) {
     }
@@ -268,9 +268,9 @@ private:
     friend class ConnectionRequest;
     friend class InfinibandService;
 
-    InfinibandSocket(struct rdma_cm_id* id, DeviceContext* device)
+    InfinibandSocket(InfinibandService& service, struct rdma_cm_id* id)
             : InfinibandBaseSocket(id, this),
-              mDevice(device),
+              mDevice(service.device()),
               mHandler(nullptr),
               mWork(1) {
     }
@@ -308,7 +308,7 @@ private:
      *
      * Setup the socket and establish the connection to the remote host.
      */
-    void onRouteResolved(DeviceContext* device);
+    void onRouteResolved();
 
     /**
      * @brief Error while resolving route

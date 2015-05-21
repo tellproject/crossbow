@@ -41,17 +41,15 @@ private:
     friend class InfinibandAcceptor;
     friend class InfinibandSocket;
 
-    /**
-     * @brief Gets the device context associated with the ibv_context
-     *
-     * If the device context for the given ibv_context was not yet initialized it will create the context and
-     * initialize it. At this time only one device is supported, receiving events from multiple NICs results in an
-     * error.
-     */
-    DeviceContext* getDevice(struct ibv_context* verbs);
-
     struct rdma_event_channel* channel() {
         return mChannel;
+    }
+
+    /**
+     * @brief Gets the device context associated with the ibv_context
+     */
+    DeviceContext* device() {
+        return mDevice.get();
     }
 
     /**

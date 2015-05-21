@@ -316,10 +316,7 @@ void InfinibandSocket::onAddressResolved() {
     }
 }
 
-void InfinibandSocket::onRouteResolved(DeviceContext* device) {
-    // TODO Assert that mDevice was null
-    mDevice = device;
-
+void InfinibandSocket::onRouteResolved() {
     SOCKET_LOG("%1%: Route resolved", formatRemoteAddress(mId));
 
     // Add connection to queue handler

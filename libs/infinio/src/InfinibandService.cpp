@@ -36,6 +36,19 @@ InfinibandService::InfinibandService(EventDispatcher& dispatcher, const Infiniba
         return;
     }
 
+    SERVICE_LOG("Initialize device context");
+    int numDevices = 0;
+    auto devices = rdma_get_devices(&numDevices);
+    if (numDevices != 1) {
+        SERVICE_ERROR("Only one Infiniband device is supported at this moment");
+        std::terminate();
+    }
+    mDevice.reset(new DeviceContext(mDispatcher, mLimits, *devices));
+
+    std::error_code ec;
+    mDevice->init(ec);
+    rdma_free_devices(devices);
+
     SERVICE_LOG("Start event poll thread");
     mPollingThread = std::thread([this] () {
         struct rdma_cm_event* event = nullptr;
@@ -98,28 +111,6 @@ void InfinibandService::shutdown(std::error_code& ec) {
     }
 }
 
-DeviceContext* InfinibandService::getDevice(struct ibv_context* verbs) {
-    if (!mDevice) {
-        SERVICE_LOG("Initialize device context");
-        mDevice.reset(new DeviceContext(mDispatcher, mLimits, verbs));
-
-        std::error_code ec;
-        mDevice->init(ec);
-        if (ec) {
-            SERVICE_ERROR("Failure to initialize context [%1%: %2%]", ec, ec.message());
-            std::terminate();
-        }
-    }
-
-    // Right now we only support one device
-    if (verbs != mDevice->context()) {
-        SERVICE_ERROR("Incoming connection from different device context");
-        std::terminate();
-    }
-
-    return mDevice.get();
-}
-
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
     SERVICE_LOG("Processing event %1%", rdma_event_str(event->event));
 
@@ -134,23 +125,14 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
     switch (event->event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ADDR_RESOLVED, onAddressResolved);
     HANDLE_EVENT(RDMA_CM_EVENT_ADDR_ERROR, onAddressError);
-
-    case RDMA_CM_EVENT_ROUTE_RESOLVED: {
-        auto id = event->id;
-        mDispatcher.post([this, id] () {
-            auto device = getDevice(id->verbs);
-            reinterpret_cast<InfinibandSocket*>(id->context)->onRouteResolved(device);
-        });
-    } break;
-
+    HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_RESOLVED, onRouteResolved);
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onRouteError);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
         auto listen_id = event->listen_id;
         auto id = event->id;
         mDispatcher.post([this, listen_id, id] () {
-            auto device = getDevice(id->verbs);
-            ConnectionRequest request(new InfinibandSocket(id, device));
+            ConnectionRequest request(new InfinibandSocket(*this, id));
             reinterpret_cast<InfinibandAcceptor*>(listen_id->context)->onConnectionRequest(std::move(request));
         });
     } break;
