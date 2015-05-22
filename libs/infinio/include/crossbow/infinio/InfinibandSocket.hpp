@@ -13,7 +13,7 @@
 namespace crossbow {
 namespace infinio {
 
-class DeviceContext;
+class CompletionContext;
 class InfinibandSocket;
 
 /**
@@ -216,7 +216,7 @@ class InfinibandSocket: public InfinibandBaseSocket {
 public:
     InfinibandSocket(InfinibandService& service)
             : InfinibandBaseSocket(service.channel(), this),
-              mDevice(service.device()),
+              mContext(service.context()),
               mHandler(nullptr),
               mWork(1) {
     }
@@ -270,7 +270,7 @@ private:
 
     InfinibandSocket(InfinibandService& service, struct rdma_cm_id* id)
             : InfinibandBaseSocket(id, this),
-              mDevice(service.device()),
+              mContext(service.context()),
               mHandler(nullptr),
               mWork(1) {
     }
@@ -410,8 +410,8 @@ private:
      */
     void removeWork();
 
-    /// The device context of the underlying NIC
-    DeviceContext* mDevice;
+    /// The completion context of the underlying NIC
+    CompletionContext* mContext;
 
     /// Callback handlers for events occuring on this socket
     InfinibandSocketHandler* mHandler;

@@ -111,6 +111,10 @@ void InfinibandService::shutdown(std::error_code& ec) {
     }
 }
 
+CompletionContext* InfinibandService::context() {
+    return mDevice->context();
+}
+
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
     SERVICE_LOG("Processing event %1%", rdma_event_str(event->event));
 

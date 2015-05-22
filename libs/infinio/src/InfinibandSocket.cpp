@@ -242,26 +242,26 @@ void InfinibandSocket::write(InfinibandBuffer& src, const RemoteMemoryRegion& ds
 }
 
 uint32_t InfinibandSocket::bufferLength() const {
-    return mDevice->bufferLength();
+    return mContext->bufferLength();
 }
 
 InfinibandBuffer InfinibandSocket::acquireSendBuffer() {
-    return mDevice->acquireSendBuffer();
+    return mContext->acquireSendBuffer();
 }
 
 InfinibandBuffer InfinibandSocket::acquireSendBuffer(uint32_t length) {
-    return mDevice->acquireSendBuffer(length);
+    return mContext->acquireSendBuffer(length);
 }
 
 void InfinibandSocket::releaseSendBuffer(InfinibandBuffer& buffer) {
-    mDevice->releaseSendBuffer(buffer);
+    mContext->releaseSendBuffer(buffer);
 }
 
 void InfinibandSocket::accept(std::error_code& ec) {
     SOCKET_LOG("%1%: Accepting connection", formatRemoteAddress(mId));
 
     // Add connection to queue handler
-    mDevice->addConnection(this, ec);
+    mContext->addConnection(this, ec);
     if (ec) {
         return;
     }
@@ -273,7 +273,7 @@ void InfinibandSocket::accept(std::error_code& ec) {
     if (rdma_accept(mId, &cm_params) != 0) {
         auto res = errno;
 
-        mDevice->removeConnection(this, ec);
+        mContext->removeConnection(this, ec);
         if (ec) {
             // There is nothing we can do if removing the incomplete connection failed
             SOCKET_ERROR("%1%: Removing invalid connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
@@ -321,7 +321,7 @@ void InfinibandSocket::onRouteResolved() {
 
     // Add connection to queue handler
     std::error_code ec;
-    mDevice->addConnection(this, ec);
+    mContext->addConnection(this, ec);
     if (ec) {
         mHandler->onConnected(ec);
         return;
@@ -334,7 +334,7 @@ void InfinibandSocket::onRouteResolved() {
     if (rdma_connect(mId, &cm_params) != 0) {
         auto res = errno;
 
-        mDevice->removeConnection(this, ec);
+        mContext->removeConnection(this, ec);
         if (ec) {
             // There is nothing we can do if removing the incomplete connection failed
             SOCKET_ERROR("%1%: Remove of invalid connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
@@ -347,7 +347,7 @@ void InfinibandSocket::onRouteResolved() {
 
 void InfinibandSocket::onConnectionError(error::network_errors err) {
     std::error_code ec;
-    mDevice->removeConnection(this, ec);
+    mContext->removeConnection(this, ec);
     if (ec) {
         // There is nothing we can do if removing the incomplete connection failed
         SOCKET_ERROR("%1%: Removing invalid connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
@@ -359,7 +359,7 @@ void InfinibandSocket::onConnectionError(error::network_errors err) {
 
 void InfinibandSocket::onTimewaitExit() {
     std::error_code ec;
-    mDevice->drainConnection(this, ec);
+    mContext->drainConnection(this, ec);
     if (ec) {
         // TODO How to handle this?
         SOCKET_ERROR("%1%: Draining connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec, ec.message());
@@ -370,7 +370,7 @@ void InfinibandSocket::removeWork() {
     auto work = --mWork;
     if (work == 0) {
         std::error_code ec;
-        mDevice->removeConnection(this, ec);
+        mContext->removeConnection(this, ec);
         if (ec) {
             // TODO Error
         }

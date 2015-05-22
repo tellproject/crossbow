@@ -27,6 +27,18 @@ void CompletionContext::init(std::error_code& ec) {
         return;
     }
 
+    COMPLETION_LOG("Allocate send buffer memory");
+    mDataRegion = mDevice.allocateMemoryRegion(bufferOffset(mSendBufferCount), ec);
+    if (ec) {
+        return;
+    }
+    mSendData = mDataRegion->addr;
+
+    COMPLETION_LOG("Add %1% buffers to send buffer queue", mSendBufferCount);
+    for (uint16_t id = 0x0u; id < mSendBufferCount; ++id) {
+        mSendBufferQueue.push(id);
+    }
+
     COMPLETION_LOG("Create completion queue");
     errno = 0;
     mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, nullptr, 0);
@@ -49,6 +61,14 @@ void CompletionContext::shutdown(std::error_code& ec) {
         return;
     }
     mCompletionQueue = nullptr;
+
+    COMPLETION_LOG("Destroy send buffer memory");
+    mDevice.destroyMemoryRegion(mDataRegion, ec);
+    if (ec) {
+        return;
+    }
+    mSendData = nullptr;
+    mDataRegion = nullptr;
 }
 
 void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code& ec) {
@@ -98,6 +118,37 @@ void CompletionContext::removeConnection(InfinibandSocket* socket, std::error_co
     }
 }
 
+InfinibandBuffer CompletionContext::acquireSendBuffer(uint32_t length) {
+    uint16_t id = 0x0u;
+    if (!mSendBufferQueue.pop(id)) {
+        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
+    }
+    if (length > mSendBufferLength) {
+        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
+    }
+
+    InfinibandBuffer buffer(id);
+    buffer.handle()->addr = reinterpret_cast<uintptr_t>(mSendData) + bufferOffset(id);
+    buffer.handle()->length = length;
+    buffer.handle()->lkey = mDataRegion->lkey;
+    return buffer;
+}
+
+void CompletionContext::releaseSendBuffer(InfinibandBuffer& buffer) {
+    if (buffer.handle()->lkey != mDataRegion->lkey) {
+        COMPLETION_ERROR("Trying to release send buffer registered to another region");
+        return;
+    }
+    releaseSendBuffer(buffer.id());
+}
+
+void CompletionContext::releaseSendBuffer(uint16_t id) {
+    if (id == InfinibandBuffer::INVALID_ID) {
+        return;
+    }
+    mSendBufferQueue.push(id);
+}
+
 void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
     std::vector<InfinibandSocket*> draining;
     struct ibv_wc wc[mCompletionQueueLength];
@@ -124,7 +175,7 @@ void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
         }
 
         // Process all polled work completions
-        for (size_t i = 0; i < num; ++i) {
+        for (int i = 0; i < num; ++i) {
             processWorkComplete(dispatcher, &wc[i]);
         }
 
@@ -167,7 +218,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
 
         // In the case the work request was a send we just release the send buffer
         case WorkType::SEND: {
-            mDevice.releaseSendBuffer(workId.bufferId());
+            releaseSendBuffer(workId.bufferId());
         } break;
 
         default:
@@ -234,7 +285,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
             COMPLETION_LOG("Executing successful send event of id %1%", workId.bufferId());
 
             socket->onSend(workId.userId(), ec);
-            mDevice.releaseSendBuffer(workId.bufferId());
+            releaseSendBuffer(workId.bufferId());
 
             // Decrease amount of work
             socket->removeWork();
@@ -288,10 +339,12 @@ void DeviceContext::init(std::error_code& ec) {
         return;
     }
 
-    initMemoryRegion(ec);
+    DEVICE_LOG("Allocate receive buffer memory");
+    mDataRegion = allocateMemoryRegion(bufferOffset(mReceiveBufferCount), ec);
     if (ec) {
         return;
     }
+    mReceiveData = mDataRegion->addr;
 
     initReceiveQueue(ec);
     if (ec) {
@@ -327,7 +380,8 @@ void DeviceContext::shutdown(std::error_code& ec) {
         return;
     }
 
-    shutdownMemoryRegion(ec);
+    DEVICE_LOG("Destroy receive buffer memory");
+    destroyMemoryRegion(mDataRegion, ec);
     if (ec) {
         return;
     }
@@ -337,29 +391,6 @@ void DeviceContext::shutdown(std::error_code& ec) {
         ec = std::error_code(res, std::system_category());
         return;
     }
-}
-
-InfinibandBuffer DeviceContext::acquireSendBuffer(uint32_t length) {
-    uint16_t id = 0x0u;
-    if (!mSendBufferQueue.pop(id)) {
-        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
-    }
-    if (length > mBufferLength) {
-        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
-    }
-
-    InfinibandBuffer buffer(id);
-    buffer.handle()->addr = reinterpret_cast<uintptr_t>(mSendData) + bufferOffset(id);
-    buffer.handle()->length = length;
-    buffer.handle()->lkey = mDataRegion->lkey;
-    return buffer;
-}
-
-void DeviceContext::releaseSendBuffer(InfinibandBuffer& buffer) {
-    if (buffer.handle()->lkey != mDataRegion->lkey) {
-        return;
-    }
-    releaseSendBuffer(buffer.id());
 }
 
 LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
@@ -372,50 +403,41 @@ LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length,
     return LocalMemoryRegion(mDataRegion);
 }
 
-void DeviceContext::initMemoryRegion(std::error_code& ec) {
-    auto dataLength = bufferOffset(mReceiveBufferCount) + bufferOffset(mSendBufferCount);
-
-    DEVICE_LOG("Map %1% bytes of shared buffer space", dataLength);
+struct ibv_mr* DeviceContext::allocateMemoryRegion(size_t length, std::error_code& ec) {
+    DEVICE_LOG("Map %1% bytes of buffer space", length);
     errno = 0;
-    mReceiveData = mmap(nullptr, dataLength, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
-    if (mReceiveData == MAP_FAILED) {
-        mReceiveData = nullptr;
+    auto data = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+    if (data == MAP_FAILED) {
         ec = std::error_code(errno, std::system_category());
-        return;
+        return nullptr;
     }
-    mSendData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(mReceiveBufferCount));
 
-    DEVICE_LOG("Create memory region at %1%", mReceiveData);
+    DEVICE_LOG("Create memory region at %1%", data);
     errno = 0;
-    mDataRegion = ibv_reg_mr(mProtectionDomain, mReceiveData, dataLength, IBV_ACCESS_LOCAL_WRITE);
-    if (mDataRegion == nullptr) {
+    auto memoryRegion = ibv_reg_mr(mProtectionDomain, data, length, IBV_ACCESS_LOCAL_WRITE);
+    if (memoryRegion == nullptr) {
         ec = std::error_code(errno, std::system_category());
-        return;
+        munmap(data, length);
+        return nullptr;
     }
-
-    DEVICE_LOG("Add %1% buffers to send buffer queue", mSendBufferCount);
-    for (uint16_t id = 0x0u; id < mSendBufferCount; ++id) {
-        mSendBufferQueue.push(id);
-    }
+    return memoryRegion;
 }
 
-void DeviceContext::shutdownMemoryRegion(std::error_code& ec) {
-    DEVICE_LOG("Destroy memory region at %1%", mReceiveData);
-    if (auto res = ibv_dereg_mr(mDataRegion) != 0) {
+void DeviceContext::destroyMemoryRegion(struct ibv_mr* memoryRegion, std::error_code& ec) {
+    auto data = memoryRegion->addr;
+    auto length = memoryRegion->length;
+    DEVICE_LOG("Destroy memory region at %1%", data);
+    if (auto res = ibv_dereg_mr(memoryRegion) != 0) {
         ec = std::error_code(res, std::system_category());
         return;
     }
 
-    auto dataLength = bufferOffset(mReceiveBufferCount) + bufferOffset(mSendBufferCount);
-
     // TODO Size has to be a multiple of the page size
-    DEVICE_LOG("Unmap buffer space at %1%", mReceiveData);
+    DEVICE_LOG("Unmap buffer space at %1%", data);
     errno = 0;
-    if (munmap(mReceiveData, dataLength) != 0) {
+    if (munmap(data, length) != 0) {
         ec = std::error_code(errno, std::system_category());
     }
-    mReceiveData = nullptr;
-    mSendData = nullptr;
 }
 
 void DeviceContext::initReceiveQueue(std::error_code& ec) {
@@ -458,13 +480,6 @@ void DeviceContext::doPoll() {
     });
 }
 
-void DeviceContext::releaseSendBuffer(uint16_t id) {
-    if (id == InfinibandBuffer::INVALID_ID) {
-        return;
-    }
-    mSendBufferQueue.push(id);
-}
-
 /**
  * @brief Helper function posting the buffer to the shared receive queue
  */
@@ -474,7 +489,7 @@ void DeviceContext::postReceiveBuffer(uint16_t id, std::error_code& ec) {
     // Prepare work request
     struct ibv_sge sge;
     sge.addr = reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(id);
-    sge.length = mBufferLength;
+    sge.length = mReceiveBufferLength;
     sge.lkey = mDataRegion->lkey;
 
     struct ibv_recv_wr wr;

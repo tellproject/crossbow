@@ -30,9 +30,14 @@ class CompletionContext {
 public:
     CompletionContext(DeviceContext& device, const InfinibandLimits& limits)
             : mDevice(device),
+              mSendBufferCount(limits.sendBufferCount),
+              mSendBufferLength(limits.bufferLength),
               mSendQueueLength(limits.sendQueueLength),
               mCompletionQueueLength(limits.completionQueueLength),
               mPollCycles(limits.pollCycles),
+              mDataRegion(nullptr),
+              mSendData(nullptr),
+              mSendBufferQueue(limits.sendBufferCount),
               mCompletionQueue(nullptr),
               mShutdown(false) {
     }
@@ -82,131 +87,10 @@ public:
     void removeConnection(InfinibandSocket* socket, std::error_code& ec);
 
     /**
-     * @brief Poll the completion queue and process any work completions
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param ec Error in case the polling process failed
-     */
-    void poll(EventDispatcher& dispatcher, std::error_code& ec);
-
-private:
-    /**
-     * @brief Process a single work completion
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param wc Work completion to process
-     */
-    void processWorkComplete(EventDispatcher& dispatcher, struct ibv_wc* wc);
-
-    /**
-     * @brief Process a connection that was drained (i.e. has no more work completions on the completion queue)
-     *
-     * Tries to shutdown the connection in case the connection is draining and no more handlers are active.
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param socket The socket that was drained
-     * @param ec Error in case the removal failed
-     */
-    void processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket);
-
-    DeviceContext& mDevice;
-
-    /// Size of the send queue to allocate for each connection
-    uint32_t mSendQueueLength;
-
-    /// Size of the completion queue to allocate
-    uint32_t mCompletionQueueLength;
-
-    /// Number of iterations to poll when there is no work completion
-    uint64_t mPollCycles;
-
-    struct ibv_cq* mCompletionQueue;
-
-    /// Map from queue number to the associated socket
-    crossbow::concurrent_map<uint32_t, InfinibandSocket*> mSocketMap;
-
-    // TODO Use datastructure where capacity can be unbounded
-    /// Queue containing connections waiting to be drained
-    boost::lockfree::queue<InfinibandSocket*, boost::lockfree::capacity<1024>> mDrainingQueue;
-
-    std::atomic<bool> mShutdown;
-};
-
-/**
- * @brief The DeviceContext class handles all activities related to a NIC
- *
- * Sets up the protection domain of the NIC and a shared receive queue for all connections. Also allocates a
- * BufferManager and CompletionContext.
- */
-class DeviceContext {
-public:
-    DeviceContext(EventDispatcher& dispatcher, const InfinibandLimits& limits, struct ibv_context* verbs)
-            : mDispatcher(dispatcher),
-              mReceiveBufferCount(limits.receiveBufferCount),
-              mSendBufferCount(limits.sendBufferCount),
-              mBufferLength(limits.bufferLength),
-              mVerbs(verbs),
-              mProtectionDomain(nullptr),
-              mDataRegion(nullptr),
-              mReceiveData(nullptr),
-              mReceiveQueue(nullptr),
-              mSendData(nullptr),
-              mSendBufferQueue(limits.sendBufferCount),
-              mCompletion(*this, limits),
-              mShutdown(false) {
-    }
-
-    ~DeviceContext() {
-        std::error_code ec;
-        shutdown(ec);
-        if (ec) {
-            // TODO Log error?
-        }
-    }
-
-    struct ibv_context* context() {
-        return mVerbs;
-    }
-
-    /**
-     * @brief Initializes the device
-     *
-     * Initializes the protection domain for this device, allocates a buffer pool for use with this device, creates a
-     * shared receive queue to handle all incoming requests and adds a completion queue to handle all future events.
-     * After the succesfull initialization it starts polling the completion queue for entries on the event dispatcher.
-     *
-     * This function has to be called before using the device.
-     *
-     * @param ec Error code in case the initialization failed
-     */
-    void init(std::error_code& ec);
-
-    /**
-     * @brief Shuts the device down and destroys all associated ressources
-     *
-     * @param ec Error code in case the initialization failed
-     */
-    void shutdown(std::error_code& ec);
-
-    void addConnection(InfinibandSocket* socket, std::error_code& ec) {
-        mCompletion.addConnection(socket, ec);
-    }
-
-    void drainConnection(InfinibandSocket* socket, std::error_code& ec) {
-        // TODO This function has to be invoked on the completion context associated with socket
-        mCompletion.drainConnection(socket, ec);
-    }
-
-    void removeConnection(InfinibandSocket* socket, std::error_code& ec) {
-        // TODO This function has to be invoked on the completion context associated with socket
-        mCompletion.removeConnection(socket, ec);
-    }
-
-    /**
      * @brief Maximum buffer length this buffer manager is able to allocate
      */
     uint32_t bufferLength() const {
-        return mBufferLength;
+        return mSendBufferLength;
     }
 
     /**
@@ -215,7 +99,7 @@ public:
      * @return A newly acquired buffer or a buffer with invalid ID in case of an error
      */
     InfinibandBuffer acquireSendBuffer() {
-        return acquireSendBuffer(mBufferLength);
+        return acquireSendBuffer(mSendBufferLength);
     }
 
     /**
@@ -241,6 +125,140 @@ public:
     void releaseSendBuffer(InfinibandBuffer& buffer);
 
     /**
+     * @brief Poll the completion queue and process any work completions
+     *
+     * @param dispatcher The dispatcher to execute the callback functions
+     * @param ec Error in case the polling process failed
+     */
+    void poll(EventDispatcher& dispatcher, std::error_code& ec);
+
+private:
+    /**
+     * @brief The offset into the associated memory region for a buffer with given ID
+     */
+    uint64_t bufferOffset(uint16_t id) {
+        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mSendBufferLength));
+    }
+
+    /**
+     * @brief Releases a send buffer to the shared buffer queue
+     *
+     * @param id The ID of the send buffer
+     */
+    void releaseSendBuffer(uint16_t id);
+
+    /**
+     * @brief Process a single work completion
+     *
+     * @param dispatcher The dispatcher to execute the callback functions
+     * @param wc Work completion to process
+     */
+    void processWorkComplete(EventDispatcher& dispatcher, struct ibv_wc* wc);
+
+    /**
+     * @brief Process a connection that was drained (i.e. has no more work completions on the completion queue)
+     *
+     * Tries to shutdown the connection in case the connection is draining and no more handlers are active.
+     *
+     * @param dispatcher The dispatcher to execute the callback functions
+     * @param socket The socket that was drained
+     * @param ec Error in case the removal failed
+     */
+    void processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket);
+
+    DeviceContext& mDevice;
+
+    /// Number of shared send buffers to allocated
+    uint16_t mSendBufferCount;
+
+    /// Size of the allocated shared buffer
+    uint32_t mSendBufferLength;
+
+    /// Size of the send queue to allocate for each connection
+    uint32_t mSendQueueLength;
+
+    /// Size of the completion queue to allocate
+    uint32_t mCompletionQueueLength;
+
+    /// Number of iterations to poll when there is no work completion
+    uint64_t mPollCycles;
+
+    /// Memory region registered to the shared receive / send buffer memory block
+    /// The block contains the receive buffers first and then the send buffers
+    struct ibv_mr* mDataRegion;
+
+    /// Pointer to the shared send buffer arena
+    void* mSendData;
+
+    /// Queue containing IDs of send buffers that are not in use
+    boost::lockfree::queue<uint16_t, boost::lockfree::fixed_sized<true>> mSendBufferQueue;
+
+    struct ibv_cq* mCompletionQueue;
+
+    /// Map from queue number to the associated socket
+    crossbow::concurrent_map<uint32_t, InfinibandSocket*> mSocketMap;
+
+    // TODO Use datastructure where capacity can be unbounded
+    /// Queue containing connections waiting to be drained
+    boost::lockfree::queue<InfinibandSocket*, boost::lockfree::capacity<1024>> mDrainingQueue;
+
+    std::atomic<bool> mShutdown;
+};
+
+/**
+ * @brief The DeviceContext class handles all activities related to a NIC
+ *
+ * Sets up the protection domain of the NIC and a shared receive queue for all connections. Also allocates a
+ * BufferManager and CompletionContext.
+ */
+class DeviceContext {
+public:
+    DeviceContext(EventDispatcher& dispatcher, const InfinibandLimits& limits, struct ibv_context* verbs)
+            : mDispatcher(dispatcher),
+              mReceiveBufferCount(limits.receiveBufferCount),
+              mReceiveBufferLength(limits.bufferLength),
+              mVerbs(verbs),
+              mProtectionDomain(nullptr),
+              mDataRegion(nullptr),
+              mReceiveData(nullptr),
+              mReceiveQueue(nullptr),
+              mCompletion(*this, limits),
+              mShutdown(false) {
+    }
+
+    ~DeviceContext() {
+        std::error_code ec;
+        shutdown(ec);
+        if (ec) {
+            // TODO Log error?
+        }
+    }
+
+    CompletionContext* context() {
+        return &mCompletion;
+    }
+
+    /**
+     * @brief Initializes the device
+     *
+     * Initializes the protection domain for this device, allocates a buffer pool for use with this device, creates a
+     * shared receive queue to handle all incoming requests and adds a completion queue to handle all future events.
+     * After the succesfull initialization it starts polling the completion queue for entries on the event dispatcher.
+     *
+     * This function has to be called before using the device.
+     *
+     * @param ec Error code in case the initialization failed
+     */
+    void init(std::error_code& ec);
+
+    /**
+     * @brief Shuts the device down and destroys all associated ressources
+     *
+     * @param ec Error code in case the initialization failed
+     */
+    void shutdown(std::error_code& ec);
+
+    /**
      * @brief Registers a new local memory region
      *
      * @param data Start pointer to the memory region
@@ -261,14 +279,14 @@ private:
      *
      * @param ec Error code in case the initialization failed
      */
-    void initMemoryRegion(std::error_code& ec);
+    struct ibv_mr* allocateMemoryRegion(size_t length, std::error_code& ec);
 
     /**
      * @brief Shutsdown the memory region for the shared receive and send buffers
      *
      * @param ec Error code in case the shutdown failed
      */
-    void shutdownMemoryRegion(std::error_code& ec);
+    void destroyMemoryRegion(ibv_mr* memoryRegion, std::error_code& ec);
 
     /**
      * @brief Initializes the shared receive queue
@@ -286,15 +304,8 @@ private:
      * @brief The offset into the associated memory region for a buffer with given ID
      */
     uint64_t bufferOffset(uint16_t id) {
-        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mBufferLength));
+        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mReceiveBufferLength));
     }
-
-    /**
-     * @brief Releases a send buffer to the shared buffer queue
-     *
-     * @param id The ID of the send buffer
-     */
-    void releaseSendBuffer(uint16_t id);
 
     /**
      * @brief Posts the receive buffer with the given ID to the shared receive queue
@@ -309,11 +320,8 @@ private:
     /// Number of shared receive buffers to allocate
     uint16_t mReceiveBufferCount;
 
-    /// Number of shared send buffers to allocated
-    uint16_t mSendBufferCount;
-
     /// Size of the allocated shared buffer
-    uint32_t mBufferLength;
+    uint32_t mReceiveBufferLength;
 
     /// Infiniband context associated with this device
     struct ibv_context* mVerbs;
@@ -330,12 +338,6 @@ private:
 
     /// Shared receive queue associated with this device
     struct ibv_srq* mReceiveQueue;
-
-    /// Pointer to the shared send buffer arena
-    void* mSendData;
-
-    /// Queue containing IDs of send buffers that are not in use
-    boost::lockfree::queue<uint16_t, boost::lockfree::fixed_sized<true>> mSendBufferQueue;
 
     CompletionContext mCompletion;
 

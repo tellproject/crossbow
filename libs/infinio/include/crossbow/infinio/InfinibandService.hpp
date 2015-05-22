@@ -13,6 +13,7 @@
 namespace crossbow {
 namespace infinio {
 
+class CompletionContext;
 class DeviceContext;
 
 /**
@@ -46,11 +47,9 @@ private:
     }
 
     /**
-     * @brief Gets the device context associated with the ibv_context
+     * @brief Gets the completion context associated with the ibv_context
      */
-    DeviceContext* device() {
-        return mDevice.get();
-    }
+    CompletionContext* context();
 
     /**
      * @brief Process the event received from the RDMA event channel
