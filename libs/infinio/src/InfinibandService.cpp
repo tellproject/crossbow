@@ -31,8 +31,7 @@ InfinibandService::InfinibandService(EventDispatcher& dispatcher, const Infiniba
     errno = 0;
     mChannel = rdma_create_event_channel();
     if (!mChannel) {
-        std::cerr << "Unable to create RDMA Event Channel [errno = " << errno << " " << strerror(errno) << "]"
-                  << std::endl;
+        SERVICE_ERROR("Unable to create RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
         return;
     }
 
@@ -64,7 +63,7 @@ InfinibandService::InfinibandService(EventDispatcher& dispatcher, const Infiniba
             return;
         }
 
-        SERVICE_LOG("Error while processing event loop [errcode = %1% %2%]", errno, strerror(errno));
+        SERVICE_LOG("Error while processing event loop [error = %1% %2%]", errno, strerror(errno));
         std::terminate();
     });
 }
@@ -73,8 +72,7 @@ InfinibandService::~InfinibandService() {
     std::error_code ec;
     shutdown(ec);
     if (ec) {
-        std::cerr << "Error while shutting down Infiniband service [errno = " << ec << " " << ec.message() << "]"
-                  << std::endl;
+        SERVICE_ERROR("Error while shutting down Infiniband service [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -87,7 +85,7 @@ void InfinibandService::shutdown(std::error_code& ec) {
     if (mDevice) {
         mDevice->shutdown(ec);
         if (ec) {
-            std::cerr << "Unable to destroy Device Context [err = " << ec << " - " << ec.message() << std::endl;
+            SERVICE_ERROR("Unable to destroy Device Context [error = %1% %2%]", ec, ec.message());
             return;
         }
     }
@@ -97,8 +95,7 @@ void InfinibandService::shutdown(std::error_code& ec) {
         errno = 0;
         rdma_destroy_event_channel(mChannel);
         if (errno) {
-            std::cerr << "Unable to destroy RDMA Event Channel [errno = " << errno << " " << strerror(errno) << "]"
-                      << std::endl;
+            SERVICE_ERROR("Unable to destroy RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
             return;
         }
         mChannel = nullptr;
