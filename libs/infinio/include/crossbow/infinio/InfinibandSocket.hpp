@@ -4,9 +4,11 @@
 #include <crossbow/infinio/ErrorCode.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
+#include <crossbow/string.hpp>
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <system_error>
 
 #include <rdma/rdma_cma.h>
@@ -64,28 +66,46 @@ public:
     ConnectionRequest(ConnectionRequest&&) = default;
     ConnectionRequest& operator=(ConnectionRequest&&) = default;
 
-    ~ConnectionRequest() {
-        if (mSocket) {
-            reject();
-        }
+    ~ConnectionRequest();
+
+    /**
+     * @brief The private data send with the connection request
+     *
+     * This length of the string may be larger than the actual data sent (as dictated by the underlying transport). Any
+     * additional bytes are zeroed out.
+     */
+    const crossbow::string& data() const {
+        return mData;
     }
 
-    InfinibandSocket* accept(std::error_code& ec, uint64_t thread = 0);
+    InfinibandSocket* accept(std::error_code& ec, uint64_t thread = 0) {
+        return accept(crossbow::string(), ec, thread);
+    }
 
-    void reject();
+    InfinibandSocket* accept(const crossbow::string& data, std::error_code& ec, uint64_t thread = 0);
+
+    void reject() {
+        reject(crossbow::string());
+    }
+
+    void reject(const crossbow::string& data);
 
 private:
     friend class InfinibandService;
 
-    ConnectionRequest(InfinibandService& service, InfinibandSocket* socket)
+    ConnectionRequest(InfinibandService& service, InfinibandSocket* socket, crossbow::string data)
             : mService(service),
-              mSocket(socket) {
+              mSocket(socket),
+              mData(std::move(data)) {
     }
 
     InfinibandService& mService;
 
     /// The socket with the pending connection request
     std::unique_ptr<InfinibandSocket> mSocket;
+
+    /// The private data send with the connection request
+    crossbow::string mData;
 };
 
 /**
@@ -155,9 +175,10 @@ public:
      * Beware of race conditions: The remote end might start sending data before the onConnected function is executed,
      * in this case onReceive might be called before onConnected.
      *
+     * @param data Private data sent by the remote host
      * @param ec Error in case the connection attempt failed
      */
-    virtual void onConnected(const std::error_code& ec);
+    virtual void onConnected(const crossbow::string& data, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was received from the remote host
@@ -232,6 +253,8 @@ public:
 
     void connect(Endpoint& addr, std::error_code& ec);
 
+    void connect(Endpoint& addr, const crossbow::string& data, std::error_code& ec);
+
     void disconnect(std::error_code& ec);
 
     void send(InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec);
@@ -282,12 +305,12 @@ private:
     /**
      * @brief Accepts the pending connection request
      */
-    void accept(CompletionContext* context, std::error_code& ec);
+    void accept(CompletionContext* context, const crossbow::string& data, std::error_code& ec);
 
     /**
      * @brief Rejects the pending connection request
      */
-    void reject(std::error_code& ec);
+    void reject(const crossbow::string& data, std::error_code& ec);
 
     void doSend(struct ibv_send_wr* wr, std::error_code& ec);
 
@@ -299,15 +322,6 @@ private:
     void onAddressResolved();
 
     /**
-     * @brief Error while resolving address
-     *
-     * Invoke the onConnected handler to inform the owner that the connection attempt failed.
-     */
-    void onAddressError() {
-        mHandler->onConnected(error::address_resolution);
-    }
-
-    /**
      * @brief The route to the remote host was successfully resolved
      *
      * Setup the socket and establish the connection to the remote host.
@@ -315,13 +329,11 @@ private:
     void onRouteResolved();
 
     /**
-     * @brief Error while resolving route
+     * @brief An error has occured while resolving the address or route of a connection
      *
      * Invoke the onConnected handler to inform the owner that the connection attempt failed.
      */
-    void onRouteError() {
-        mHandler->onConnected(error::route_resolution);
-    }
+    void onResolutionError(error::network_errors err);
 
     /**
      * @brief An error has occured while establishing a connection
@@ -331,13 +343,18 @@ private:
     void onConnectionError(error::network_errors err);
 
     /**
+     * @brief The connection has been rejected
+     *
+     * Invoke the onConnected handler to inform the owner that the connection attempt failed.
+     */
+    void onConnectionRejected(const crossbow::string& data);
+
+    /**
      * @brief The connection has been established
      *
      * Invoke the onConnected handler to inform the owner that the socket is now connected.
      */
-    void onConnectionEstablished() {
-        mHandler->onConnected(std::error_code());
-    }
+    void onConnectionEstablished(const crossbow::string& data);
 
     /**
      * @brief The remote connection has been disconnected
@@ -396,6 +413,10 @@ private:
 
     /// Callback handlers for events occuring on this socket
     InfinibandSocketHandler* mHandler;
+
+    /// The private data to send while connecting
+    /// This value will only be set during the connection process and freed when the connection is established.
+    crossbow::string mData;
 };
 
 } // namespace infinio

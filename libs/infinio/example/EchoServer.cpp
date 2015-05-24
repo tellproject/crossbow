@@ -2,6 +2,7 @@
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/program_options.hpp>
+#include <crossbow/string.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -20,7 +21,7 @@ public:
     void init();
 
 private:
-    virtual void onConnected(const std::error_code& ec) override;
+    virtual void onConnected(const crossbow::string& data, const std::error_code& ec) override;
 
     virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec) override;
 
@@ -37,8 +38,8 @@ void EchoConnection::init() {
     mSocket->setHandler(this);
 }
 
-void EchoConnection::onConnected(const std::error_code& ec) {
-    std::cout << "Connected" << std::endl;
+void EchoConnection::onConnected(const crossbow::string& data, const std::error_code& ec) {
+    std::cout << "Connected [data = \"" << data << "\"]" << std::endl;
 }
 
 void EchoConnection::onReceive(const void* buffer, size_t length, const std::error_code& /* ec */) {
@@ -130,10 +131,9 @@ void EchoAcceptor::open(uint16_t port) {
 }
 
 void EchoAcceptor::onConnection(ConnectionRequest request) {
-    std::cout << "New incoming connection" << std::endl;
-
+    std::cout << "New incoming connection [data = \"" << request.data() << "\"]" << std::endl;
     std::error_code ec;
-    auto socket = request.accept(ec);
+    auto socket = request.accept("EchoServer", ec);
     if (ec) {
         std::cout << "Accepting connection failed " << ec << " - " << ec.message() << std::endl;
         return;

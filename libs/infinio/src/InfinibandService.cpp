@@ -121,22 +121,39 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
         }\
     } break;
 
+#define HANDLE_DATA_EVENT(__case, __handler)\
+    case __case: {\
+        crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),\
+                event->param.conn.private_data_len);\
+        std::error_code ec;\
+        auto socket = reinterpret_cast<InfinibandSocket*>(event->id->context);\
+        socket->execute([socket, data] () {\
+            socket->__handler(data);\
+        }, ec);\
+        if (ec) {\
+            SERVICE_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
+        }\
+    } break;
+
     switch (event->event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ADDR_RESOLVED, onAddressResolved);
-    HANDLE_EVENT(RDMA_CM_EVENT_ADDR_ERROR, onAddressError);
+    HANDLE_EVENT(RDMA_CM_EVENT_ADDR_ERROR, onResolutionError, error::address_resolution);
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_RESOLVED, onRouteResolved);
-    HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onRouteError);
+    HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onResolutionError, error::route_resolution);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
-        ConnectionRequest request(*this, new InfinibandSocket(event->id));
+        crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),
+                event->param.conn.private_data_len);
+        ConnectionRequest request(*this, new InfinibandSocket(event->id), std::move(data));
         reinterpret_cast<InfinibandAcceptor*>(event->listen_id->context)->onConnectionRequest(std::move(request));
     } break;
 
     HANDLE_EVENT(RDMA_CM_EVENT_CONNECT_ERROR, onConnectionError, error::connection_error);
     HANDLE_EVENT(RDMA_CM_EVENT_UNREACHABLE, onConnectionError, error::unreachable);
-    HANDLE_EVENT(RDMA_CM_EVENT_REJECTED, onConnectionError, error::connection_rejected);
 
-    HANDLE_EVENT(RDMA_CM_EVENT_ESTABLISHED, onConnectionEstablished);
+    HANDLE_DATA_EVENT(RDMA_CM_EVENT_REJECTED, onConnectionRejected);
+    HANDLE_DATA_EVENT(RDMA_CM_EVENT_ESTABLISHED, onConnectionEstablished);
+
     HANDLE_EVENT(RDMA_CM_EVENT_DISCONNECTED, onDisconnected);
     HANDLE_EVENT(RDMA_CM_EVENT_TIMEWAIT_EXIT, onTimewaitExit);
 

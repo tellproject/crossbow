@@ -22,7 +22,7 @@ public:
     void open(const crossbow::string& server, uint16_t port);
 
 private:
-    virtual void onConnected(const std::error_code& ec) override;
+    virtual void onConnected(const crossbow::string& data, const std::error_code& ec) override;
 
     virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec) override;
 
@@ -54,7 +54,7 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
 
     // Connect to remote server
     Endpoint ep(Endpoint::ipv4(), server, port);
-    mSocket->connect(ep, ec);
+    mSocket->connect(ep, "PingClient", ec);
     if (ec) {
         std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
     }
@@ -62,12 +62,12 @@ void PingConnection::open(const crossbow::string& server, uint16_t port) {
     std::cout << "Connecting to server" << std::endl;
 }
 
-void PingConnection::onConnected(const std::error_code& ec) {
+void PingConnection::onConnected(const crossbow::string& data, const std::error_code& ec) {
     if (ec) {
         std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
         return;
     }
-    std::cout << "Connected" << std::endl;
+    std::cout << "Connected [data = \"" << data << "\"]" << std::endl;
 
     sendMessage();
 }
