@@ -3,8 +3,10 @@
 #include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/ErrorCode.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
-#include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/string.hpp>
+
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -17,15 +19,17 @@ namespace crossbow {
 namespace infinio {
 
 class CompletionContext;
-class InfinibandSocket;
+class InfinibandService;
+
+class InfinibandSocketImpl;
+using InfinibandSocket = boost::intrusive_ptr<InfinibandSocketImpl>;
 
 /**
  * @brief Base class containing common functionality shared between InfinibandAcceptor and InfinibandSocket
  */
-class InfinibandBaseSocket {
+template <typename SocketType>
+class InfinibandBaseSocket : public boost::intrusive_ref_counter<SocketType> {
 public:
-    // TODO Owner of the SocketImplementation pointer is unclear (i.e. never gets deleted)
-
     void open(std::error_code& ec);
 
     bool isOpen() const {
@@ -37,18 +41,19 @@ public:
     void bind(Endpoint& addr, std::error_code& ec);
 
 protected:
-    InfinibandBaseSocket(struct rdma_event_channel* channel, void* context)
+    InfinibandBaseSocket(struct rdma_event_channel* channel)
             : mChannel(channel),
-              mId(nullptr),
-              mContext(context) {
+              mId(nullptr) {
     }
 
-    InfinibandBaseSocket(struct rdma_cm_id* id, void* context)
+    InfinibandBaseSocket(struct rdma_cm_id* id)
             : mChannel(id->channel),
-              mId(id),
-              mContext(context) {
+              mId(id) {
         // TODO Assert that mId->context was null
-        mId->context = mContext;
+
+        // The ID is already open, increment the reference count by one and then detach the pointer
+        boost::intrusive_ptr<SocketType> ptr(static_cast<SocketType*>(this));
+        mId->context = ptr.detach();
     }
 
     /// The RDMA channel the connection is associated with
@@ -56,9 +61,6 @@ protected:
 
     /// The RDMA ID of this connection
     struct rdma_cm_id* mId;
-
-    /// The context pointer associated with the ID
-    void* mContext;
 };
 
 class ConnectionRequest {
@@ -78,11 +80,11 @@ public:
         return mData;
     }
 
-    InfinibandSocket* accept(std::error_code& ec, uint64_t thread = 0) {
+    InfinibandSocket accept(std::error_code& ec, uint64_t thread = 0) {
         return accept(crossbow::string(), ec, thread);
     }
 
-    InfinibandSocket* accept(const crossbow::string& data, std::error_code& ec, uint64_t thread = 0);
+    InfinibandSocket accept(const crossbow::string& data, std::error_code& ec, uint64_t thread = 0);
 
     void reject() {
         reject(crossbow::string());
@@ -93,16 +95,16 @@ public:
 private:
     friend class InfinibandService;
 
-    ConnectionRequest(InfinibandService& service, InfinibandSocket* socket, crossbow::string data)
+    ConnectionRequest(InfinibandService& service, InfinibandSocket socket, crossbow::string data)
             : mService(service),
-              mSocket(socket),
+              mSocket(std::move(socket)),
               mData(std::move(data)) {
     }
 
     InfinibandService& mService;
 
     /// The socket with the pending connection request
-    std::unique_ptr<InfinibandSocket> mSocket;
+    InfinibandSocket mSocket;
 
     /// The private data send with the connection request
     crossbow::string mData;
@@ -131,13 +133,8 @@ public:
 /**
  * @brief Socket acceptor to listen for new incoming connections
  */
-class InfinibandAcceptor: public InfinibandBaseSocket {
+class InfinibandAcceptorImpl: public InfinibandBaseSocket<InfinibandAcceptorImpl> {
 public:
-    InfinibandAcceptor(InfinibandService& service)
-            : InfinibandBaseSocket(service.channel(), this),
-              mHandler(nullptr) {
-    }
-
     void listen(int backlog, std::error_code& ec);
 
     void setHandler(InfinibandAcceptorHandler* handler) {
@@ -146,6 +143,11 @@ public:
 
 private:
     friend class InfinibandService;
+
+    InfinibandAcceptorImpl(struct rdma_event_channel* channel)
+            : InfinibandBaseSocket(channel),
+              mHandler(nullptr) {
+    }
 
     /**
      * @brief The listen socket received a new connection request
@@ -159,6 +161,10 @@ private:
     /// Callback handlers for events occuring on this socket
     InfinibandAcceptorHandler* mHandler;
 };
+
+extern template class InfinibandBaseSocket<InfinibandAcceptorImpl>;
+
+using InfinibandAcceptor = boost::intrusive_ptr<InfinibandAcceptorImpl>;
 
 /**
  * @brief Interface class containing callbacks for various socket events
@@ -237,14 +243,8 @@ public:
 /**
  * @brief Socket class to communicate with a remote host
  */
-class InfinibandSocket: public InfinibandBaseSocket {
+class InfinibandSocketImpl: public InfinibandBaseSocket<InfinibandSocketImpl> {
 public:
-    InfinibandSocket(InfinibandService& service, uint64_t thread = 0)
-            : InfinibandBaseSocket(service.channel(), this),
-              mContext(service.context(thread)),
-              mHandler(nullptr) {
-    }
-
     void setHandler(InfinibandSocketHandler* handler) {
         mHandler = handler;
     }
@@ -296,8 +296,14 @@ private:
     friend class ConnectionRequest;
     friend class InfinibandService;
 
-    InfinibandSocket(struct rdma_cm_id* id)
-            : InfinibandBaseSocket(id, this),
+    InfinibandSocketImpl(struct rdma_event_channel* channel, CompletionContext* context)
+            : InfinibandBaseSocket(channel),
+              mContext(context),
+              mHandler(nullptr) {
+    }
+
+    InfinibandSocketImpl(struct rdma_cm_id* id)
+            : InfinibandBaseSocket(id),
               mContext(nullptr),
               mHandler(nullptr) {
     }
@@ -418,6 +424,8 @@ private:
     /// This value will only be set during the connection process and freed when the connection is established.
     crossbow::string mData;
 };
+
+extern template class InfinibandBaseSocket<InfinibandSocketImpl>;
 
 } // namespace infinio
 } // namespace crossbow

@@ -12,9 +12,9 @@ using namespace crossbow::infinio;
 
 class PingConnection: private InfinibandSocketHandler {
 public:
-    PingConnection(InfinibandService& transport, uint64_t maxSend)
-            : mTransport(transport),
-              mSocket(new InfinibandSocket(transport)),
+    PingConnection(InfinibandService& service, uint64_t maxSend)
+            : mService(service),
+              mSocket(service.createSocket()),
               mMaxSend(maxSend),
               mSend(0) {
     }
@@ -34,9 +34,9 @@ private:
 
     void sendMessage();
 
-    InfinibandService& mTransport;
+    InfinibandService& mService;
 
-    InfinibandSocket* mSocket;
+    InfinibandSocket mSocket;
 
     uint64_t mMaxSend;
     uint64_t mSend;
@@ -110,7 +110,7 @@ void PingConnection::onDisconnected() {
     }
 
     std::cout << "Stopping ping client" << std::endl;
-    mTransport.shutdown(ec);
+    mService.shutdown(ec);
     if (ec) {
         std::cout << "Shutdown failed " << ec.value() << " - " << ec.message() << std::endl;
         return;

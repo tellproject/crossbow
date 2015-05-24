@@ -102,6 +102,10 @@ void InfinibandService::shutdown(std::error_code& ec) {
     }
 }
 
+InfinibandSocket InfinibandService::createSocket(uint64_t thread) {
+    return InfinibandSocket(new InfinibandSocketImpl(mChannel, mDevice->context(thread)));
+}
+
 CompletionContext* InfinibandService::context(uint64_t num) {
     return mDevice->context(num);
 }
@@ -112,7 +116,7 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
 #define HANDLE_EVENT(__case, __handler, ...)\
     case __case: {\
         std::error_code ec;\
-        auto socket = reinterpret_cast<InfinibandSocket*>(event->id->context);\
+        auto socket = reinterpret_cast<InfinibandSocketImpl*>(event->id->context);\
         socket->execute([socket] () {\
             socket->__handler(__VA_ARGS__);\
         }, ec);\
@@ -126,7 +130,7 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
         crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),\
                 event->param.conn.private_data_len);\
         std::error_code ec;\
-        auto socket = reinterpret_cast<InfinibandSocket*>(event->id->context);\
+        auto socket = reinterpret_cast<InfinibandSocketImpl*>(event->id->context);\
         socket->execute([socket, data] () {\
             socket->__handler(data);\
         }, ec);\
@@ -142,10 +146,11 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onResolutionError, error::route_resolution);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
+        InfinibandSocket socket(new InfinibandSocketImpl(event->id));
         crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),
                 event->param.conn.private_data_len);
-        ConnectionRequest request(*this, new InfinibandSocket(event->id), std::move(data));
-        reinterpret_cast<InfinibandAcceptor*>(event->listen_id->context)->onConnectionRequest(std::move(request));
+        ConnectionRequest request(*this, std::move(socket), std::move(data));
+        reinterpret_cast<InfinibandAcceptorImpl*>(event->listen_id->context)->onConnectionRequest(std::move(request));
     } break;
 
     HANDLE_EVENT(RDMA_CM_EVENT_CONNECT_ERROR, onConnectionError, error::connection_error);

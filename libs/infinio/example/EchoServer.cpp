@@ -14,8 +14,8 @@ using namespace crossbow::infinio;
 
 class EchoConnection: private InfinibandSocketHandler {
 public:
-    EchoConnection(InfinibandSocket* socket)
-            : mSocket(socket) {
+    EchoConnection(InfinibandSocket socket)
+            : mSocket(std::move(socket)) {
     }
 
     void init();
@@ -31,7 +31,7 @@ private:
 
     void handleError(std::string message, std::error_code& ec);
 
-    InfinibandSocket* mSocket;
+    InfinibandSocket mSocket;
 };
 
 void EchoConnection::init() {
@@ -87,7 +87,7 @@ void EchoConnection::handleError(std::string message, std::error_code& ec) {
 class EchoAcceptor: protected InfinibandAcceptorHandler {
 public:
     EchoAcceptor(InfinibandService& service)
-            : mAcceptor(new InfinibandAcceptor(service)) {
+            : mAcceptor(service.createAcceptor()) {
     }
 
     void open(uint16_t port);
@@ -96,7 +96,7 @@ protected:
     virtual void onConnection(ConnectionRequest request) override;
 
 private:
-    InfinibandAcceptor* mAcceptor;
+    InfinibandAcceptor mAcceptor;
 
     std::unordered_set<std::unique_ptr<EchoConnection>> mConnections;
 };

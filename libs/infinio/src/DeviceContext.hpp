@@ -2,6 +2,7 @@
 
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
+#include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/singleconsumerqueue.hpp>
 
 #include <sparsehash/dense_hash_map>
@@ -21,7 +22,6 @@ namespace infinio {
 
 class DeviceContext;
 class InfinibandBuffer;
-class InfinibandSocket;
 class LocalMemoryRegion;
 
 /**
@@ -73,10 +73,11 @@ public:
      *
      * The connection has to be associated with the device this context belongs to.
      *
+     * @param id The RDMA ID associated with the socket
      * @param socket The socket to add
      * @param ec Error code in case the initialization failed
      */
-    void addConnection(InfinibandSocket* socket, std::error_code& ec);
+    void addConnection(struct rdma_cm_id* id, InfinibandSocket socket, std::error_code& ec);
 
     /**
      * @brief Drains any events from a previously added connection
@@ -86,9 +87,8 @@ public:
      * completion queue will no longer receive any work completions (i.e. when disconnecting the connection).
      *
      * @param socket The socket to drain
-     * @param ec Error code in case the draining failed
      */
-    void drainConnection(InfinibandSocket* socket, std::error_code& ec);
+    void drainConnection(InfinibandSocket socket);
 
     /**
      * @brief Removes a previously added connection from the completion queue
@@ -97,10 +97,10 @@ public:
      * queue or the associated completion queue has no pending events (i.e. in case the connection failed before it was
      * established correctly).
      *
-     * @param socket The socket to remove
+     * @param id The RDMA ID to remove
      * @param ec Error in case the removal failed
      */
-    void removeConnection(InfinibandSocket* socket, std::error_code& ec);
+    void removeConnection(struct rdma_cm_id* id, std::error_code& ec);
 
     /**
      * @brief Maximum buffer length this buffer manager is able to allocate
@@ -194,10 +194,10 @@ private:
     struct ibv_cq* mCompletionQueue;
 
     /// Map from queue number to the associated socket
-    google::dense_hash_map<uint32_t, InfinibandSocket*> mSocketMap;
+    google::dense_hash_map<uint32_t, InfinibandSocket> mSocketMap;
 
     /// Vector containing connections waiting to be drained
-    std::vector<InfinibandSocket*> mDrainingQueue;
+    std::vector<InfinibandSocket> mDrainingQueue;
 
     /// Queue containing function objects to be executed by the poll thread
     crossbow::SingleConsumerQueue<std::function<void()>, 256> mTaskQueue;

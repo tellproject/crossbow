@@ -1,7 +1,6 @@
 #include "DeviceContext.hpp"
 
 #include <crossbow/infinio/ErrorCode.hpp>
-#include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include "AddressHelper.hpp"
 #include "Logging.hpp"
@@ -81,7 +80,7 @@ void CompletionContext::shutdown(std::error_code& ec) {
     mSendDataRegion = nullptr;
 }
 
-void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code& ec) {
+void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket socket, std::error_code& ec) {
     struct ibv_qp_init_attr_ex qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.send_cq = mCompletionQueue;
@@ -92,8 +91,6 @@ void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code&
     qp_attr.qp_type = IBV_QPT_RC;
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
     qp_attr.pd = mDevice.mProtectionDomain;
-
-    auto id = socket->mId;
 
     COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(id));
     errno = 0;
@@ -107,24 +104,26 @@ void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code&
         COMPLETION_ERROR("QP number is larger than 24 bits");
     }
 
-    if (!mSocketMap.insert(std::make_pair(id->qp->qp_num, socket)).second) {
+    if (!mSocketMap.insert(std::make_pair(id->qp->qp_num, std::move(socket))).second) {
         // TODO Insert failed
         return;
     }
 }
 
-void CompletionContext::drainConnection(InfinibandSocket* socket, std::error_code& ec) {
-    mDrainingQueue.push_back(socket);
+void CompletionContext::drainConnection(InfinibandSocket socket) {
+    mDrainingQueue.emplace_back(std::move(socket));
 }
 
-void CompletionContext::removeConnection(InfinibandSocket* socket, std::error_code& ec) {
-    auto id = socket->mId;
-
-    if (mSocketMap.erase(id->qp->qp_num) == 0) {
-        // TODO Socket not associated with this completion context
+void CompletionContext::removeConnection(struct rdma_cm_id* id, std::error_code& ec) {
+    if (id->qp == nullptr) {
+        // Queue Pair already destroyed
+        return;
     }
 
     COMPLETION_LOG("%1%: Destroying queue pair", formatRemoteAddress(id));
+
+    mSocketMap.erase(id->qp->qp_num);
+
     errno = 0;
     rdma_destroy_qp(id);
     if (errno != 0) {
@@ -166,7 +165,7 @@ void CompletionContext::releaseSendBuffer(uint16_t id) {
 }
 
 void CompletionContext::poll() {
-    std::vector<InfinibandSocket*> draining;
+    std::vector<InfinibandSocket> draining;
     struct ibv_wc wc[mCompletionQueueLength];
 
     if (!mDrainingQueue.empty()) {
@@ -194,7 +193,7 @@ void CompletionContext::poll() {
     }
 
     // Process all drained connections
-    for (auto socket: draining) {
+    for (auto& socket: draining) {
         socket->onDrained();
     }
     draining.clear();
@@ -235,7 +234,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
 
         return;
     }
-    InfinibandSocket* socket = i->second;
+    InfinibandSocketImpl* socket = i->second.get();
 
     // TODO Better error handling
     // Right now we just propagate the error to the connection

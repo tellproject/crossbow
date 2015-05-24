@@ -1,6 +1,7 @@
 #pragma once
 
 #include <crossbow/infinio/InfinibandLimits.hpp>
+#include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include <atomic>
 #include <memory>
@@ -41,14 +42,14 @@ public:
      */
     void shutdown(std::error_code& ec);
 
+    InfinibandAcceptor createAcceptor() {
+        return InfinibandAcceptor(new InfinibandAcceptorImpl(mChannel));
+    }
+
+    InfinibandSocket createSocket(uint64_t thread = 0);
+
 private:
     friend class ConnectionRequest;
-    friend class InfinibandAcceptor;
-    friend class InfinibandSocket;
-
-    struct rdma_event_channel* channel() {
-        return mChannel;
-    }
 
     /**
      * @brief Gets the completion context associated with the ibv_context
