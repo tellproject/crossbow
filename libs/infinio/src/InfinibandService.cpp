@@ -22,9 +22,8 @@
 namespace crossbow {
 namespace infinio {
 
-InfinibandService::InfinibandService(EventDispatcher& dispatcher, const InfinibandLimits& limits)
-        : mDispatcher(dispatcher),
-          mLimits(limits),
+InfinibandService::InfinibandService(const InfinibandLimits& limits)
+        : mLimits(limits),
           mDevice(nullptr),
           mShutdown(false) {
     SERVICE_LOG("Create event channel");
@@ -42,30 +41,11 @@ InfinibandService::InfinibandService(EventDispatcher& dispatcher, const Infiniba
         SERVICE_ERROR("Only one Infiniband device is supported at this moment");
         std::terminate();
     }
-    mDevice.reset(new DeviceContext(mDispatcher, mLimits, *devices));
+    mDevice.reset(new DeviceContext(mLimits, *devices));
 
     std::error_code ec;
     mDevice->init(ec);
     rdma_free_devices(devices);
-
-    SERVICE_LOG("Start event poll thread");
-    mPollingThread = std::thread([this] () {
-        struct rdma_cm_event* event = nullptr;
-        errno = 0;
-        while (rdma_get_cm_event(mChannel, &event) == 0) {
-            processEvent(event);
-            rdma_ack_cm_event(event);
-        }
-
-        // Check if the system is shutting down
-        if (mShutdown.load()) {
-            SERVICE_LOG("Exit event poll thread");
-            return;
-        }
-
-        SERVICE_LOG("Error while processing event loop [error = %1% %2%]", errno, strerror(errno));
-        std::terminate();
-    });
 }
 
 InfinibandService::~InfinibandService() {
@@ -74,6 +54,25 @@ InfinibandService::~InfinibandService() {
     if (ec) {
         SERVICE_ERROR("Error while shutting down Infiniband service [error = %1% %2%]", ec, ec.message());
     }
+}
+
+void InfinibandService::run() {
+    SERVICE_LOG("Start RDMA CM event polling");
+    struct rdma_cm_event* event = nullptr;
+    errno = 0;
+    while (rdma_get_cm_event(mChannel, &event) == 0) {
+        processEvent(event);
+        rdma_ack_cm_event(event);
+    }
+
+    // Check if the system is shutting down
+    if (mShutdown.load()) {
+        SERVICE_LOG("Exit RDMA CM event polling");
+        return;
+    }
+
+    SERVICE_LOG("Error while processing RDMA CM event loop [error = %1% %2%]", errno, strerror(errno));
+    std::terminate();
 }
 
 void InfinibandService::shutdown(std::error_code& ec) {
@@ -88,6 +87,7 @@ void InfinibandService::shutdown(std::error_code& ec) {
             SERVICE_ERROR("Unable to destroy Device Context [error = %1% %2%]", ec, ec.message());
             return;
         }
+        mDevice.reset();
     }
 
     if (mChannel) {
@@ -100,16 +100,10 @@ void InfinibandService::shutdown(std::error_code& ec) {
         }
         mChannel = nullptr;
     }
-
-    if (mPollingThread.joinable()) {
-        SERVICE_LOG("Wait for event poll thread");
-        // TODO: Ask Jonas whether there is a better solution to thish
-        mPollingThread.detach();
-    }
 }
 
-CompletionContext* InfinibandService::context() {
-    return mDevice->context();
+CompletionContext* InfinibandService::context(uint64_t num) {
+    return mDevice->context(num);
 }
 
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
@@ -117,10 +111,14 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
 
 #define HANDLE_EVENT(__case, __handler, ...)\
     case __case: {\
-        auto id = event->id;\
-        mDispatcher.post([id] () {\
-            reinterpret_cast<InfinibandSocket*>(id->context)->__handler(__VA_ARGS__);\
-        });\
+        std::error_code ec;\
+        auto socket = reinterpret_cast<InfinibandSocket*>(event->id->context);\
+        socket->execute([socket] () {\
+            socket->__handler(__VA_ARGS__);\
+        }, ec);\
+        if (ec) {\
+            SERVICE_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
+        }\
     } break;
 
     switch (event->event) {
@@ -130,12 +128,8 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onRouteError);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
-        auto listen_id = event->listen_id;
-        auto id = event->id;
-        mDispatcher.post([this, listen_id, id] () {
-            ConnectionRequest request(new InfinibandSocket(*this, id));
-            reinterpret_cast<InfinibandAcceptor*>(listen_id->context)->onConnectionRequest(std::move(request));
-        });
+        ConnectionRequest request(*this, new InfinibandSocket(event->id));
+        reinterpret_cast<InfinibandAcceptor*>(event->listen_id->context)->onConnectionRequest(std::move(request));
     } break;
 
     HANDLE_EVENT(RDMA_CM_EVENT_CONNECT_ERROR, onConnectionError, error::connection_error);

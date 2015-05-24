@@ -1,5 +1,4 @@
 #include <crossbow/infinio/Endpoint.hpp>
-#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/program_options.hpp>
@@ -13,9 +12,8 @@ using namespace crossbow::infinio;
 
 class PingConnection: private InfinibandSocketHandler {
 public:
-    PingConnection(EventDispatcher& dispatcher, InfinibandService& transport, uint64_t maxSend)
-            : mDispatcher(dispatcher),
-              mTransport(transport),
+    PingConnection(InfinibandService& transport, uint64_t maxSend)
+            : mTransport(transport),
               mSocket(new InfinibandSocket(transport)),
               mMaxSend(maxSend),
               mSend(0) {
@@ -36,7 +34,6 @@ private:
 
     void sendMessage();
 
-    EventDispatcher& mDispatcher;
     InfinibandService& mTransport;
 
     InfinibandSocket* mSocket;
@@ -118,7 +115,6 @@ void PingConnection::onDisconnected() {
         std::cout << "Shutdown failed " << ec.value() << " - " << ec.message() << std::endl;
         return;
     }
-    mDispatcher.stop();
 }
 
 void PingConnection::handleError(std::string message, std::error_code& ec) {
@@ -179,12 +175,11 @@ int main(int argc, const char** argv) {
     }
 
     std::cout << "Starting ping client" << std::endl;
-    EventDispatcher dispatcher(1);
-    InfinibandService service(dispatcher);
-    PingConnection con(dispatcher, service, count);
+    InfinibandService service;
+    PingConnection con(service, count);
     con.open(server, port);
 
-    dispatcher.run();
+    service.run();
 
     return 0;
 }

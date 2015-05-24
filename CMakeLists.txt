@@ -5,7 +5,6 @@ project(crossbow)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # Declare build options
-set(INFINIO_IMPLEMENTATION "TBB" CACHE STRING "The Event Loop implementation to use in Infinio")
 option(ENABLE_TESTS "Build and execute tests" ON)
 option(ENABLE_STRING_TESTS "enable tests for crossbow string (currently only supported for clang on OS X)" OFF)
 option(INFINIO_DEBUG "Build Infinio with debug logging enabled" OFF)

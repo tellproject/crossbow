@@ -1,5 +1,4 @@
 #include <crossbow/infinio/Endpoint.hpp>
-#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/program_options.hpp>
@@ -166,12 +165,11 @@ int main(int argc, const char** argv) {
     }
 
     std::cout << "Starting echo server" << std::endl;
-    EventDispatcher dispatcher(1);
-    InfinibandService service(dispatcher);
+    InfinibandService service;
     EchoAcceptor echo(service);
     echo.open(port);
 
-    dispatcher.run();
+    service.run();
 
     return 0;
 }

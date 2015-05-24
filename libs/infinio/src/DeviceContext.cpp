@@ -28,11 +28,11 @@ void CompletionContext::init(std::error_code& ec) {
     }
 
     COMPLETION_LOG("Allocate send buffer memory");
-    mDataRegion = mDevice.allocateMemoryRegion(bufferOffset(mSendBufferCount), ec);
+    mSendDataRegion = mDevice.allocateMemoryRegion(bufferOffset(mSendBufferCount), ec);
     if (ec) {
         return;
     }
-    mSendData = mDataRegion->addr;
+    mSendData = mSendDataRegion->addr;
 
     COMPLETION_LOG("Add %1% buffers to send buffer queue", mSendBufferCount);
     for (uint16_t id = 0x0u; id < mSendBufferCount; ++id) {
@@ -46,6 +46,13 @@ void CompletionContext::init(std::error_code& ec) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
+
+    COMPLETION_LOG("Create poll thread");
+    mPollThread = std::thread([this] () {
+        while (!mShutdown.load()) {
+            poll();
+        }
+    });
 }
 
 void CompletionContext::shutdown(std::error_code& ec) {
@@ -55,6 +62,9 @@ void CompletionContext::shutdown(std::error_code& ec) {
     }
     mShutdown.store(true);
 
+    // TODO We have to join the poll thread
+    // We are not allowed to call join in the same thread as the poll loop is
+
     COMPLETION_LOG("Destroy completion queue");
     if (auto res = ibv_destroy_cq(mCompletionQueue) != 0) {
         ec = std::error_code(res, std::system_category());
@@ -63,12 +73,12 @@ void CompletionContext::shutdown(std::error_code& ec) {
     mCompletionQueue = nullptr;
 
     COMPLETION_LOG("Destroy send buffer memory");
-    mDevice.destroyMemoryRegion(mDataRegion, ec);
+    mDevice.destroyMemoryRegion(mSendDataRegion, ec);
     if (ec) {
         return;
     }
     mSendData = nullptr;
-    mDataRegion = nullptr;
+    mSendDataRegion = nullptr;
 }
 
 void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code& ec) {
@@ -92,20 +102,25 @@ void CompletionContext::addConnection(InfinibandSocket* socket, std::error_code&
         return;
     }
 
-    if (!mSocketMap.insert(id->qp->qp_num, socket).first) {
+    // TODO Make this an assertion
+    if (id->qp->qp_num >= (0x1u << 25)) {
+        COMPLETION_ERROR("QP number is larger than 24 bits");
+    }
+
+    if (!mSocketMap.insert(std::make_pair(id->qp->qp_num, socket)).second) {
         // TODO Insert failed
         return;
     }
 }
 
 void CompletionContext::drainConnection(InfinibandSocket* socket, std::error_code& ec) {
-    mDrainingQueue.push(socket);
+    mDrainingQueue.push_back(socket);
 }
 
 void CompletionContext::removeConnection(InfinibandSocket* socket, std::error_code& ec) {
     auto id = socket->mId;
 
-    if (!mSocketMap.erase(id->qp->qp_num).first) {
+    if (mSocketMap.erase(id->qp->qp_num) == 0) {
         // TODO Socket not associated with this completion context
     }
 
@@ -119,10 +134,11 @@ void CompletionContext::removeConnection(InfinibandSocket* socket, std::error_co
 }
 
 InfinibandBuffer CompletionContext::acquireSendBuffer(uint32_t length) {
-    uint16_t id = 0x0u;
-    if (!mSendBufferQueue.pop(id)) {
+    if (mSendBufferQueue.empty()) {
         return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
     }
+    auto id = mSendBufferQueue.top();
+    mSendBufferQueue.pop();
     if (length > mSendBufferLength) {
         return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
     }
@@ -130,12 +146,12 @@ InfinibandBuffer CompletionContext::acquireSendBuffer(uint32_t length) {
     InfinibandBuffer buffer(id);
     buffer.handle()->addr = reinterpret_cast<uintptr_t>(mSendData) + bufferOffset(id);
     buffer.handle()->length = length;
-    buffer.handle()->lkey = mDataRegion->lkey;
+    buffer.handle()->lkey = mSendDataRegion->lkey;
     return buffer;
 }
 
 void CompletionContext::releaseSendBuffer(InfinibandBuffer& buffer) {
-    if (buffer.handle()->lkey != mDataRegion->lkey) {
+    if (buffer.handle()->lkey != mSendDataRegion->lkey) {
         COMPLETION_ERROR("Trying to release send buffer registered to another region");
         return;
     }
@@ -149,58 +165,50 @@ void CompletionContext::releaseSendBuffer(uint16_t id) {
     mSendBufferQueue.push(id);
 }
 
-void CompletionContext::poll(EventDispatcher& dispatcher, std::error_code& ec) {
+void CompletionContext::poll() {
     std::vector<InfinibandSocket*> draining;
     struct ibv_wc wc[mCompletionQueueLength];
 
-    for (size_t j = 0; j < mPollCycles; ++j) {
-        while (true) {
-            InfinibandSocket* socket = nullptr;
-            if (!mDrainingQueue.pop(socket)) {
-                break;
-            }
-            draining.push_back(socket);
-        }
-
-        // Poll the completion queue
-        errno = 0;
-        auto num = ibv_poll_cq(mCompletionQueue, mCompletionQueueLength, wc);
-
-        // Check if polling the completion queue failed
-        if (num < 0) {
-            if (!mShutdown.load()) {
-                ec = std::error_code(errno, std::system_category());
-            }
-            return;
-        }
-
-        // Process all polled work completions
-        for (int i = 0; i < num; ++i) {
-            processWorkComplete(dispatcher, &wc[i]);
-        }
-
-        // Process all drained connections
-        for (auto socket: draining) {
-            processDrainedConnection(dispatcher, socket);
-        }
-        draining.clear();
-
-        // Return immediately if we processed at least once work completion
-        if (num > 0) {
-            return;
-        }
+    if (!mDrainingQueue.empty()) {
+        draining.swap(mDrainingQueue);
     }
+
+    // Poll the completion queue
+    errno = 0;
+    auto num = ibv_poll_cq(mCompletionQueue, mCompletionQueueLength, wc);
+
+    // Check if polling the completion queue failed
+    if (num < 0 && !mShutdown.load()) {
+        COMPLETION_ERROR("Polling completion queue failed [error = %1% %2%]", errno, strerror(errno));
+    }
+
+    // Process all polled work completions
+    for (int i = 0; i < num; ++i) {
+        processWorkComplete(&wc[i]);
+    }
+
+    // Process all task from the task queue
+    std::function<void()> fun;
+    while (mTaskQueue.read(fun)) {
+        fun();
+    }
+
+    // Process all drained connections
+    for (auto socket: draining) {
+        socket->onDrained();
+    }
+    draining.clear();
 }
 
-void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct ibv_wc* wc) {
+void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
     COMPLETION_LOG("Processing WC with ID %1% on queue %2% with status %3% %4%", wc->wr_id, wc->qp_num, wc->status,
             ibv_wc_status_str(wc->status));
 
     WorkRequestId workId(wc->wr_id);
     std::error_code ec;
 
-    auto i = mSocketMap.at(wc->qp_num);
-    if (!i.first) {
+    auto i = mSocketMap.find(wc->qp_num);
+    if (i == mSocketMap.end()) {
         COMPLETION_LOG("No matching socket for qp_num %1%", wc->qp_num);
 
         // In the case that we have no socket associated with the qp_num we just repost the buffer to the shared receive
@@ -227,7 +235,7 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
 
         return;
     }
-    InfinibandSocket* socket = i.second;
+    InfinibandSocket* socket = i->second;
 
     // TODO Better error handling
     // Right now we just propagate the error to the connection
@@ -252,78 +260,45 @@ void CompletionContext::processWorkComplete(EventDispatcher& dispatcher, struct 
         }
     }
 
-    // Increase amount of work
-    socket->addWork();
-
     switch (workId.workType()) {
     case WorkType::RECEIVE: {
-        auto byte_len = wc->byte_len;
-        dispatcher.post([this, socket, workId, byte_len, ec] () {
-            COMPLETION_LOG("Executing successful receive event of id %1%", workId.bufferId());
+        COMPLETION_LOG("Executing successful receive event of id %1%", workId.bufferId());
 
-            if (workId.bufferId() >= mDevice.mReceiveBufferCount) {
-                // TODO Invalid buffer
-                return;
-            }
-            auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
-            socket->onReceive(reinterpret_cast<const void*>(buffer), byte_len, ec);
+        if (workId.bufferId() >= mDevice.mReceiveBufferCount) {
+            // TODO Invalid buffer
+            return;
+        }
+        auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
+        socket->onReceive(reinterpret_cast<const void*>(buffer), wc->byte_len, ec);
 
-            std::error_code ec2;
-            mDevice.postReceiveBuffer(workId.bufferId(), ec2);
-            if (ec2) {
-                COMPLETION_ERROR("Failed to post receive buffer on wc complete [error = %1% %2%]", ec2, ec2.message());
-                // TODO Error Handling
-            }
-
-            // Decrease amount of work
-            socket->removeWork();
-        });
+        std::error_code ec2;
+        mDevice.postReceiveBuffer(workId.bufferId(), ec2);
+        if (ec2) {
+            COMPLETION_ERROR("Failed to post receive buffer on wc complete [error = %1% %2%]", ec2, ec2.message());
+            // TODO Error Handling
+        }
     } break;
 
     case WorkType::SEND: {
-        dispatcher.post([this, socket, workId, ec] () {
-            COMPLETION_LOG("Executing successful send event of id %1%", workId.bufferId());
-
-            socket->onSend(workId.userId(), ec);
-            releaseSendBuffer(workId.bufferId());
-
-            // Decrease amount of work
-            socket->removeWork();
-        });
+        COMPLETION_LOG("Executing successful send event of id %1%", workId.bufferId());
+        socket->onSend(workId.userId(), ec);
+        releaseSendBuffer(workId.bufferId());
     } break;
 
     case WorkType::READ: {
-        dispatcher.post([this, socket, workId, ec] () {
-            COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
-
-            socket->onRead(workId.userId(), ec);
-
-            // Decrease amount of work
-            socket->removeWork();
-        });
+        COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
+        socket->onRead(workId.userId(), ec);
     } break;
 
     case WorkType::WRITE: {
-        dispatcher.post([this, socket, workId, ec] () {
-            COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
-
-            socket->onWrite(workId.userId(), ec);
-
-            // Decrease amount of work
-            socket->removeWork();
-        });
+        COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
+        socket->onWrite(workId.userId(), ec);
     } break;
 
     default: {
         COMPLETION_LOG("Unknown work type");
     } break;
     }
-}
-
-void CompletionContext::processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket) {
-    dispatcher.post([socket] () {
-        socket->onDrained();
-    });
 }
 
 void DeviceContext::init(std::error_code& ec) {
@@ -340,26 +315,23 @@ void DeviceContext::init(std::error_code& ec) {
     }
 
     DEVICE_LOG("Allocate receive buffer memory");
-    mDataRegion = allocateMemoryRegion(bufferOffset(mReceiveBufferCount), ec);
+    mReceiveDataRegion = allocateMemoryRegion(bufferOffset(mReceiveBufferCount), ec);
     if (ec) {
         return;
     }
-    mReceiveData = mDataRegion->addr;
+    mReceiveData = mReceiveDataRegion->addr;
 
     initReceiveQueue(ec);
     if (ec) {
         return;
     }
 
-    mCompletion.init(ec);
-    if (ec) {
-        return;
+    for (auto& context : mCompletion) {
+        context->init(ec);
+        if (ec) {
+            return;
+        }
     }
-
-    DEVICE_LOG("Starting event polling");
-    mDispatcher.post([this] () {
-        doPoll();
-    });
 }
 
 void DeviceContext::shutdown(std::error_code& ec) {
@@ -369,10 +341,13 @@ void DeviceContext::shutdown(std::error_code& ec) {
     mShutdown.store(true);
 
     DEVICE_LOG("Shutdown completion context");
-    mCompletion.shutdown(ec);
-    if (ec) {
-        return;
+    for (auto& context : mCompletion) {
+        context->shutdown(ec);
+        if (ec) {
+            return;
+        }
     }
+    mCompletion.clear();
 
     DEVICE_LOG("Destroy shared receive queue");
     if (auto res = ibv_destroy_srq(mReceiveQueue) != 0) {
@@ -381,7 +356,7 @@ void DeviceContext::shutdown(std::error_code& ec) {
     }
 
     DEVICE_LOG("Destroy receive buffer memory");
-    destroyMemoryRegion(mDataRegion, ec);
+    destroyMemoryRegion(mReceiveDataRegion, ec);
     if (ec) {
         return;
     }
@@ -396,11 +371,11 @@ void DeviceContext::shutdown(std::error_code& ec) {
 LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
     DEVICE_LOG("Create memory region at %1%", data);
     errno = 0;
-    mDataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
-    if (mDataRegion == nullptr) {
+    mReceiveDataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
+    if (mReceiveDataRegion == nullptr) {
         ec = std::error_code(errno, std::system_category());
     }
-    return LocalMemoryRegion(mDataRegion);
+    return LocalMemoryRegion(mReceiveDataRegion);
 }
 
 struct ibv_mr* DeviceContext::allocateMemoryRegion(size_t length, std::error_code& ec) {
@@ -464,22 +439,6 @@ void DeviceContext::initReceiveQueue(std::error_code& ec) {
     }
 }
 
-void DeviceContext::doPoll() {
-    if (mShutdown.load()) {
-        return;
-    }
-
-    std::error_code ec;
-    mCompletion.poll(mDispatcher, ec);
-    if (ec) {
-        DEVICE_ERROR("Failure while processing completion queue [error = %1% %2%]", ec, ec.message());
-    }
-
-    mDispatcher.post([this] () {
-        doPoll();
-    });
-}
-
 /**
  * @brief Helper function posting the buffer to the shared receive queue
  */
@@ -490,7 +449,7 @@ void DeviceContext::postReceiveBuffer(uint16_t id, std::error_code& ec) {
     struct ibv_sge sge;
     sge.addr = reinterpret_cast<uintptr_t>(mReceiveData) + bufferOffset(id);
     sge.length = mReceiveBufferLength;
-    sge.lkey = mDataRegion->lkey;
+    sge.lkey = mReceiveDataRegion->lkey;
 
     struct ibv_recv_wr wr;
     memset(&wr, 0, sizeof(wr));

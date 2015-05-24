@@ -1,15 +1,18 @@
 #pragma once
 
-#include <crossbow/infinio/EventDispatcher.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
-#include <crossbow/concurrent_map.hpp>
+#include <crossbow/singleconsumerqueue.hpp>
 
-#include <boost/lockfree/queue.hpp>
+#include <sparsehash/dense_hash_map>
 
 #include <atomic>
 #include <cstddef>
+#include <functional>
+#include <stack>
 #include <system_error>
+#include <thread>
+#include <vector>
 
 #include <rdma/rdma_cma.h>
 
@@ -24,7 +27,8 @@ class LocalMemoryRegion;
 /**
  * @brief The CompletionContext class manages a completion queue on the device
  *
- * Sets up a completion queue and manages any sockets associated with the completion queue.
+ * Sets up a completion queue and manages any sockets associated with the completion queue. Starts a thread used to poll
+ * the queue and execute all callbacks to sockets.
  */
 class CompletionContext {
 public:
@@ -34,12 +38,12 @@ public:
               mSendBufferLength(limits.bufferLength),
               mSendQueueLength(limits.sendQueueLength),
               mCompletionQueueLength(limits.completionQueueLength),
-              mPollCycles(limits.pollCycles),
-              mDataRegion(nullptr),
+              mSendDataRegion(nullptr),
               mSendData(nullptr),
-              mSendBufferQueue(limits.sendBufferCount),
               mCompletionQueue(nullptr),
               mShutdown(false) {
+        mSocketMap.set_empty_key(0x1u << 25);
+        mSocketMap.set_deleted_key(0x1u << 26);
     }
 
     ~CompletionContext() {
@@ -48,6 +52,18 @@ public:
     void init(std::error_code& ec);
 
     void shutdown(std::error_code& ec);
+
+    /**
+     * @brief Executes the function in the event loop
+     *
+     * The function will be queued and executed by the poll thread.
+     *
+     * @param fun The function to execute in the poll thread
+     * @param ec Error code in case enqueueing the function failed
+     */
+    void execute(std::function<void()> fun, std::error_code& ec) {
+        mTaskQueue.write(std::move(fun));
+    }
 
     /**
      * @brief Add a new connection to completion queue
@@ -105,7 +121,7 @@ public:
     /**
      * @brief Acquire a send buffer from the shared pool
      *
-     * The given length is not allowed to exceed the maximum buffer size returned by DeviceContext::bufferLength();
+     * The given length is not allowed to exceed the maximum buffer size returned by CompletionContext::bufferLength();
      *
      * @param length The desired size of the buffer
      * @return A newly acquired buffer or a buffer with invalid ID in case of an error
@@ -124,14 +140,6 @@ public:
      */
     void releaseSendBuffer(InfinibandBuffer& buffer);
 
-    /**
-     * @brief Poll the completion queue and process any work completions
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param ec Error in case the polling process failed
-     */
-    void poll(EventDispatcher& dispatcher, std::error_code& ec);
-
 private:
     /**
      * @brief The offset into the associated memory region for a buffer with given ID
@@ -148,23 +156,16 @@ private:
     void releaseSendBuffer(uint16_t id);
 
     /**
-     * @brief Process a single work completion
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param wc Work completion to process
+     * @brief Poll the completion queue, process any work completions and execute pending functions from the task queue
      */
-    void processWorkComplete(EventDispatcher& dispatcher, struct ibv_wc* wc);
+    void poll();
 
     /**
-     * @brief Process a connection that was drained (i.e. has no more work completions on the completion queue)
+     * @brief Process a single work completion
      *
-     * Tries to shutdown the connection in case the connection is draining and no more handlers are active.
-     *
-     * @param dispatcher The dispatcher to execute the callback functions
-     * @param socket The socket that was drained
-     * @param ec Error in case the removal failed
+     * @param wc Work completion to process
      */
-    void processDrainedConnection(EventDispatcher& dispatcher, InfinibandSocket* socket);
+    void processWorkComplete(struct ibv_wc* wc);
 
     DeviceContext& mDevice;
 
@@ -180,50 +181,56 @@ private:
     /// Size of the completion queue to allocate
     uint32_t mCompletionQueueLength;
 
-    /// Number of iterations to poll when there is no work completion
-    uint64_t mPollCycles;
-
-    /// Memory region registered to the shared receive / send buffer memory block
-    /// The block contains the receive buffers first and then the send buffers
-    struct ibv_mr* mDataRegion;
+    /// Memory region registered to the shared send buffer memory block
+    struct ibv_mr* mSendDataRegion;
 
     /// Pointer to the shared send buffer arena
     void* mSendData;
 
-    /// Queue containing IDs of send buffers that are not in use
-    boost::lockfree::queue<uint16_t, boost::lockfree::fixed_sized<true>> mSendBufferQueue;
+    /// Stack containing IDs of send buffers that are not in use
+    std::stack<uint16_t> mSendBufferQueue;
 
+    /// Completion queue of this context
     struct ibv_cq* mCompletionQueue;
 
     /// Map from queue number to the associated socket
-    crossbow::concurrent_map<uint32_t, InfinibandSocket*> mSocketMap;
+    google::dense_hash_map<uint32_t, InfinibandSocket*> mSocketMap;
 
-    // TODO Use datastructure where capacity can be unbounded
-    /// Queue containing connections waiting to be drained
-    boost::lockfree::queue<InfinibandSocket*, boost::lockfree::capacity<1024>> mDrainingQueue;
+    /// Vector containing connections waiting to be drained
+    std::vector<InfinibandSocket*> mDrainingQueue;
 
+    /// Queue containing function objects to be executed by the poll thread
+    crossbow::SingleConsumerQueue<std::function<void()>, 256> mTaskQueue;
+
+    /// Thread polling the completion and task queues
+    std::thread mPollThread;
+
+    /// Whether the system is shutting down
     std::atomic<bool> mShutdown;
 };
 
 /**
  * @brief The DeviceContext class handles all activities related to a NIC
  *
- * Sets up the protection domain of the NIC and a shared receive queue for all connections. Also allocates a
- * BufferManager and CompletionContext.
+ * Sets up the protection domain of the NIC and a shared receive queue for all connections. Also allocates a number of
+ * CompletionContexts.
  */
 class DeviceContext {
 public:
-    DeviceContext(EventDispatcher& dispatcher, const InfinibandLimits& limits, struct ibv_context* verbs)
-            : mDispatcher(dispatcher),
-              mReceiveBufferCount(limits.receiveBufferCount),
+    DeviceContext(const InfinibandLimits& limits, struct ibv_context* verbs)
+            : mReceiveBufferCount(limits.receiveBufferCount),
               mReceiveBufferLength(limits.bufferLength),
+              mContextThreads(limits.contextThreads),
               mVerbs(verbs),
               mProtectionDomain(nullptr),
-              mDataRegion(nullptr),
+              mReceiveDataRegion(nullptr),
               mReceiveData(nullptr),
               mReceiveQueue(nullptr),
-              mCompletion(*this, limits),
               mShutdown(false) {
+        mCompletion.reserve(mContextThreads);
+        for (uint64_t i = 0; i < mContextThreads; ++i) {
+            mCompletion.emplace_back(new CompletionContext(*this, limits));
+        }
     }
 
     ~DeviceContext() {
@@ -234,8 +241,8 @@ public:
         }
     }
 
-    CompletionContext* context() {
-        return &mCompletion;
+    CompletionContext* context(uint64_t num) {
+        return mCompletion.at(num % mContextThreads).get();
     }
 
     /**
@@ -315,13 +322,14 @@ private:
      */
     void postReceiveBuffer(uint16_t id, std::error_code& ec);
 
-    EventDispatcher& mDispatcher;
-
     /// Number of shared receive buffers to allocate
     uint16_t mReceiveBufferCount;
 
     /// Size of the allocated shared buffer
     uint32_t mReceiveBufferLength;
+
+    /// Number of poll threads each with their own completion context
+    uint64_t mContextThreads;
 
     /// Infiniband context associated with this device
     struct ibv_context* mVerbs;
@@ -331,7 +339,7 @@ private:
 
     /// Memory region registered to the shared receive / send buffer memory block
     /// The block contains the receive buffers first and then the send buffers
-    struct ibv_mr* mDataRegion;
+    struct ibv_mr* mReceiveDataRegion;
 
     /// Pointer to the shared receive buffer arena
     void* mReceiveData;
@@ -339,7 +347,7 @@ private:
     /// Shared receive queue associated with this device
     struct ibv_srq* mReceiveQueue;
 
-    CompletionContext mCompletion;
+    std::vector<std::unique_ptr<CompletionContext>> mCompletion;
 
     std::atomic<bool> mShutdown;
 };

@@ -10,28 +10,23 @@ if(NOT ${Rdmacm_FOUND})
     return()
 endif()
 
+find_package(Sparsehash)
+if(NOT ${Sparsehash_FOUND})
+    message(STATUS "Did not find Sparsehash, InfinIO will not be built")
+    return()
+endif()
+
 find_package(Boost REQUIRED)
 
 find_package(Threads REQUIRED)
 
-if(${INFINIO_IMPLEMENTATION} STREQUAL "ASIO")
-    set(USE_ASIO_IMPLEMENTATION TRUE)
-elseif(${INFINIO_IMPLEMENTATION} STREQUAL "TBB")
-    set(USE_TBB_IMPLEMENTATION TRUE)
-    find_package(TBB REQUIRED)
-else()
-    message(FATAL_ERROR "Unkown event loop implementation")
-endif()
-
 set(SRCS
-    include/crossbow/infinio/AsioEventDispatcher.hpp
     include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/ErrorCode.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
     include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
     include/crossbow/infinio/InfinibandSocket.hpp
-    include/crossbow/infinio/TbbEventDispatcher.hpp
     src/AddressHelper.cpp
     src/AddressHelper.hpp
     src/DeviceContext.hpp
@@ -44,16 +39,11 @@ set(SRCS
     src/WorkRequestId.hpp
 )
 
-# Create Event loop configuration file
-configure_file(EventDispatcher.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/crossbow/infinio/EventDispatcher.hpp)
-
 # Add the InfinIO library
 add_library(crossbow_infinio STATIC ${SRCS})
 target_include_directories(crossbow_infinio PUBLIC
         $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_include_directories(crossbow_infinio PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
 # Add compile definitions
 if(INFINIO_DEBUG)
@@ -77,11 +67,8 @@ target_link_libraries(crossbow_infinio PUBLIC ${Ibverbs_LIBRARIES})
 target_include_directories(crossbow_infinio PUBLIC ${Rdmacm_INCLUDE_DIRS})
 target_link_libraries(crossbow_infinio PUBLIC ${Rdmacm_LIBRARIES})
 
-# Link against TBB
-if(${INFINIO_IMPLEMENTATION} STREQUAL "TBB")
-    target_include_directories(crossbow_infinio PUBLIC ${TBB_INCLUDE_DIRS})
-    target_link_libraries(crossbow_infinio PUBLIC ${TBB_LIBRARIES})
-endif()
+# Link against sparsehash
+target_include_directories(crossbow_infinio PRIVATE ${Sparsehash_INCLUDE_DIRS})
 
 # Install the library
 install(TARGETS crossbow_infinio
@@ -100,8 +87,6 @@ target_link_libraries(pingclient PRIVATE crossbow_infinio)
 
 # Install Crossbow InfinIO headers
 install(DIRECTORY include/crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.hpp")
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/crossbow/infinio/EventDispatcher.hpp
-        DESTINATION ${INCLUDE_INSTALL_DIR}/crossbow/infinio)
 
 # Install the cmake target
 install(EXPORT CrossbowInfinIOTargets DESTINATION ${CMAKE_INSTALL_DIR})

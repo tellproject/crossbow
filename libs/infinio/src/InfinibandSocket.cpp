@@ -64,8 +64,8 @@ void InfinibandBaseSocket::bind(Endpoint& addr, std::error_code& ec) {
     }
 }
 
-InfinibandSocket* ConnectionRequest::accept(std::error_code& ec) {
-    mSocket->accept(ec);
+InfinibandSocket* ConnectionRequest::accept(std::error_code& ec, uint64_t thread) {
+    mSocket->accept(mService.context(thread), ec);
     if (ec) {
         SOCKET_LOG("%1%: Accepting connection failed [error = %2% %3%]", formatRemoteAddress(mSocket->mId), ec,
                 ec.message());
@@ -148,6 +148,10 @@ void InfinibandSocketHandler::onDisconnect() {
 
 void InfinibandSocketHandler::onDisconnected() {
     // Empty default function
+}
+
+void InfinibandSocket::execute(std::function<void()> fun, std::error_code& ec) {
+    mContext->execute(std::move(fun), ec);
 }
 
 void InfinibandSocket::connect(Endpoint& addr, std::error_code& ec) {
@@ -257,8 +261,12 @@ void InfinibandSocket::releaseSendBuffer(InfinibandBuffer& buffer) {
     mContext->releaseSendBuffer(buffer);
 }
 
-void InfinibandSocket::accept(std::error_code& ec) {
+void InfinibandSocket::accept(CompletionContext* context, std::error_code& ec) {
     SOCKET_LOG("%1%: Accepting connection", formatRemoteAddress(mId));
+    if (mContext != nullptr) {
+        ec = error::already_initialized;
+    }
+    mContext = context;
 
     // Add connection to queue handler
     mContext->addConnection(this, ec);
@@ -366,21 +374,14 @@ void InfinibandSocket::onTimewaitExit() {
     }
 }
 
-void InfinibandSocket::removeWork() {
-    auto work = --mWork;
-    if (work == 0) {
-        std::error_code ec;
-        mContext->removeConnection(this, ec);
-        if (ec) {
-            // TODO Error
-        }
-
-        work = mWork.exchange(0x1u);
-        if (work != 0) {
-            SOCKET_ERROR("%1%: Work count reached zero and was incremented again");
-        }
-        mHandler->onDisconnected();
+void InfinibandSocket::onDrained() {
+    std::error_code ec;
+    mContext->removeConnection(this, ec);
+    if (ec) {
+        SOCKET_ERROR("%1%: Removing drained connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
+                ec.message());
     }
+    mHandler->onDisconnected();
 }
 
 } // namespace infinio

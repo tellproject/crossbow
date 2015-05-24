@@ -16,7 +16,7 @@ public:
               bufferLength(256),
               sendQueueLength(64),
               completionQueueLength(128),
-              pollCycles(1000000) {
+              contextThreads(2) {
     }
 
     /**
@@ -45,9 +45,9 @@ public:
     uint32_t completionQueueLength;
 
     /**
-     * @brief Number of iterations to poll when there is no work completion
+     * @brief Number of poll threads each with their own completion context
      */
-    uint64_t pollCycles;
+    uint64_t contextThreads;
 };
 
 } // namespace infinio

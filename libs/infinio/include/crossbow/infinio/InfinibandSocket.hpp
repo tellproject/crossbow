@@ -6,6 +6,7 @@
 #include <crossbow/infinio/InfinibandService.hpp>
 
 #include <cstdint>
+#include <functional>
 #include <system_error>
 
 #include <rdma/rdma_cma.h>
@@ -69,16 +70,19 @@ public:
         }
     }
 
-    InfinibandSocket* accept(std::error_code& ec);
+    InfinibandSocket* accept(std::error_code& ec, uint64_t thread = 0);
 
     void reject();
 
 private:
     friend class InfinibandService;
 
-    ConnectionRequest(InfinibandSocket* socket)
-            : mSocket(socket) {
+    ConnectionRequest(InfinibandService& service, InfinibandSocket* socket)
+            : mService(service),
+              mSocket(socket) {
     }
+
+    InfinibandService& mService;
 
     /// The socket with the pending connection request
     std::unique_ptr<InfinibandSocket> mSocket;
@@ -148,8 +152,8 @@ public:
      *
      * The socket is now able to send and receive messages to and from the remote host.
      *
-     * Beware of race conditions in a multithreaded execution environment: The remote end might start sending data
-     * before the onConnected function is executed, in this case another thread might call onReceive before onConnected.
+     * Beware of race conditions: The remote end might start sending data before the onConnected function is executed,
+     * in this case onReceive might be called before onConnected.
      *
      * @param ec Error in case the connection attempt failed
      */
@@ -214,16 +218,17 @@ public:
  */
 class InfinibandSocket: public InfinibandBaseSocket {
 public:
-    InfinibandSocket(InfinibandService& service)
+    InfinibandSocket(InfinibandService& service, uint64_t thread = 0)
             : InfinibandBaseSocket(service.channel(), this),
-              mContext(service.context()),
-              mHandler(nullptr),
-              mWork(1) {
+              mContext(service.context(thread)),
+              mHandler(nullptr) {
     }
 
     void setHandler(InfinibandSocketHandler* handler) {
         mHandler = handler;
     }
+
+    void execute(std::function<void()> fun, std::error_code& ec);
 
     void connect(Endpoint& addr, std::error_code& ec);
 
@@ -268,17 +273,16 @@ private:
     friend class ConnectionRequest;
     friend class InfinibandService;
 
-    InfinibandSocket(InfinibandService& service, struct rdma_cm_id* id)
+    InfinibandSocket(struct rdma_cm_id* id)
             : InfinibandBaseSocket(id, this),
-              mContext(service.context()),
-              mHandler(nullptr),
-              mWork(1) {
+              mContext(nullptr),
+              mHandler(nullptr) {
     }
 
     /**
      * @brief Accepts the pending connection request
      */
-    void accept(std::error_code& ec);
+    void accept(CompletionContext* context, std::error_code& ec);
 
     /**
      * @brief Rejects the pending connection request
@@ -383,41 +387,15 @@ private:
     }
 
     /**
-     * @brief The completion queue processed all pending work completions
+     * @brief The completion queue processed all pending work completions and is now disconnected
      */
-    void onDrained() {
-        // The work count by default is set to 1, the completion queue was drained of all pending work completions, so
-        // decrease the work count again so it hits 0 when no handlers are active anymore
-        removeWork();
-    }
-
-    /**
-     * @brief Mark a new handler as active
-     *
-     * This function should be called before a handler associated with a callback on the socket is dispatched to the
-     * EventDispatcher.
-     */
-    void addWork() {
-        ++mWork;
-    }
-
-    /**
-     * @brief Mark an active handler as completed
-     *
-     * This function should be called after the callback on the socket was executed.
-     *
-     * Shuts down the connection in case no more handlers are active.
-     */
-    void removeWork();
+    void onDrained();
 
     /// The completion context of the underlying NIC
     CompletionContext* mContext;
 
     /// Callback handlers for events occuring on this socket
     InfinibandSocketHandler* mHandler;
-
-    /// Number of handlers pending their execution
-    std::atomic<uint64_t> mWork;
 };
 
 } // namespace infinio
