@@ -77,8 +77,8 @@ enum network_errors {
     /// Connection rejected.
     connection_rejected,
 
-    /// Connection disconnected
-    disconnected,
+    /// Socket is still connected.
+    still_connected,
 };
 
 /**
@@ -110,8 +110,8 @@ public:
         case error::connection_rejected:
             return "Connection rejected";
 
-        case error::disconnected:
-            return "Connection disconnected";
+        case error::still_connected:
+            return "Socket is still connected";
 
         default:
             return "infinio.network error";

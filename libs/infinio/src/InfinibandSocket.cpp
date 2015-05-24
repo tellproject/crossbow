@@ -53,6 +53,11 @@ void InfinibandBaseSocket<SocketType>::close(std::error_code& ec) {
         return;
     }
 
+    if (mId->qp != nullptr) {
+        ec = error::still_connected;
+        return;
+    }
+
     SOCKET_LOG("Close socket");
 
     // Attach the pointer back without incrementing the counter
