@@ -103,7 +103,7 @@ void InfinibandService::shutdown(std::error_code& ec) {
 }
 
 InfinibandSocket InfinibandService::createSocket(uint64_t thread) {
-    return InfinibandSocket(new InfinibandSocketImpl(mChannel, mDevice->context(thread)));
+    return InfinibandSocket(new InfinibandSocketImpl(*this, mChannel, mDevice->context(thread)));
 }
 
 CompletionContext* InfinibandService::context(uint64_t num) {
@@ -146,11 +146,11 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onResolutionError, error::route_resolution);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
-        InfinibandSocket socket(new InfinibandSocketImpl(event->id));
+        InfinibandSocket socket(new InfinibandSocketImpl(*this, event->id));
         crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),
                 event->param.conn.private_data_len);
-        ConnectionRequest request(*this, std::move(socket), std::move(data));
-        reinterpret_cast<InfinibandAcceptorImpl*>(event->listen_id->context)->onConnectionRequest(std::move(request));
+        auto listener = reinterpret_cast<InfinibandAcceptorImpl*>(event->listen_id->context);
+        listener->onConnectionRequest(std::move(socket), data);
     } break;
 
     HANDLE_EVENT(RDMA_CM_EVENT_CONNECT_ERROR, onConnectionError, error::connection_error);

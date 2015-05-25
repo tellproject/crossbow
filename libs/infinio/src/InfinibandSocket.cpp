@@ -90,49 +90,21 @@ void InfinibandBaseSocket<SocketType>::bind(Endpoint& addr, std::error_code& ec)
     }
 }
 
-ConnectionRequest::~ConnectionRequest() {
-    if (mSocket) {
-        reject();
-    }
-}
-
-InfinibandSocket ConnectionRequest::accept(const crossbow::string& data, std::error_code& ec, uint64_t thread) {
-    mSocket->accept(mService.context(thread), data, ec);
-    if (ec) {
-        SOCKET_LOG("%1%: Accepting connection failed [error = %2% %3%]", formatRemoteAddress(mSocket->mId), ec,
-                ec.message());
-
-        std::error_code ec2;
-        mSocket->close(ec2);
-        if (ec2) {
-            SOCKET_ERROR("%1%: Destroying failed connection failed [error = %2% %3%]",
-                    formatRemoteAddress(mSocket->mId), ec2, ec2.message());
-        }
-    }
-    return std::move(mSocket);
-}
-
-void ConnectionRequest::reject(const crossbow::string& data) {
-    std::error_code ec;
-    mSocket->reject(data, ec);
-    if (ec) {
-        SOCKET_ERROR("%1%: Rejecting connection failed [error = %2% %3%]", formatRemoteAddress(mSocket->mId), ec,
-                ec.message());
-    }
-    mSocket->close(ec);
-    if (ec) {
-        SOCKET_ERROR("%1%: Closing rejected connection failed [error = %2% %3%]", formatRemoteAddress(mSocket->mId), ec,
-                ec.message());
-    }
-    mSocket.reset();
-}
-
 InfinibandAcceptorHandler::~InfinibandAcceptorHandler() {
 }
 
-void InfinibandAcceptorHandler::onConnection(ConnectionRequest request) {
+void InfinibandAcceptorHandler::onConnection(InfinibandSocket socket, const crossbow::string& data) {
     // Reject by default
-    request.reject();
+    std::error_code ec;
+    socket->reject(crossbow::string(), ec);
+    if (ec) {
+        SOCKET_ERROR("%1%: Rejecting connection failed [error = %2% %3%]", socket->remoteAddress(), ec, ec.message());
+    }
+    socket->close(ec);
+    if (ec) {
+        SOCKET_ERROR("%1%: Closing rejected connection failed [error = %2% %3%]", socket->remoteAddress(), ec,
+                ec.message());
+    }
 }
 
 void InfinibandAcceptorImpl::listen(int backlog, std::error_code& ec) {
@@ -217,6 +189,53 @@ void InfinibandSocketImpl::disconnect(std::error_code& ec) {
     }
 }
 
+void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread, std::error_code& ec) {
+    SOCKET_LOG("%1%: Accepting connection", formatRemoteAddress(mId));
+    if (mContext != nullptr) {
+        ec = error::already_initialized;
+    }
+    mContext = mService.context(thread);
+
+    // Add connection to queue handler
+    mContext->addConnection(mId, this, ec);
+    if (ec) {
+        return;
+    }
+
+    struct rdma_conn_param cm_params;
+    memset(&cm_params, 0, sizeof(cm_params));
+    cm_params.private_data = data.c_str();
+    cm_params.private_data_len = data.length();
+
+    errno = 0;
+    if (rdma_accept(mId, &cm_params) != 0) {
+        auto res = errno;
+
+        mContext->removeConnection(mId, ec);
+        if (ec) {
+            // There is nothing we can do if removing the incomplete connection failed
+            SOCKET_ERROR("%1%: Removing invalid connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
+                    ec.message());
+        }
+
+        ec = std::error_code(res, std::system_category());
+        return;
+    }
+}
+
+void InfinibandSocketImpl::reject(const crossbow::string& data, std::error_code& ec) {
+    SOCKET_LOG("%1%: Rejecting connection", formatRemoteAddress(mId));
+
+    errno = 0;
+    if (rdma_reject(mId, data.c_str(), data.length()) != 0) {
+        ec = std::error_code(errno, std::system_category());
+    }
+}
+
+Endpoint InfinibandSocketImpl::remoteAddress() const {
+    return Endpoint(rdma_get_peer_addr(mId));
+}
+
 void InfinibandSocketImpl::send(InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec) {
     WorkRequestId workId(userId, buffer.id(), WorkType::SEND);
 
@@ -294,49 +313,6 @@ InfinibandBuffer InfinibandSocketImpl::acquireSendBuffer(uint32_t length) {
 
 void InfinibandSocketImpl::releaseSendBuffer(InfinibandBuffer& buffer) {
     mContext->releaseSendBuffer(buffer);
-}
-
-void InfinibandSocketImpl::accept(CompletionContext* context, const string& data, std::error_code& ec) {
-    SOCKET_LOG("%1%: Accepting connection", formatRemoteAddress(mId));
-    if (mContext != nullptr) {
-        ec = error::already_initialized;
-    }
-    mContext = context;
-
-    // Add connection to queue handler
-    mContext->addConnection(mId, this, ec);
-    if (ec) {
-        return;
-    }
-
-    struct rdma_conn_param cm_params;
-    memset(&cm_params, 0, sizeof(cm_params));
-    cm_params.private_data = data.c_str();
-    cm_params.private_data_len = data.length();
-
-    errno = 0;
-    if (rdma_accept(mId, &cm_params) != 0) {
-        auto res = errno;
-
-        mContext->removeConnection(mId, ec);
-        if (ec) {
-            // There is nothing we can do if removing the incomplete connection failed
-            SOCKET_ERROR("%1%: Removing invalid connection failed [error = %2% %3%]", formatRemoteAddress(mId), ec,
-                    ec.message());
-        }
-
-        ec = std::error_code(res, std::system_category());
-        return;
-    }
-}
-
-void InfinibandSocketImpl::reject(const crossbow::string& data, std::error_code& ec) {
-    SOCKET_LOG("%1%: Rejecting connection", formatRemoteAddress(mId));
-
-    errno = 0;
-    if (rdma_reject(mId, data.c_str(), data.length()) != 0) {
-        ec = std::error_code(errno, std::system_category());
-    }
 }
 
 void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {

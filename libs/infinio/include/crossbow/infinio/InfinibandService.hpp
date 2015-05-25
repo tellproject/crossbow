@@ -49,7 +49,7 @@ public:
     InfinibandSocket createSocket(uint64_t thread = 0);
 
 private:
-    friend class ConnectionRequest;
+    friend class InfinibandSocketImpl;
 
     /**
      * @brief Gets the completion context associated with the ibv_context

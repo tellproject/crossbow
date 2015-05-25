@@ -63,53 +63,6 @@ protected:
     struct rdma_cm_id* mId;
 };
 
-class ConnectionRequest {
-public:
-    ConnectionRequest(ConnectionRequest&&) = default;
-    ConnectionRequest& operator=(ConnectionRequest&&) = default;
-
-    ~ConnectionRequest();
-
-    /**
-     * @brief The private data send with the connection request
-     *
-     * This length of the string may be larger than the actual data sent (as dictated by the underlying transport). Any
-     * additional bytes are zeroed out.
-     */
-    const crossbow::string& data() const {
-        return mData;
-    }
-
-    InfinibandSocket accept(std::error_code& ec, uint64_t thread = 0) {
-        return accept(crossbow::string(), ec, thread);
-    }
-
-    InfinibandSocket accept(const crossbow::string& data, std::error_code& ec, uint64_t thread = 0);
-
-    void reject() {
-        reject(crossbow::string());
-    }
-
-    void reject(const crossbow::string& data);
-
-private:
-    friend class InfinibandService;
-
-    ConnectionRequest(InfinibandService& service, InfinibandSocket socket, crossbow::string data)
-            : mService(service),
-              mSocket(std::move(socket)),
-              mData(std::move(data)) {
-    }
-
-    InfinibandService& mService;
-
-    /// The socket with the pending connection request
-    InfinibandSocket mSocket;
-
-    /// The private data send with the connection request
-    crossbow::string mData;
-};
-
 /**
  * @brief Interface class containing callbacks for various socket events
  */
@@ -120,14 +73,19 @@ public:
     /**
      * @brief Handle a new incoming connection
      *
-     * The connection is not yet in a fully connected state so any write operations on the socket will fail until the
-     * onConnected callback is invoked from the socket.
+     * The class is responsible for taking ownership of the InfinibandSocket object and either has to accept or reject
+     * the connection request. Otherwise the connection will stay open.
      *
-     * In case the connection is accepted the class is responsible for taking ownership of the InfinibandSocket object.
+     * After accepting the connection, it is not yet in a fully connected state so any write operations on the socket
+     * will fail until the onConnected callback is invoked on the socket.
      *
-     * @param request Connection request from the remote host
+     * The reported length of the private data string may be larger than the actual data sent (as dictated by the
+     * underlying transport). Any additional bytes are zeroed out.
+     *
+     * @param socket The socket to the remote host
+     * @param data The private data send with the connection request
      */
-    virtual void onConnection(ConnectionRequest request);
+    virtual void onConnection(InfinibandSocket socket, const crossbow::string& data);
 };
 
 /**
@@ -154,8 +112,8 @@ private:
      *
      * Invoke the onConnection handler to pass the connection request to the owner.
      */
-    void onConnectionRequest(ConnectionRequest request) {
-        mHandler->onConnection(std::move(request));
+    void onConnectionRequest(InfinibandSocket socket, const crossbow::string& data) {
+        mHandler->onConnection(std::move(socket), data);
     }
 
     /// Callback handlers for events occuring on this socket
@@ -257,6 +215,28 @@ public:
 
     void disconnect(std::error_code& ec);
 
+    /**
+     * @brief Accepts the pending connection request
+     *
+     * @param data The private data to send to the remote host
+     * @param thread The polling thread this socket should process on
+     * @param ec Error code in case the accept failed
+     */
+    void accept(const crossbow::string& data, uint64_t thread, std::error_code& ec);
+
+    /**
+     * @brief Rejects the pending connection request
+     *
+     * @param data The private data to send to the remote host
+     * @param ec Error code in case the reject failed
+     */
+    void reject(const crossbow::string& data, std::error_code& ec);
+
+    /**
+     * @brief The address of the remote host
+     */
+    Endpoint remoteAddress() const;
+
     void send(InfinibandBuffer& buffer, uint32_t userId, std::error_code& ec);
 
     /**
@@ -296,27 +276,19 @@ private:
     friend class ConnectionRequest;
     friend class InfinibandService;
 
-    InfinibandSocketImpl(struct rdma_event_channel* channel, CompletionContext* context)
+    InfinibandSocketImpl(InfinibandService& service, struct rdma_event_channel* channel, CompletionContext* context)
             : InfinibandBaseSocket(channel),
+              mService(service),
               mContext(context),
               mHandler(nullptr) {
     }
 
-    InfinibandSocketImpl(struct rdma_cm_id* id)
+    InfinibandSocketImpl(InfinibandService& service, struct rdma_cm_id* id)
             : InfinibandBaseSocket(id),
+              mService(service),
               mContext(nullptr),
               mHandler(nullptr) {
     }
-
-    /**
-     * @brief Accepts the pending connection request
-     */
-    void accept(CompletionContext* context, const crossbow::string& data, std::error_code& ec);
-
-    /**
-     * @brief Rejects the pending connection request
-     */
-    void reject(const crossbow::string& data, std::error_code& ec);
 
     void doSend(struct ibv_send_wr* wr, std::error_code& ec);
 
@@ -413,6 +385,9 @@ private:
      * @brief The completion queue processed all pending work completions and is now disconnected
      */
     void onDrained();
+
+    /// The Infiniband service managing this connection
+    InfinibandService& mService;
 
     /// The completion context of the underlying NIC
     CompletionContext* mContext;

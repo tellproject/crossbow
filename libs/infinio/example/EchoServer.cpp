@@ -93,7 +93,7 @@ public:
     void open(uint16_t port);
 
 protected:
-    virtual void onConnection(ConnectionRequest request) override;
+    virtual void onConnection(InfinibandSocket socket, const crossbow::string& data) override;
 
 private:
     InfinibandAcceptor mAcceptor;
@@ -130,16 +130,22 @@ void EchoAcceptor::open(uint16_t port) {
     std::cout << "Echo server started up" << std::endl;
 }
 
-void EchoAcceptor::onConnection(ConnectionRequest request) {
-    std::cout << "New incoming connection [data = \"" << request.data() << "\"]" << std::endl;
-    std::error_code ec;
-    auto socket = request.accept("EchoServer", ec);
-    if (ec) {
-        std::cout << "Accepting connection failed " << ec << " - " << ec.message() << std::endl;
-        return;
-    }
+void EchoAcceptor::onConnection(InfinibandSocket socket, const crossbow::string& data) {
+    std::cout << "New incoming connection [data = \"" << data << "\"]" << std::endl;
+
     std::unique_ptr<EchoConnection> con(new EchoConnection(socket));
     con->init();
+
+    std::error_code ec;
+    socket->accept("EchoServer", 0, ec);
+    if (ec) {
+        std::cout << "Accepting connection failed " << ec << " - " << ec.message() << std::endl;
+        socket->close(ec);
+        if (ec) {
+            std::cout << "Closing failed socket failed " << ec << " - " << ec.message() << std::endl;
+        }
+        return;
+    }
 
     mConnections.emplace(std::move(con));
 }
