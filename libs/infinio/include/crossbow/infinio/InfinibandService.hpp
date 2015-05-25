@@ -30,6 +30,10 @@ public:
 
     ~InfinibandService();
 
+    const InfinibandLimits& limits() const {
+        return mLimits;
+    }
+
     /**
      * @brief Starts polling the RDMA Connection Manager for events
      *
