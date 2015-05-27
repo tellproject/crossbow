@@ -16,6 +16,7 @@ public:
               bufferLength(256),
               sendQueueLength(64),
               completionQueueLength(128),
+              pollCycles(1000000),
               contextThreads(2) {
     }
 
@@ -43,6 +44,11 @@ public:
      * @brief Size of the completion queue to allocate for each completion context
      */
     uint32_t completionQueueLength;
+
+    /**
+     * @brief Number of iterations without action to poll until going to epoll sleep
+     */
+    uint64_t pollCycles;
 
     /**
      * @brief Number of poll threads each with their own completion context

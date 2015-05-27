@@ -3,16 +3,17 @@
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
-#include <crossbow/singleconsumerqueue.hpp>
+
+#include "EventProcessor.hpp"
 
 #include <sparsehash/dense_hash_map>
 
 #include <atomic>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <stack>
 #include <system_error>
-#include <thread>
 #include <vector>
 
 #include <rdma/rdma_cma.h>
@@ -27,20 +28,24 @@ class LocalMemoryRegion;
 /**
  * @brief The CompletionContext class manages a completion queue on the device
  *
- * Sets up a completion queue and manages any sockets associated with the completion queue. Starts a thread used to poll
- * the queue and execute all callbacks to sockets.
+ * Sets up a completion queue and manages any sockets associated with the completion queue. Starts an event processor
+ * used to poll the queue and execute all callbacks to sockets.
  */
-class CompletionContext {
+class CompletionContext : private EventPoll {
 public:
     CompletionContext(DeviceContext& device, const InfinibandLimits& limits)
             : mDevice(device),
+              mProcessor(limits.pollCycles),
+              mTaskQueue(mProcessor),
               mSendBufferCount(limits.sendBufferCount),
               mSendBufferLength(limits.bufferLength),
               mSendQueueLength(limits.sendQueueLength),
               mCompletionQueueLength(limits.completionQueueLength),
               mSendDataRegion(nullptr),
               mSendData(nullptr),
+              mCompletionChannel(nullptr),
               mCompletionQueue(nullptr),
+              mSleeping(false),
               mShutdown(false) {
         mSocketMap.set_empty_key(0x1u << 25);
         mSocketMap.set_deleted_key(0x1u << 26);
@@ -62,7 +67,7 @@ public:
      * @param ec Error code in case enqueueing the function failed
      */
     void execute(std::function<void()> fun, std::error_code& ec) {
-        mTaskQueue.write(std::move(fun));
+        mTaskQueue.execute(std::move(fun), ec);
     }
 
     /**
@@ -142,6 +147,23 @@ public:
 
 private:
     /**
+     * @brief Poll the completion queue and process any work completions
+     */
+    virtual bool poll() final override;
+
+    /**
+     * @brief Activates the completion channel
+     */
+    virtual void prepareSleep() final override;
+
+    /**
+     * @brief Invoked when the completion channel is readable
+     *
+     * Read all events and acknowledge them (the actual work completion events will be handled by the call to poll).
+     */
+    virtual void wakeup() final override;
+
+    /**
      * @brief The offset into the associated memory region for a buffer with given ID
      */
     uint64_t bufferOffset(uint16_t id) {
@@ -156,11 +178,6 @@ private:
     void releaseSendBuffer(uint16_t id);
 
     /**
-     * @brief Poll the completion queue, process any work completions and execute pending functions from the task queue
-     */
-    void poll();
-
-    /**
      * @brief Process a single work completion
      *
      * @param wc Work completion to process
@@ -168,6 +185,12 @@ private:
     void processWorkComplete(struct ibv_wc* wc);
 
     DeviceContext& mDevice;
+
+    /// The event loop processor handling all Infiniband events
+    EventProcessor mProcessor;
+
+    /// Task queue to execute functions in the poll thread
+    TaskQueue mTaskQueue;
 
     /// Number of shared send buffers to allocated
     uint16_t mSendBufferCount;
@@ -190,6 +213,9 @@ private:
     /// Stack containing IDs of send buffers that are not in use
     std::stack<uint16_t> mSendBufferQueue;
 
+    /// Completion channel used to poll from epoll after a period of inactivity
+    struct ibv_comp_channel* mCompletionChannel;
+
     /// Completion queue of this context
     struct ibv_cq* mCompletionQueue;
 
@@ -199,11 +225,8 @@ private:
     /// Vector containing connections waiting to be drained
     std::vector<InfinibandSocket> mDrainingQueue;
 
-    /// Queue containing function objects to be executed by the poll thread
-    crossbow::SingleConsumerQueue<std::function<void()>, 256> mTaskQueue;
-
-    /// Thread polling the completion and task queues
-    std::thread mPollThread;
+    /// Whether the poller is sleeping (i.e. activated the completion channel)
+    bool mSleeping;
 
     /// Whether the system is shutting down
     std::atomic<bool> mShutdown;
@@ -301,11 +324,6 @@ private:
      * @param ec Error code in case the initialization failed
      */
     void initReceiveQueue(std::error_code& ec);
-
-    /**
-     * @brief Continuously dispatches the Completion Context polling loop
-     */
-    void doPoll();
 
     /**
      * @brief The offset into the associated memory region for a buffer with given ID

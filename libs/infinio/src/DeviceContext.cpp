@@ -8,8 +8,8 @@
 
 #include <cerrno>
 #include <cstring>
-#include <vector>
 
+#include <fcntl.h>
 #include <sys/mman.h>
 
 #define COMPLETION_LOG(...) INFINIO_LOG("[CompletionContext] " __VA_ARGS__)
@@ -26,6 +26,16 @@ void CompletionContext::init(std::error_code& ec) {
         return;
     }
 
+    mProcessor.init(ec);
+    if (ec) {
+        return;
+    }
+
+    mTaskQueue.init(ec);
+    if (ec) {
+        return;
+    }
+
     COMPLETION_LOG("Allocate send buffer memory");
     mSendDataRegion = mDevice.allocateMemoryRegion(bufferOffset(mSendBufferCount), ec);
     if (ec) {
@@ -38,20 +48,37 @@ void CompletionContext::init(std::error_code& ec) {
         mSendBufferQueue.push(id);
     }
 
+    COMPLETION_LOG("Create completion channel");
+    errno = 0;
+    mCompletionChannel = ibv_create_comp_channel(mDevice.mVerbs);
+    if (mCompletionChannel == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return;
+    }
+
+    {
+        auto flags = fcntl(mCompletionChannel->fd, F_GETFL);
+        auto res = fcntl(mCompletionChannel->fd, F_SETFL, flags | O_NONBLOCK);
+        if (res < 0) {
+            ec = std::error_code(res, std::system_category());
+            return;
+        }
+    }
+    mProcessor.registerPoll(mCompletionChannel->fd, this, ec);
+    if (ec) {
+        return;
+    }
+
     COMPLETION_LOG("Create completion queue");
     errno = 0;
-    mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, nullptr, 0);
+    mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, mCompletionChannel, 0);
     if (mCompletionQueue == nullptr) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
 
-    COMPLETION_LOG("Create poll thread");
-    mPollThread = std::thread([this] () {
-        while (!mShutdown.load()) {
-            poll();
-        }
-    });
+    COMPLETION_LOG("Starting event processor");
+    mProcessor.start();
 }
 
 void CompletionContext::shutdown(std::error_code& ec) {
@@ -61,15 +88,19 @@ void CompletionContext::shutdown(std::error_code& ec) {
     }
     mShutdown.store(true);
 
-    // TODO We have to join the poll thread
-    // We are not allowed to call join in the same thread as the poll loop is
-
     COMPLETION_LOG("Destroy completion queue");
     if (auto res = ibv_destroy_cq(mCompletionQueue) != 0) {
         ec = std::error_code(res, std::system_category());
         return;
     }
     mCompletionQueue = nullptr;
+
+    COMPLETION_LOG("Destroy completion channel");
+    if (auto res = ibv_destroy_comp_channel(mCompletionChannel) != 0) {
+        ec = std::error_code(res, std::system_category());
+        return;
+    }
+    mCompletionChannel = nullptr;
 
     COMPLETION_LOG("Destroy send buffer memory");
     mDevice.destroyMemoryRegion(mSendDataRegion, ec);
@@ -78,6 +109,16 @@ void CompletionContext::shutdown(std::error_code& ec) {
     }
     mSendData = nullptr;
     mSendDataRegion = nullptr;
+
+    mTaskQueue.shutdown(ec);
+    if (ec) {
+        return;
+    }
+
+    mProcessor.shutdown(ec);
+    if (ec) {
+        return;
+    }
 }
 
 void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket socket, std::error_code& ec) {
@@ -164,7 +205,7 @@ void CompletionContext::releaseSendBuffer(uint16_t id) {
     mSendBufferQueue.push(id);
 }
 
-void CompletionContext::poll() {
+bool CompletionContext::poll() {
     std::vector<InfinibandSocket> draining;
     struct ibv_wc wc[mCompletionQueueLength];
 
@@ -186,17 +227,48 @@ void CompletionContext::poll() {
         processWorkComplete(&wc[i]);
     }
 
-    // Process all task from the task queue
-    std::function<void()> fun;
-    while (mTaskQueue.read(fun)) {
-        fun();
-    }
-
     // Process all drained connections
     for (auto& socket: draining) {
         socket->onDrained();
     }
     draining.clear();
+
+    return (num > 0);
+}
+
+void CompletionContext::prepareSleep() {
+    if (mSleeping) {
+        return;
+    }
+
+    COMPLETION_LOG("Activating completion channel");
+    if (auto res = ibv_req_notify_cq(mCompletionQueue, 0) != 0) {
+        COMPLETION_ERROR("Error while requesting completion queue notification [error = %2% %3%]", res, strerror(res));
+        // TODO Error handling
+        std::terminate();
+    }
+    mSleeping = true;
+
+    // Consume work completions that arrived between the last poll and the activation of the completion channel
+    poll();
+}
+
+void CompletionContext::wakeup() {
+    COMPLETION_LOG("Completion channel ready");
+    struct ibv_cq* cq;
+    void* context;
+    int num = 0;
+    while (ibv_get_cq_event(mCompletionChannel, &cq, &context) == 0) {
+        if (cq != mCompletionQueue) {
+            COMPLETION_ERROR("Unknown completion queue");
+            break;
+        }
+        ++num;
+    }
+    if (num > 0) {
+        ibv_ack_cq_events(mCompletionQueue, num);
+    }
+    mSleeping = false;
 }
 
 void CompletionContext::processWorkComplete(struct ibv_wc* wc) {

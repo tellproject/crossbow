@@ -32,6 +32,8 @@ set(SRCS
     src/DeviceContext.hpp
     src/DeviceContext.cpp
     src/Endpoint.cpp
+    src/EventProcessor.hpp
+    src/EventProcessor.cpp
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
