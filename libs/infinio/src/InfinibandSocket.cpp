@@ -31,15 +31,15 @@ void InfinibandBaseSocket<SocketType>::open(std::error_code& ec) {
 
     SOCKET_LOG("Open socket");
 
-    // Increment the reference count by one and then detach the pointer
-    boost::intrusive_ptr<SocketType> ptr(static_cast<SocketType*>(this));
+    // Increment the reference count by one before assigning it as context
+    intrusive_ptr_add_ref(this);
 
     errno = 0;
-    if (rdma_create_id(mChannel, &mId, ptr.detach(), RDMA_PS_TCP) != 0) {
+    if (rdma_create_id(mChannel, &mId, static_cast<SocketType*>(this), RDMA_PS_TCP) != 0) {
         ec = std::error_code(errno, std::system_category());
 
-        // Open failed, attach the pointer back without incrementing the counter so it gets decremented on destruction
-        ptr.reset(static_cast<SocketType*>(this), false);
+        // Open failed, decrement the reference count again
+        intrusive_ptr_release(this);
 
         return;
     }
@@ -59,20 +59,15 @@ void InfinibandBaseSocket<SocketType>::close(std::error_code& ec) {
     }
 
     SOCKET_LOG("Close socket");
-
-    // Attach the pointer back without incrementing the counter
-    boost::intrusive_ptr<SocketType> ptr(static_cast<SocketType*>(this), false);
-
     errno = 0;
     if (rdma_destroy_id(mId) != 0) {
         ec = std::error_code(errno, std::system_category());
-
-        // Close failed, detach the pointer again
-        ptr.detach();
-
         return;
     }
     mId = nullptr;
+
+    // Decrement the reference count
+    intrusive_ptr_release(this);
 }
 
 template <typename SocketType>

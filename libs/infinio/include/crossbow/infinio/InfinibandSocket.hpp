@@ -6,8 +6,8 @@
 #include <crossbow/string.hpp>
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
-#include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -24,11 +24,20 @@ class InfinibandService;
 class InfinibandSocketImpl;
 using InfinibandSocket = boost::intrusive_ptr<InfinibandSocketImpl>;
 
+template <typename SocketType>
+class InfinibandBaseSocket;
+
+template <typename SocketType>
+inline void intrusive_ptr_add_ref(const InfinibandBaseSocket<SocketType>* socket) noexcept;
+
+template <typename SocketType>
+inline void intrusive_ptr_release(const InfinibandBaseSocket<SocketType>* socket) noexcept;
+
 /**
  * @brief Base class containing common functionality shared between InfinibandAcceptor and InfinibandSocket
  */
 template <typename SocketType>
-class InfinibandBaseSocket : public boost::intrusive_ref_counter<SocketType> {
+class InfinibandBaseSocket {
 public:
     void open(std::error_code& ec);
 
@@ -43,17 +52,19 @@ public:
 protected:
     InfinibandBaseSocket(struct rdma_event_channel* channel)
             : mChannel(channel),
-              mId(nullptr) {
+              mId(nullptr),
+              mReferenceCount(0x0u) {
     }
 
     InfinibandBaseSocket(struct rdma_cm_id* id)
             : mChannel(id->channel),
-              mId(id) {
+              mId(id),
+              mReferenceCount(0x0u) {
         // TODO Assert that mId->context was null
 
         // The ID is already open, increment the reference count by one and then detach the pointer
-        boost::intrusive_ptr<SocketType> ptr(static_cast<SocketType*>(this));
-        mId->context = ptr.detach();
+        intrusive_ptr_add_ref(this);
+        mId->context = static_cast<SocketType*>(this);
     }
 
     /// The RDMA channel the connection is associated with
@@ -61,7 +72,26 @@ protected:
 
     /// The RDMA ID of this connection
     struct rdma_cm_id* mId;
+
+private:
+    friend void intrusive_ptr_add_ref<SocketType>(const InfinibandBaseSocket<SocketType>* socket) noexcept;
+    friend void intrusive_ptr_release<SocketType>(const InfinibandBaseSocket<SocketType>* socket) noexcept;
+
+    mutable std::atomic<uint64_t> mReferenceCount;
 };
+
+template <typename SocketType>
+inline void intrusive_ptr_add_ref(const InfinibandBaseSocket<SocketType>* socket) noexcept {
+    ++(socket->mReferenceCount);
+}
+
+template <typename SocketType>
+inline void intrusive_ptr_release(const InfinibandBaseSocket<SocketType>* socket) noexcept {
+    auto count = --(socket->mReferenceCount);
+    if (count == 0) {
+        delete static_cast<const SocketType*>(socket);
+    }
+}
 
 /**
  * @brief Interface class containing callbacks for various socket events
