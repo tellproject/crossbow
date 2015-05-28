@@ -79,6 +79,10 @@ private:
  */
 class LocalMemoryRegion {
 public:
+    LocalMemoryRegion()
+            : mDataRegion(nullptr) {
+    }
+
     LocalMemoryRegion(struct ibv_mr* dataRegion)
             : mDataRegion(dataRegion) {
     }
@@ -133,6 +137,12 @@ private:
  */
 class RemoteMemoryRegion {
 public:
+    RemoteMemoryRegion()
+            : mAddress(0x0u),
+              mLength(0x0u),
+              mKey(0x0u) {
+    }
+
     RemoteMemoryRegion(uintptr_t address, size_t length, uint32_t key)
             : mAddress(address),
               mLength(length),
