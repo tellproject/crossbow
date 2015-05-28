@@ -106,6 +106,10 @@ InfinibandSocket InfinibandService::createSocket(uint64_t thread) {
     return InfinibandSocket(new InfinibandSocketImpl(*this, mChannel, mDevice->context(thread)));
 }
 
+LocalMemoryRegion InfinibandService::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
+    return mDevice->registerMemoryRegion(data, length, access, ec);
+}
+
 CompletionContext* InfinibandService::context(uint64_t num) {
     return mDevice->context(num);
 }

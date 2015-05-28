@@ -52,6 +52,8 @@ public:
 
     InfinibandSocket createSocket(uint64_t thread = 0);
 
+    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec);
+
 private:
     friend class InfinibandSocketImpl;
 
