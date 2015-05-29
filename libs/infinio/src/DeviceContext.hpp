@@ -40,6 +40,7 @@ public:
               mSendBufferCount(limits.sendBufferCount),
               mSendBufferLength(limits.bufferLength),
               mSendQueueLength(limits.sendQueueLength),
+              mMaxScatterGather(limits.maxScatterGather),
               mCompletionQueueLength(limits.completionQueueLength),
               mSendDataRegion(nullptr),
               mSendData(nullptr),
@@ -200,6 +201,9 @@ private:
 
     /// Size of the send queue to allocate for each connection
     uint32_t mSendQueueLength;
+
+    /// Maximum supported number of scatter gather elements
+    uint32_t mMaxScatterGather;
 
     /// Size of the completion queue to allocate
     uint32_t mCompletionQueueLength;

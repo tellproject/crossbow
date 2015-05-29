@@ -15,6 +15,7 @@ public:
               sendBufferCount(64),
               bufferLength(256),
               sendQueueLength(64),
+              maxScatterGather(1),
               completionQueueLength(128),
               pollCycles(1000000),
               contextThreads(2) {
@@ -39,6 +40,11 @@ public:
      * @brief Size of the send queue to allocate for each connection
      */
     uint32_t sendQueueLength;
+
+    /**
+     * @brief Maximum supported number of scatter gather elements
+     */
+    uint32_t maxScatterGather;
 
     /**
      * @brief Size of the completion queue to allocate for each completion context

@@ -128,7 +128,7 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
     qp_attr.recv_cq = mCompletionQueue;
     qp_attr.srq = mDevice.mReceiveQueue;
     qp_attr.cap.max_send_wr = mSendQueueLength;
-    qp_attr.cap.max_send_sge = 1;
+    qp_attr.cap.max_send_sge = mMaxScatterGather;
     qp_attr.qp_type = IBV_QPT_RC;
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
     qp_attr.pd = mDevice.mProtectionDomain;
