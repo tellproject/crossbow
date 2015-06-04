@@ -281,6 +281,9 @@ public:
     void read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
             std::error_code& ec);
 
+    void read(const RemoteMemoryRegion& src, size_t offset, ScatterGatherBuffer& dst, uint32_t userId,
+            std::error_code& ec);
+
     /**
      * @brief Start a RDMA write from the local source buffer into the remote memory region with offset
      *
@@ -291,6 +294,9 @@ public:
      * @param ec Error in case the write failed
      */
     void write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            std::error_code& ec);
+
+    void write(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
             std::error_code& ec);
 
     uint32_t bufferLength() const;
@@ -321,6 +327,12 @@ private:
     }
 
     void doSend(struct ibv_send_wr* wr, std::error_code& ec);
+
+    template <typename Buffer>
+    void doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId, std::error_code& ec);
+
+    template <typename Buffer>
+    void doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, std::error_code& ec);
 
     /**
      * @brief The address to the remote host was successfully resolved

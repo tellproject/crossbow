@@ -123,6 +123,10 @@ void InfinibandSocketHandler::onReceive(const void* buffer, size_t length, const
     // Empty default function
 }
 
+void InfinibandSocketHandler::onImmediate(uint32_t data) {
+    // Empty default function
+}
+
 void InfinibandSocketHandler::onSend(uint32_t userId, const std::error_code& ec) {
     // Empty default function
 }
@@ -239,50 +243,22 @@ void InfinibandSocketImpl::send(InfinibandBuffer& buffer, uint32_t userId, std::
 
 void InfinibandSocketImpl::read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
         std::error_code& ec) {
-    if (offset +  dst.length() > src.length()) {
-        ec = error::out_of_range;
-        return;
-    }
+    doRead(src, offset, dst, userId, ec);
+}
 
-    WorkRequestId workId(userId, dst.id(), WorkType::READ);
-
-    struct ibv_send_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.opcode = IBV_WR_RDMA_READ;
-    wr.wr_id = workId.id();
-    wr.sg_list = dst.handle();
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
-    wr.wr.rdma.remote_addr = src.address();
-    wr.wr.rdma.rkey = src.key();
-
-    SOCKET_LOG("%1%: RDMA read %2% bytes from remote %3% into buffer %4%", formatRemoteAddress(mId), dst.length(),
-            reinterpret_cast<void*>(src.address()), dst.id());
-    doSend(&wr, ec);
+void InfinibandSocketImpl::read(const RemoteMemoryRegion& src, size_t offset, ScatterGatherBuffer& dst, uint32_t userId,
+        std::error_code& ec) {
+    doRead(src, offset, dst, userId, ec);
 }
 
 void InfinibandSocketImpl::write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
         std::error_code& ec) {
-    if (offset +  src.length() > dst.length()) {
-        ec = error::out_of_range;
-        return;
-    }
+    doWrite(src, dst, offset, userId, ec);
+}
 
-    WorkRequestId workId(userId, src.id(), WorkType::WRITE);
-
-    struct ibv_send_wr wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.opcode = IBV_WR_RDMA_WRITE;
-    wr.wr_id = workId.id();
-    wr.sg_list = src.handle();
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
-    wr.wr.rdma.remote_addr = dst.address();
-    wr.wr.rdma.rkey = dst.key();
-
-    SOCKET_LOG("%1%: RDMA write %2% bytes to remote %3% from buffer %4%", formatRemoteAddress(mId), src.length(),
-            reinterpret_cast<void*>(dst.address()), src.id());
-    doSend(&wr, ec);
+void InfinibandSocketImpl::write(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
+        uint32_t userId, std::error_code& ec) {
+    doWrite(src, dst, offset, userId, ec);
 }
 
 uint32_t InfinibandSocketImpl::bufferLength() const {
@@ -312,6 +288,56 @@ void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
         ec = std::error_code(res, std::system_category());
         return;
     }
+}
+
+template <typename Buffer>
+void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId,
+        std::error_code& ec) {
+    if (offset +  dst.length() > src.length()) {
+        ec = error::out_of_range;
+        return;
+    }
+
+    WorkRequestId workId(userId, dst.id(), WorkType::READ);
+
+    struct ibv_send_wr wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.opcode = IBV_WR_RDMA_READ;
+    wr.wr_id = workId.id();
+    wr.sg_list = dst.handle();
+    wr.num_sge = dst.count();
+    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.wr.rdma.remote_addr = src.address();
+    wr.wr.rdma.rkey = src.key();
+
+    SOCKET_LOG("%1%: RDMA read %2% bytes from remote %3% into %4% buffer with ID %5%", formatRemoteAddress(mId),
+            dst.length(), reinterpret_cast<void*>(src.address()), dst.count(), dst.id());
+    doSend(&wr, ec);
+}
+
+template <typename Buffer>
+void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+        std::error_code& ec) {
+    if (offset +  src.length() > dst.length()) {
+        ec = error::out_of_range;
+        return;
+    }
+
+    WorkRequestId workId(userId, src.id(), WorkType::WRITE);
+
+    struct ibv_send_wr wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.opcode = IBV_WR_RDMA_WRITE;
+    wr.wr_id = workId.id();
+    wr.sg_list = src.handle();
+    wr.num_sge = src.count();
+    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.wr.rdma.remote_addr = dst.address();
+    wr.wr.rdma.rkey = dst.key();
+
+    SOCKET_LOG("%1%: RDMA write %2% bytes to remote %3% from %4% buffer with ID %5%", formatRemoteAddress(mId),
+            src.length(), reinterpret_cast<void*>(dst.address()), src.count(), src.id());
+    doSend(&wr, ec);
 }
 
 void InfinibandSocketImpl::onAddressResolved() {

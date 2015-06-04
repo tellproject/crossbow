@@ -7,6 +7,30 @@
 namespace crossbow {
 namespace infinio {
 
+void ScatterGatherBuffer::add(const LocalMemoryRegion& region, const void* addr, uint32_t length) {
+    // Range and access checks are made when sending the buffer so we skip them here
+    struct ibv_sge element;
+    element.addr = reinterpret_cast<uintptr_t>(addr);
+    element.length = length;
+    element.lkey = region.lkey();
+    mHandle.push_back(element);
+    mLength += length;
+}
+
+void ScatterGatherBuffer::add(const InfinibandBuffer& buffer, size_t offset, uint32_t length) {
+    if (offset + length > buffer.length()) {
+        // TODO Error handling
+        return;
+    }
+
+    struct ibv_sge element;
+    element.addr = reinterpret_cast<uintptr_t>(buffer.data()) + offset;
+    element.length = length;
+    element.lkey = buffer.lkey();
+    mHandle.push_back(element);
+    mLength += length;
+}
+
 void LocalMemoryRegion::releaseMemoryRegion(std::error_code& ec) {
     if (!mDataRegion) {
         return;
@@ -20,9 +44,9 @@ void LocalMemoryRegion::releaseMemoryRegion(std::error_code& ec) {
     mDataRegion = nullptr;
 }
 
-InfinibandBuffer LocalMemoryRegion::acquireBuffer(uint16_t id, uint64_t offset, uint32_t length) {
+InfinibandBuffer LocalMemoryRegion::acquireBuffer(uint16_t id, size_t offset, uint32_t length) {
     if (offset + length > mDataRegion->length) {
-        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);;
+        return InfinibandBuffer(InfinibandBuffer::INVALID_ID);
     }
 
     InfinibandBuffer buffer(id);

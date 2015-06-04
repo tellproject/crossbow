@@ -4,6 +4,7 @@
 #include <cstring>
 #include <limits>
 #include <system_error>
+#include <vector>
 
 #include <rdma/rdma_cma.h>
 
@@ -28,6 +29,16 @@ public:
         return mId;
     }
 
+    /**
+     * @brief The number of buffers
+     */
+    size_t count() const {
+        return 1;
+    }
+
+    /**
+     * @brief The total data length of all buffers
+     */
     uint32_t length() const {
         return mHandle.length;
     }
@@ -66,6 +77,12 @@ public:
     }
 
 private:
+    friend class ScatterGatherBuffer;
+
+    uint32_t lkey() const {
+        return mHandle.lkey;
+    }
+
     struct ibv_sge mHandle;
 
     uint16_t mId;
@@ -128,7 +145,7 @@ public:
         return mDataRegion->length;
     }
 
-    uint32_t key() const {
+    uint32_t rkey() const {
         return mDataRegion->rkey;
     }
 
@@ -142,9 +159,15 @@ public:
      * @param length Length of the buffer
      * @return A newly acquired buffer or a buffer with invalid ID in case of an error
      */
-    InfinibandBuffer acquireBuffer(uint16_t id, uint64_t offset, uint32_t length);
+    InfinibandBuffer acquireBuffer(uint16_t id, size_t offset, uint32_t length);
 
 private:
+    friend class ScatterGatherBuffer;
+
+    uint32_t lkey() const {
+        return mDataRegion->lkey;
+    }
+
     struct ibv_mr* mDataRegion;
 };
 
@@ -183,6 +206,69 @@ private:
     uintptr_t mAddress;
     size_t mLength;
     uint32_t mKey;
+};
+
+/**
+ * @brief Buffer class wrapping many buffers into a single one to be used in scatter / gather operations
+ */
+class ScatterGatherBuffer {
+public:
+    ScatterGatherBuffer(uint16_t id)
+            : mId(id),
+              mLength(0) {
+    }
+
+    uint16_t id() const {
+        return mId;
+    }
+
+    /**
+     * @brief The number of buffers
+     */
+    size_t count() const {
+        return mHandle.size();
+    }
+
+    /**
+     * @brief The total data length of all buffers
+     */
+    size_t length() const {
+        return mLength;
+    }
+
+    void add(const LocalMemoryRegion& region, const void* addr, uint32_t length);
+
+    void add(const LocalMemoryRegion& region, size_t offset, uint32_t length) {
+        add(region, reinterpret_cast<const void*>(region.address() + offset), length);
+    }
+
+    void add(const InfinibandBuffer& buffer, size_t offset, uint32_t length);
+
+    void* data(size_t index) {
+        return const_cast<void*>(const_cast<const ScatterGatherBuffer*>(this)->data(index));
+    }
+
+    const void* data(size_t index) const {
+        return reinterpret_cast<const void*>(mHandle.at(index).addr);
+    }
+
+    struct ibv_sge* handle() {
+        return mHandle.data();
+    }
+
+    /**
+     * @brief Clears all buffers
+     */
+    void reset() {
+        mHandle.clear();
+        mLength = 0;
+    }
+
+private:
+    std::vector<struct ibv_sge> mHandle;
+    uint64_t mLength;
+
+    uint16_t mId;
 };
 
 } // namespace infinio
