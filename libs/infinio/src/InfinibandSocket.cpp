@@ -243,22 +243,42 @@ void InfinibandSocketImpl::send(InfinibandBuffer& buffer, uint32_t userId, std::
 
 void InfinibandSocketImpl::read(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
         std::error_code& ec) {
-    doRead(src, offset, dst, userId, ec);
+    doRead(src, offset, dst, userId, IBV_SEND_SIGNALED, ec);
 }
 
 void InfinibandSocketImpl::read(const RemoteMemoryRegion& src, size_t offset, ScatterGatherBuffer& dst, uint32_t userId,
         std::error_code& ec) {
-    doRead(src, offset, dst, userId, ec);
+    doRead(src, offset, dst, userId, IBV_SEND_SIGNALED, ec);
+}
+
+void InfinibandSocketImpl::readUnsignaled(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst,
+        uint32_t userId, std::error_code& ec) {
+    doRead(src, offset, dst, userId, 0x0u, ec);
+}
+
+void InfinibandSocketImpl::readUnsignaled(const RemoteMemoryRegion& src, size_t offset, ScatterGatherBuffer& dst,
+        uint32_t userId, std::error_code& ec) {
+    doRead(src, offset, dst, userId, 0x0u, ec);
 }
 
 void InfinibandSocketImpl::write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
         std::error_code& ec) {
-    doWrite(src, dst, offset, userId, ec);
+    doWrite(src, dst, offset, userId, IBV_SEND_SIGNALED, ec);
 }
 
 void InfinibandSocketImpl::write(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
         uint32_t userId, std::error_code& ec) {
-    doWrite(src, dst, offset, userId, ec);
+    doWrite(src, dst, offset, userId, IBV_SEND_SIGNALED, ec);
+}
+
+void InfinibandSocketImpl::writeUnsignaled(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
+        uint32_t userId, std::error_code& ec) {
+    doWrite(src, dst, offset, userId, 0x0u, ec);
+}
+
+void InfinibandSocketImpl::writeUnsignaled(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset,
+        uint32_t userId, std::error_code& ec) {
+    doWrite(src, dst, offset, userId, 0x0u, ec);
 }
 
 uint32_t InfinibandSocketImpl::bufferLength() const {
@@ -291,7 +311,7 @@ void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
 }
 
 template <typename Buffer>
-void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId,
+void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId, int flags,
         std::error_code& ec) {
     if (offset +  dst.length() > src.length()) {
         ec = error::out_of_range;
@@ -306,7 +326,7 @@ void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, 
     wr.wr_id = workId.id();
     wr.sg_list = dst.handle();
     wr.num_sge = dst.count();
-    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.send_flags = flags;
     wr.wr.rdma.remote_addr = src.address();
     wr.wr.rdma.rkey = src.key();
 
@@ -317,7 +337,7 @@ void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, 
 
 template <typename Buffer>
 void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
-        std::error_code& ec) {
+        int flags, std::error_code& ec) {
     if (offset +  src.length() > dst.length()) {
         ec = error::out_of_range;
         return;
@@ -331,7 +351,7 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
     wr.wr_id = workId.id();
     wr.sg_list = src.handle();
     wr.num_sge = src.count();
-    wr.send_flags = IBV_SEND_SIGNALED;
+    wr.send_flags = flags;
     wr.wr.rdma.remote_addr = dst.address();
     wr.wr.rdma.rkey = dst.key();
 

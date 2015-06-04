@@ -285,6 +285,23 @@ public:
             std::error_code& ec);
 
     /**
+     * @brief Start a unsignaled RDMA read from the remote memory region with offset into the local target buffer
+     *
+     * The onRead event handler will not be invoked in case the read succeeds.
+     *
+     * @param src Remote memory region to read from
+     * @param offset Offset into the remote memory region
+     * @param dst Local buffer to write the data into
+     * @param userId User supplied ID passed to the completion handler
+     * @param ec Error in case the read failed
+     */
+    void readUnsignaled(const RemoteMemoryRegion& src, size_t offset, InfinibandBuffer& dst, uint32_t userId,
+            std::error_code& ec);
+
+    void readUnsignaled(const RemoteMemoryRegion& src, size_t offset, ScatterGatherBuffer& dst, uint32_t userId,
+            std::error_code& ec);
+
+    /**
      * @brief Start a RDMA write from the local source buffer into the remote memory region with offset
      *
      * @param src Local buffer to read the data from
@@ -297,6 +314,23 @@ public:
             std::error_code& ec);
 
     void write(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            std::error_code& ec);
+
+    /**
+     * @brief Start a unsignaled RDMA write from the local source buffer into the remote memory region with offset
+     *
+     * The onWrite event handler will not be invoked in case the write succeeds.
+     *
+     * @param src Local buffer to read the data from
+     * @param dst Remote memory region to write the data into
+     * @param offset Offset into the remote memory region
+     * @param userId User supplied ID passed to the completion handler
+     * @param ec Error in case the write failed
+     */
+    void writeUnsignaled(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            std::error_code& ec);
+
+    void writeUnsignaled(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
             std::error_code& ec);
 
     uint32_t bufferLength() const;
@@ -329,10 +363,12 @@ private:
     void doSend(struct ibv_send_wr* wr, std::error_code& ec);
 
     template <typename Buffer>
-    void doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId, std::error_code& ec);
+    void doRead(const RemoteMemoryRegion& src, size_t offset, Buffer& dst, uint32_t userId, int flags,
+            std::error_code& ec);
 
     template <typename Buffer>
-    void doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, std::error_code& ec);
+    void doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, int flags,
+        std::error_code& ec);
 
     /**
      * @brief The address to the remote host was successfully resolved
