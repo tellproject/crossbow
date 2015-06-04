@@ -442,11 +442,11 @@ void DeviceContext::shutdown(std::error_code& ec) {
 LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
     DEVICE_LOG("Create memory region at %1%", data);
     errno = 0;
-    mReceiveDataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
-    if (mReceiveDataRegion == nullptr) {
+    auto dataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
+    if (dataRegion == nullptr) {
         ec = std::error_code(errno, std::system_category());
     }
-    return LocalMemoryRegion(mReceiveDataRegion);
+    return LocalMemoryRegion(dataRegion);
 }
 
 struct ibv_mr* DeviceContext::allocateMemoryRegion(size_t length, std::error_code& ec) {
