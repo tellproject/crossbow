@@ -360,12 +360,12 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
 
     case WorkType::READ: {
         COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
-        socket->onRead(workId.userId(), ec);
+        socket->onRead(workId.userId(), workId.bufferId(), ec);
     } break;
 
     case WorkType::WRITE: {
         COMPLETION_LOG("Executing successful read event of id %1%", workId.bufferId());
-        socket->onWrite(workId.userId(), ec);
+        socket->onWrite(workId.userId(), workId.bufferId(), ec);
     } break;
 
     default: {

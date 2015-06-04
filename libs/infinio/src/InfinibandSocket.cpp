@@ -127,11 +127,11 @@ void InfinibandSocketHandler::onSend(uint32_t userId, const std::error_code& ec)
     // Empty default function
 }
 
-void InfinibandSocketHandler::onRead(uint32_t userId, const std::error_code& ec) {
+void InfinibandSocketHandler::onRead(uint32_t userId, uint16_t bufferId, const std::error_code& ec) {
     // Empty default function
 }
 
-void InfinibandSocketHandler::onWrite(uint32_t userId, const std::error_code& ec) {
+void InfinibandSocketHandler::onWrite(uint32_t userId, uint16_t bufferId, const std::error_code& ec) {
     // Empty default function
 }
 

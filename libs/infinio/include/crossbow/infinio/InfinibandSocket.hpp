@@ -201,7 +201,7 @@ public:
      * @param userId The user supplied ID of the read call
      * @param ec Error in case the read failed
      */
-    virtual void onRead(uint32_t userId, const std::error_code& ec);
+    virtual void onRead(uint32_t userId, uint16_t bufferId, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever data was written to the remote host
@@ -209,7 +209,7 @@ public:
      * @param userId The user supplied ID of the write call
      * @param ec Error in case the write failed
      */
-    virtual void onWrite(uint32_t userId, const std::error_code& ec);
+    virtual void onWrite(uint32_t userId, uint16_t bufferId, const std::error_code& ec);
 
     /**
      * @brief Invoked whenever immediate data was received from the remote host
@@ -494,15 +494,15 @@ private:
     /**
      * @brief The connection completed a read operation
      */
-    void onRead(uint32_t userId, const std::error_code& ec) {
-        mHandler->onRead(userId, ec);
+    void onRead(uint32_t userId, uint16_t bufferId, const std::error_code& ec) {
+        mHandler->onRead(userId, bufferId, ec);
     }
 
     /**
      * @brief The connection completed a write operation
      */
-    void onWrite(uint32_t userId, const std::error_code& ec) {
-        mHandler->onWrite(userId, ec);
+    void onWrite(uint32_t userId, uint16_t bufferId, const std::error_code& ec) {
+        mHandler->onWrite(userId, bufferId, ec);
     }
 
     /**
