@@ -95,6 +95,24 @@ public:
         }
     }
 
+    LocalMemoryRegion(const LocalMemoryRegion&) = delete;
+    LocalMemoryRegion& operator=(const LocalMemoryRegion&) = delete;
+
+    LocalMemoryRegion(LocalMemoryRegion&& other)
+            : mDataRegion(other.mDataRegion) {
+        other.mDataRegion = nullptr;
+    }
+
+    LocalMemoryRegion& operator=(LocalMemoryRegion&& other) {
+        std::error_code ec;
+        releaseMemoryRegion(ec);
+        if (ec) {
+            // TODO Log error?
+        }
+        mDataRegion = other.mDataRegion;
+        other.mDataRegion = nullptr;
+    }
+
     /**
      * @brief Deregisters the memory region
      *
