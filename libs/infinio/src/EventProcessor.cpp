@@ -28,8 +28,7 @@ void EventProcessor::shutdown(std::error_code& ec) {
         return;
     }
 
-    auto res = close(mEpoll);
-    if (res != 0) {
+    if (auto res = close(mEpoll)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
@@ -108,8 +107,7 @@ void TaskQueue::shutdown(std::error_code& ec) {
         return;
     }
 
-    auto res = close(mInterrupt);
-    if (res != 0) {
+    if (auto res = close(mInterrupt)) {
         ec = std::error_code(res, std::system_category());
         return;
     }

@@ -49,7 +49,6 @@ void CompletionContext::init(std::error_code& ec) {
     }
 
     COMPLETION_LOG("Create completion channel");
-    errno = 0;
     mCompletionChannel = ibv_create_comp_channel(mDevice.mVerbs);
     if (mCompletionChannel == nullptr) {
         ec = std::error_code(errno, std::system_category());
@@ -70,7 +69,6 @@ void CompletionContext::init(std::error_code& ec) {
     }
 
     COMPLETION_LOG("Create completion queue");
-    errno = 0;
     mCompletionQueue = ibv_create_cq(mDevice.mVerbs, mCompletionQueueLength, nullptr, mCompletionChannel, 0);
     if (mCompletionQueue == nullptr) {
         ec = std::error_code(errno, std::system_category());
@@ -89,14 +87,14 @@ void CompletionContext::shutdown(std::error_code& ec) {
     mShutdown.store(true);
 
     COMPLETION_LOG("Destroy completion queue");
-    if (auto res = ibv_destroy_cq(mCompletionQueue) != 0) {
+    if (auto res = ibv_destroy_cq(mCompletionQueue)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
     mCompletionQueue = nullptr;
 
     COMPLETION_LOG("Destroy completion channel");
-    if (auto res = ibv_destroy_comp_channel(mCompletionChannel) != 0) {
+    if (auto res = ibv_destroy_comp_channel(mCompletionChannel)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
@@ -134,8 +132,7 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
     qp_attr.pd = mDevice.mProtectionDomain;
 
     COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(id));
-    errno = 0;
-    if (rdma_create_qp_ex(id, &qp_attr) != 0) {
+    if (rdma_create_qp_ex(id, &qp_attr)) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -167,7 +164,7 @@ void CompletionContext::removeConnection(struct rdma_cm_id* id, std::error_code&
 
     errno = 0;
     rdma_destroy_qp(id);
-    if (errno != 0) {
+    if (errno) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -242,7 +239,7 @@ void CompletionContext::prepareSleep() {
     }
 
     COMPLETION_LOG("Activating completion channel");
-    if (auto res = ibv_req_notify_cq(mCompletionQueue, 0) != 0) {
+    if (auto res = ibv_req_notify_cq(mCompletionQueue, 0)) {
         COMPLETION_ERROR("Error while requesting completion queue notification [error = %2% %3%]", res, strerror(res));
         // TODO Error handling
         std::terminate();
@@ -378,7 +375,6 @@ void DeviceContext::init(std::error_code& ec) {
     }
 
     DEVICE_LOG("Allocate protection domain");
-    errno = 0;
     mProtectionDomain = ibv_alloc_pd(mVerbs);
     if (mProtectionDomain == nullptr) {
         ec = std::error_code(errno, std::system_category());
@@ -421,7 +417,7 @@ void DeviceContext::shutdown(std::error_code& ec) {
     mCompletion.clear();
 
     DEVICE_LOG("Destroy shared receive queue");
-    if (auto res = ibv_destroy_srq(mReceiveQueue) != 0) {
+    if (auto res = ibv_destroy_srq(mReceiveQueue)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
@@ -433,7 +429,7 @@ void DeviceContext::shutdown(std::error_code& ec) {
     }
 
     DEVICE_LOG("Destroy protection domain");
-    if (auto res = ibv_dealloc_pd(mProtectionDomain) != 0) {
+    if (auto res = ibv_dealloc_pd(mProtectionDomain)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
@@ -441,7 +437,6 @@ void DeviceContext::shutdown(std::error_code& ec) {
 
 LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
     DEVICE_LOG("Create memory region at %1%", data);
-    errno = 0;
     auto dataRegion = ibv_reg_mr(mProtectionDomain, data, length, access);
     if (dataRegion == nullptr) {
         ec = std::error_code(errno, std::system_category());
@@ -451,7 +446,6 @@ LocalMemoryRegion DeviceContext::registerMemoryRegion(void* data, size_t length,
 
 struct ibv_mr* DeviceContext::allocateMemoryRegion(size_t length, std::error_code& ec) {
     DEVICE_LOG("Map %1% bytes of buffer space", length);
-    errno = 0;
     auto data = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
     if (data == MAP_FAILED) {
         ec = std::error_code(errno, std::system_category());
@@ -459,7 +453,6 @@ struct ibv_mr* DeviceContext::allocateMemoryRegion(size_t length, std::error_cod
     }
 
     DEVICE_LOG("Create memory region at %1%", data);
-    errno = 0;
     auto memoryRegion = ibv_reg_mr(mProtectionDomain, data, length, IBV_ACCESS_LOCAL_WRITE);
     if (memoryRegion == nullptr) {
         ec = std::error_code(errno, std::system_category());
@@ -473,15 +466,14 @@ void DeviceContext::destroyMemoryRegion(struct ibv_mr* memoryRegion, std::error_
     auto data = memoryRegion->addr;
     auto length = memoryRegion->length;
     DEVICE_LOG("Destroy memory region at %1%", data);
-    if (auto res = ibv_dereg_mr(memoryRegion) != 0) {
+    if (auto res = ibv_dereg_mr(memoryRegion)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
 
     // TODO Size has to be a multiple of the page size
     DEVICE_LOG("Unmap buffer space at %1%", data);
-    errno = 0;
-    if (munmap(data, length) != 0) {
+    if (munmap(data, length)) {
         ec = std::error_code(errno, std::system_category());
     }
 }
@@ -493,7 +485,6 @@ void DeviceContext::initReceiveQueue(std::error_code& ec) {
     srq_attr.attr.max_wr = mReceiveBufferCount;
     srq_attr.attr.max_sge = 1;
 
-    errno = 0;
     mReceiveQueue = ibv_create_srq(mProtectionDomain, &srq_attr);
     if (mReceiveQueue == nullptr) {
         ec = std::error_code(errno, std::system_category());

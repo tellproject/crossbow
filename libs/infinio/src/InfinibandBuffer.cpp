@@ -13,7 +13,7 @@ void LocalMemoryRegion::releaseMemoryRegion(std::error_code& ec) {
     }
 
     REGION_LOG("Releasing memory region at %1%", mDataRegion->addr);
-    if (auto res = ibv_dereg_mr(mDataRegion) != 0) {
+    if (auto res = ibv_dereg_mr(mDataRegion)) {
         ec = std::error_code(res, std::system_category());
         return;
     }

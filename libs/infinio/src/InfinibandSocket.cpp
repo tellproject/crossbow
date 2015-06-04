@@ -34,8 +34,7 @@ void InfinibandBaseSocket<SocketType>::open(std::error_code& ec) {
     // Increment the reference count by one before assigning it as context
     intrusive_ptr_add_ref(this);
 
-    errno = 0;
-    if (rdma_create_id(mChannel, &mId, static_cast<SocketType*>(this), RDMA_PS_TCP) != 0) {
+    if (rdma_create_id(mChannel, &mId, static_cast<SocketType*>(this), RDMA_PS_TCP)) {
         ec = std::error_code(errno, std::system_category());
 
         // Open failed, decrement the reference count again
@@ -59,8 +58,7 @@ void InfinibandBaseSocket<SocketType>::close(std::error_code& ec) {
     }
 
     SOCKET_LOG("Close socket");
-    errno = 0;
-    if (rdma_destroy_id(mId) != 0) {
+    if (rdma_destroy_id(mId)) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -78,8 +76,7 @@ void InfinibandBaseSocket<SocketType>::bind(Endpoint& addr, std::error_code& ec)
     }
 
     SOCKET_LOG("Bind on address %1%", addr);
-    errno = 0;
-    if (rdma_bind_addr(mId, addr.handle()) != 0) {
+    if (rdma_bind_addr(mId, addr.handle())) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -109,8 +106,7 @@ void InfinibandAcceptorImpl::listen(int backlog, std::error_code& ec) {
     }
 
     SOCKET_LOG("Listen on socket with backlog %1%", backlog);
-    errno = 0;
-    if (rdma_listen(mId, backlog) != 0) {
+    if (rdma_listen(mId, backlog)) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -158,8 +154,7 @@ void InfinibandSocketImpl::connect(Endpoint& addr, std::error_code& ec) {
     }
 
     SOCKET_LOG("%1%: Connect to address", addr);
-    errno = 0;
-    if (rdma_resolve_addr(mId, nullptr, addr.handle(), gTimeout.count()) != 0) {
+    if (rdma_resolve_addr(mId, nullptr, addr.handle(), gTimeout.count())) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -177,8 +172,7 @@ void InfinibandSocketImpl::disconnect(std::error_code& ec) {
     }
 
     SOCKET_LOG("%1%: Disconnect from address", formatRemoteAddress(mId));
-    errno = 0;
-    if (rdma_disconnect(mId) != 0) {
+    if (rdma_disconnect(mId)) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
@@ -202,8 +196,7 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread,
     cm_params.private_data = data.c_str();
     cm_params.private_data_len = data.length();
 
-    errno = 0;
-    if (rdma_accept(mId, &cm_params) != 0) {
+    if (rdma_accept(mId, &cm_params)) {
         auto res = errno;
 
         mContext->removeConnection(mId, ec);
@@ -220,9 +213,7 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread,
 
 void InfinibandSocketImpl::reject(const crossbow::string& data, std::error_code& ec) {
     SOCKET_LOG("%1%: Rejecting connection", formatRemoteAddress(mId));
-
-    errno = 0;
-    if (rdma_reject(mId, data.c_str(), data.length()) != 0) {
+    if (rdma_reject(mId, data.c_str(), data.length())) {
         ec = std::error_code(errno, std::system_category());
     }
 }
@@ -317,7 +308,7 @@ void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
     }
 
     struct ibv_send_wr* bad_wr = nullptr;
-    if (auto res = ibv_post_send(mId->qp, wr, &bad_wr) != 0) {
+    if (auto res = ibv_post_send(mId->qp, wr, &bad_wr)) {
         ec = std::error_code(res, std::system_category());
         return;
     }
@@ -325,8 +316,7 @@ void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
 
 void InfinibandSocketImpl::onAddressResolved() {
     SOCKET_LOG("%1%: Address resolved", formatRemoteAddress(mId));
-    errno = 0;
-    if (rdma_resolve_route(mId, gTimeout.count()) != 0) {
+    if (rdma_resolve_route(mId, gTimeout.count())) {
         mData.clear();
         mHandler->onConnected(mData, std::error_code(errno, std::system_category()));
         return;
@@ -350,8 +340,7 @@ void InfinibandSocketImpl::onRouteResolved() {
     cm_params.private_data = mData.c_str();
     cm_params.private_data_len = mData.length();
 
-    errno = 0;
-    if (rdma_connect(mId, &cm_params) != 0) {
+    if (rdma_connect(mId, &cm_params)) {
         auto res = errno;
 
         mContext->removeConnection(mId, ec);
