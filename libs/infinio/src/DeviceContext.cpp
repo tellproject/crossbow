@@ -314,7 +314,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
             COMPLETION_ERROR("Send buffer but opcode %1% not send", wc->opcode);
             // TODO Send buffer but opcode not send
         }
-        if (workId.workType() == WorkType::RECEIVE && wc->opcode != IBV_WC_RECV) {
+        if (workId.workType() == WorkType::RECEIVE && (wc->opcode & IBV_WC_RECV == 0)) {
             COMPLETION_ERROR("Receive buffer but opcode %1% not receive", wc->opcode);
             // TODO receive buffer but opcode not receive
         }
@@ -336,8 +336,13 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
             // TODO Invalid buffer
             return;
         }
-        auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
-        socket->onReceive(reinterpret_cast<const void*>(buffer), wc->byte_len, ec);
+
+        if (wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
+            socket->onImmediate(ntohl(wc->imm_data));
+        } else {
+            auto buffer = reinterpret_cast<uintptr_t>(mDevice.mReceiveData) + mDevice.bufferOffset(workId.bufferId());
+            socket->onReceive(reinterpret_cast<const void*>(buffer), wc->byte_len, ec);
+        }
 
         std::error_code ec2;
         mDevice.postReceiveBuffer(workId.bufferId(), ec2);

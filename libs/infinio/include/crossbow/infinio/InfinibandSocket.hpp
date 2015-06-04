@@ -212,6 +212,13 @@ public:
     virtual void onWrite(uint32_t userId, const std::error_code& ec);
 
     /**
+     * @brief Invoked whenever immediate data was received from the remote host
+     *
+     * @param data The immediate data send by the remote host
+     */
+    virtual void onImmediate(uint32_t data);
+
+    /**
      * @brief Invoked whenever the remote host disconnected
      *
      * In order to shutdown the connection the handler should also disconnect from the remote host.
@@ -317,6 +324,22 @@ public:
             std::error_code& ec);
 
     /**
+     * @brief Start a immediate data RDMA write from the local source buffer into the remote memory region with offset
+     *
+     * @param src Local buffer to read the data from
+     * @param dst Remote memory region to write the data into
+     * @param offset Offset into the remote memory region
+     * @param userId User supplied ID passed to the completion handler
+     * @param immediate The immediate data in host byte order to send with the RDMA write
+     * @param ec Error in case the write failed
+     */
+    void write(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, uint32_t immediate,
+            std::error_code& ec);
+
+    void write(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            uint32_t immediate, std::error_code& ec);
+
+    /**
      * @brief Start a unsignaled RDMA write from the local source buffer into the remote memory region with offset
      *
      * The onWrite event handler will not be invoked in case the write succeeds.
@@ -332,6 +355,25 @@ public:
 
     void writeUnsignaled(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
             std::error_code& ec);
+
+    /**
+     * @brief Start a unsignaled immediate data RDMA write from the local source buffer into the remote memory region
+     *        with offset
+     *
+     * The onWrite event handler will not be invoked in case the write succeeds.
+     *
+     * @param src Local buffer to read the data from
+     * @param dst Remote memory region to write the data into
+     * @param offset Offset into the remote memory region
+     * @param userId User supplied ID passed to the completion handler
+     * @param immediate The immediate data in host byte order to send with the RDMA write
+     * @param ec Error in case the write failed
+     */
+    void writeUnsignaled(InfinibandBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            uint32_t immediate, std::error_code& ec);
+
+    void writeUnsignaled(ScatterGatherBuffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId,
+            uint32_t immediate, std::error_code& ec);
 
     uint32_t bufferLength() const;
 
@@ -369,6 +411,10 @@ private:
     template <typename Buffer>
     void doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, int flags,
         std::error_code& ec);
+
+    template <typename Buffer>
+    void doWrite(Buffer& src, const RemoteMemoryRegion& dst, size_t offset, uint32_t userId, uint32_t immediate,
+        int flags, std::error_code& ec);
 
     /**
      * @brief The address to the remote host was successfully resolved
@@ -457,6 +503,13 @@ private:
      */
     void onWrite(uint32_t userId, const std::error_code& ec) {
         mHandler->onWrite(userId, ec);
+    }
+
+    /**
+     * @brief The connection completed a receive with immediate operation
+     */
+    void onImmediate(uint32_t data) {
+        mHandler->onImmediate(data);
     }
 
     /**
