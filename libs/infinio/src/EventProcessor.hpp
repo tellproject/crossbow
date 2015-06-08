@@ -37,37 +37,44 @@ public:
 /**
  * @brief Class providing a simple poll based event loop
  *
- * After a number of unsuccessful poll rounds the EventProcessor will go into epoll sleep and wake up whenever an event on any fd is triggered.
+ * After a number of unsuccessful poll rounds the EventProcessor will go into epoll sleep and wake up whenever an event
+ * on any fd is triggered.
  */
 class EventProcessor {
 public:
-    EventProcessor(uint64_t pollCycles)
-            : mPollCycles(pollCycles),
-              mEpoll(-1) {
-    }
-
     /**
      * @brief Initializes the event processor
      *
-     * @param ec Error code in case the initialization failed
+     * Starts the event loop in its own thread.
+     *
+     * @exception std::system_error In case setting up the epoll descriptor failed
      */
-    void init(std::error_code& ec);
+    EventProcessor(uint64_t pollCycles);
 
     /**
      * @brief Shuts down the event processor
-     *
-     * @param ec Error code in case the shutdown failed
      */
-    void shutdown(std::error_code& ec);
+    ~EventProcessor();
 
     /**
      * @brief Register a new event poller
      *
      * @param fd The file descriptor to listen for new events in case the event processor goes to sleep
      * @param poll The event poller polling for new events
-     * @param ec Error code in case adding the fd fails
+     *
+     * @exception std::system_error In case adding the fd fails
      */
-    void registerPoll(int fd, EventPoll* poll, std::error_code& ec);
+    void registerPoll(int fd, EventPoll* poll);
+
+    /**
+     * @brief Deregister an existing event poller
+     *
+     * @param fd The file descriptor the poller is registered with
+     * @param poll The event poller polling for events
+     *
+     * @exception std::system_error In case removing the fd fails
+     */
+    void deregisterPoll(int fd, EventPoll* poll);
 
     /**
      * @brief Start the event loop in its own thread
@@ -98,15 +105,9 @@ private:
  */
 class TaskQueue : private EventPoll {
 public:
-    TaskQueue(EventProcessor& processor)
-            : mProcessor(processor),
-              mInterrupt(-1),
-              mSleeping(false) {
-    }
+    TaskQueue(EventProcessor& processor);
 
-    void init(std::error_code& ec);
-
-    void shutdown(std::error_code& ec);
+    ~TaskQueue();
 
     /**
      * @brief Enqueues the given function into the task queue

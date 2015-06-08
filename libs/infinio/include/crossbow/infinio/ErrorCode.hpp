@@ -59,9 +59,6 @@ enum network_errors {
     /// Already open.
     already_open = 1,
 
-    /// Bad socket ID.
-    bad_descriptor,
-
     /// Address resolution failed.
     address_resolution,
 
@@ -74,11 +71,8 @@ enum network_errors {
     /// Connection error.
     connection_error,
 
-    /// Connection rejected.
-    connection_rejected,
-
-    /// Socket is still connected.
-    still_connected,
+    /// Buffer is invalid.
+    invalid_buffer,
 };
 
 /**
@@ -95,9 +89,6 @@ public:
         case error::already_open:
             return "Already open";
 
-        case error::bad_descriptor:
-            return "Bad socket ID";
-
         case error::address_resolution:
             return "Address resolution failed";
 
@@ -107,11 +98,8 @@ public:
         case error::connection_error:
             return "Connection error";
 
-        case error::connection_rejected:
-            return "Connection rejected";
-
-        case error::still_connected:
-            return "Socket is still connected";
+        case error::invalid_buffer:
+            return "Buffer is invalid";
 
         default:
             return "infinio.network error";

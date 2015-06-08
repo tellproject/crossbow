@@ -8,6 +8,7 @@
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #include <atomic>
+#include <cassert>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -39,15 +40,15 @@ inline void intrusive_ptr_release(const InfinibandBaseSocket<SocketType>* socket
 template <typename SocketType>
 class InfinibandBaseSocket {
 public:
-    void open(std::error_code& ec);
+    void open();
 
     bool isOpen() const {
         return (mId != nullptr);
     }
 
-    void close(std::error_code& ec);
+    void close();
 
-    void bind(Endpoint& addr, std::error_code& ec);
+    void bind(Endpoint& addr);
 
 protected:
     InfinibandBaseSocket(struct rdma_event_channel* channel)
@@ -60,7 +61,7 @@ protected:
             : mChannel(id->channel),
               mId(id),
               mReferenceCount(0x0u) {
-        // TODO Assert that mId->context was null
+        assert(mId->context == nullptr);
 
         // The ID is already open, increment the reference count by one and then detach the pointer
         intrusive_ptr_add_ref(this);
@@ -123,7 +124,7 @@ public:
  */
 class InfinibandAcceptorImpl: public InfinibandBaseSocket<InfinibandAcceptorImpl> {
 public:
-    void listen(int backlog, std::error_code& ec);
+    void listen(int backlog);
 
     void setHandler(InfinibandAcceptorHandler* handler) {
         mHandler = handler;
@@ -246,11 +247,11 @@ public:
 
     void execute(std::function<void()> fun, std::error_code& ec);
 
-    void connect(Endpoint& addr, std::error_code& ec);
+    void connect(Endpoint& addr);
 
-    void connect(Endpoint& addr, const crossbow::string& data, std::error_code& ec);
+    void connect(Endpoint& addr, const crossbow::string& data);
 
-    void disconnect(std::error_code& ec);
+    void disconnect();
 
     /**
      * @brief Accepts the pending connection request
@@ -259,7 +260,7 @@ public:
      * @param thread The polling thread this socket should process on
      * @param ec Error code in case the accept failed
      */
-    void accept(const crossbow::string& data, uint64_t thread, std::error_code& ec);
+    void accept(const crossbow::string& data, uint64_t thread);
 
     /**
      * @brief Rejects the pending connection request
@@ -267,7 +268,7 @@ public:
      * @param data The private data to send to the remote host
      * @param ec Error code in case the reject failed
      */
-    void reject(const crossbow::string& data, std::error_code& ec);
+    void reject(const crossbow::string& data);
 
     /**
      * @brief The address of the remote host
@@ -435,7 +436,9 @@ private:
      *
      * Invoke the onConnected handler to inform the owner that the connection attempt failed.
      */
-    void onResolutionError(error::network_errors err);
+    void onResolutionError(error::network_errors err) {
+        onConnectionEvent(mData, err);
+    }
 
     /**
      * @brief An error has occured while establishing a connection
@@ -456,7 +459,14 @@ private:
      *
      * Invoke the onConnected handler to inform the owner that the socket is now connected.
      */
-    void onConnectionEstablished(const crossbow::string& data);
+    void onConnectionEstablished(const crossbow::string& data) {
+        onConnectionEvent(data, std::error_code());
+    }
+
+    void onConnectionEvent(const crossbow::string& data, const std::error_code& ec) {
+        mData.clear();
+        mHandler->onConnected(data, ec);
+    }
 
     /**
      * @brief The remote connection has been disconnected

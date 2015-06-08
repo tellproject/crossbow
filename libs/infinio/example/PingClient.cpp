@@ -30,7 +30,7 @@ private:
 
     virtual void onDisconnected() override;
 
-    void handleError(std::string message, std::error_code& ec);
+    void handleError(std::string message, const std::error_code& ec);
 
     void sendMessage();
 
@@ -43,22 +43,11 @@ private:
 };
 
 void PingConnection::open(const crossbow::string& server, uint16_t port) {
-    std::error_code ec;
-
     // Open socket
-    mSocket->open(ec);
-    if (ec) {
-        std::cout << "Open failed " << ec << " - " << ec.message() << std::endl;
-    }
-    mSocket->setHandler(this);
-
-    // Connect to remote server
     Endpoint ep(Endpoint::ipv4(), server, port);
-    mSocket->connect(ep, "PingClient", ec);
-    if (ec) {
-        std::cout << "Connect failed " << ec << " - " << ec.message() << std::endl;
-    }
-
+    mSocket->open();
+    mSocket->setHandler(this);
+    mSocket->connect(ep, "PingClient");
     std::cout << "Connecting to server" << std::endl;
 }
 
@@ -79,60 +68,54 @@ void PingConnection::onReceive(const void* buffer, size_t length, const std::err
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(now) - start;
     std::cout << "RTT is " << duration.count() << "ns" << std::endl;
 
-    std::error_code ec;
     if (mSend < mMaxSend) {
         sendMessage();
     } else {
         std::cout << "Disconnecting after " << mSend << " pings" << std::endl;
-        mSocket->disconnect(ec);
-        if (ec) {
-            std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
+        try {
+            mSocket->disconnect();
+        } catch (std::system_error& e) {
+            std::cout << "Disconnect failed " << e.code() << " - " << e.what() << std::endl;
         }
     }
 }
 
 void PingConnection::onDisconnect() {
     std::cout << "Disconnect" << std::endl;
-    std::error_code ec;
-    mSocket->disconnect(ec);
-    if (ec) {
-        std::cout << "Disconnect failed " << ec.value() << " - " << ec.message() << std::endl;
+    try {
+        mSocket->disconnect();
+    } catch (std::system_error& e) {
+        std::cout << "Disconnect failed " << e.code() << " - " << e.what() << std::endl;
     }
 }
 
 void PingConnection::onDisconnected() {
     std::cout << "Disconnected" << std::endl;
-    std::error_code ec;
-    mSocket->close(ec);
-    if (ec) {
-        std::cout << "Close failed " << ec.value() << " - " << ec.message() << std::endl;
-        return;
+    try {
+        mSocket->close();
+    } catch (std::system_error& e) {
+        std::cout << "Close failed " << e.code() << " - " << e.what() << std::endl;
     }
 
     std::cout << "Stopping ping client" << std::endl;
-    mService.shutdown(ec);
-    if (ec) {
-        std::cout << "Shutdown failed " << ec.value() << " - " << ec.message() << std::endl;
-        return;
-    }
+    mService.shutdown();
 }
 
-void PingConnection::handleError(std::string message, std::error_code& ec) {
+void PingConnection::handleError(std::string message, const std::error_code& ec) {
     std::cout << message << " [" << ec << " - " << ec.message() << "]" << std::endl;
     std::cout << "Disconnecting after error" << std::endl;
-    mSocket->disconnect(ec);
-    if (ec) {
-        std::cout << "Disconnect failed [" << ec << " - " << ec.message() << "]" << std::endl;
+    try {
+        mSocket->disconnect();
+    } catch (std::system_error& e) {
+        std::cout << "Disconnect failed " << e.code() << " - " << e.what() << std::endl;
     }
 }
 
 void PingConnection::sendMessage() {
-    std::error_code ec;
-
     // Acquire buffer
     auto sbuffer = mSocket->acquireSendBuffer(8);
     if (sbuffer.id() == InfinibandBuffer::INVALID_ID) {
-        handleError("Error acquiring buffer", ec);
+        handleError("Error acquiring buffer", error::invalid_buffer);
         return;
     }
 
@@ -144,6 +127,7 @@ void PingConnection::sendMessage() {
     *reinterpret_cast<uint64_t*>(sbuffer.data()) = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
 
     // Send message to server
+    std::error_code ec;
     mSocket->send(sbuffer, 0x0u, ec);
     if (ec) {
         handleError("Send failed", ec);

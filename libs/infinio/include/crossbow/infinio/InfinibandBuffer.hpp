@@ -11,6 +11,9 @@
 namespace crossbow {
 namespace infinio {
 
+class MmapRegion;
+class ProtectionDomain;
+
 /**
  * @brief Buffer class pointing to a buffer space registered with an Infiniband device
  *
@@ -100,17 +103,24 @@ public:
             : mDataRegion(nullptr) {
     }
 
-    LocalMemoryRegion(struct ibv_mr* dataRegion)
-            : mDataRegion(dataRegion) {
-    }
+    /**
+     * @brief Registers the memory region
+     *
+     * @param domain The protection domain to register this region with
+     * @param data The start pointer of the memory region
+     * @param length The length of the memory region
+     * @param access Access flags for the Infiniband Adapter
+     */
+    LocalMemoryRegion(const ProtectionDomain& domain, void* data, size_t length, int access);
 
-    ~LocalMemoryRegion() {
-        std::error_code ec;
-        releaseMemoryRegion(ec);
-        if (ec) {
-            // TODO Log error?
-        }
-    }
+    LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion& region, int access);
+
+    /**
+     * @brief Deregisters the memory region
+     *
+     * The data referenced by this memory region should not be used in any further RDMA operations.
+     */
+    ~LocalMemoryRegion();
 
     LocalMemoryRegion(const LocalMemoryRegion&) = delete;
     LocalMemoryRegion& operator=(const LocalMemoryRegion&) = delete;
@@ -120,22 +130,7 @@ public:
         other.mDataRegion = nullptr;
     }
 
-    LocalMemoryRegion& operator=(LocalMemoryRegion&& other) {
-        std::error_code ec;
-        releaseMemoryRegion(ec);
-        if (ec) {
-            // TODO Log error?
-        }
-        mDataRegion = other.mDataRegion;
-        other.mDataRegion = nullptr;
-    }
-
-    /**
-     * @brief Deregisters the memory region
-     *
-     * The data referenced by this memory region should not be used in any further RDMA operations.
-     */
-    void releaseMemoryRegion(std::error_code& ec);
+    LocalMemoryRegion& operator=(LocalMemoryRegion&& other);
 
     uintptr_t address() const {
         return reinterpret_cast<uintptr_t>(mDataRegion->addr);
@@ -160,6 +155,13 @@ public:
      * @return A newly acquired buffer or a buffer with invalid ID in case of an error
      */
     InfinibandBuffer acquireBuffer(uint16_t id, size_t offset, uint32_t length);
+
+    /**
+     * @brief Whether the buffer was acquired from this memory region
+     */
+    bool belongsToRegion(InfinibandBuffer& buffer) {
+        return buffer.handle()->lkey == mDataRegion->lkey;
+    }
 
 private:
     friend class ScatterGatherBuffer;

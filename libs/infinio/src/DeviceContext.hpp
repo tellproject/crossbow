@@ -22,8 +22,259 @@ namespace crossbow {
 namespace infinio {
 
 class DeviceContext;
-class InfinibandBuffer;
-class LocalMemoryRegion;
+
+/**
+ * @brief Wrapper managing a mmap memory region
+ */
+class MmapRegion {
+public:
+    /**
+     * @brief Acquires a memory region
+     *
+     * @param length Length of the memory region to mmap
+     *
+     * @exception std::system_error In case mapping the memory failed
+     */
+    MmapRegion(size_t length);
+
+    /**
+     * @brief Releases the memory region
+     */
+    ~MmapRegion();
+
+    MmapRegion(const MmapRegion&) = delete;
+    MmapRegion& operator=(const MmapRegion&) = delete;
+
+    MmapRegion(MmapRegion&& other)
+            : mData(other.mData),
+              mLength(other.mLength) {
+        other.mData = nullptr;
+        other.mLength = 0;
+    }
+
+    MmapRegion& operator=(MmapRegion&& other);
+
+    void* data() {
+        return const_cast<void*>(const_cast<const MmapRegion*>(this)->data());
+    }
+
+    const void* data() const {
+        return mData;
+    }
+
+    size_t length() const {
+        return mLength;
+    }
+
+private:
+    void* mData;
+    size_t mLength;
+};
+
+/**
+ * @brief Wrapper managing a protection domain
+ */
+class ProtectionDomain {
+public:
+    /**
+     * @brief Allocates a protection domain
+     *
+     * @param context Verbs context to allocate the protection domain with
+     *
+     * @exception std::system_error In case allocating the domain failed
+     */
+    ProtectionDomain(struct ibv_context* context);
+
+    /**
+     * @brief Deallocates the protection domain
+     */
+    ~ProtectionDomain();
+
+    ProtectionDomain(const ProtectionDomain&) = delete;
+    ProtectionDomain& operator=(const ProtectionDomain&) = delete;
+
+    ProtectionDomain(ProtectionDomain&& other)
+            : mDomain(other.mDomain) {
+        other.mDomain = nullptr;
+    }
+
+    ProtectionDomain& operator=(ProtectionDomain&& other);
+
+    struct ibv_pd* get() const {
+        return mDomain;
+    }
+
+private:
+    struct ibv_pd* mDomain;
+};
+
+/**
+ * @brief Wrapper managing a shared receive queue
+ */
+class SharedReceiveQueue {
+public:
+    /**
+     * @brief Creates a shared receive queue
+     *
+     * @param domain Protection domain to associate the queue with
+     * @param length Length of the queue (i.e. maximum number of work requests posted to the queue)
+     *
+     * @exception std::system_error In case creating the queue failed
+     */
+    SharedReceiveQueue(const ProtectionDomain& domain, uint32_t length);
+
+    /**
+     * @brief Destroys the shared receive queue
+     */
+    ~SharedReceiveQueue();
+
+    SharedReceiveQueue(const SharedReceiveQueue&) = delete;
+    SharedReceiveQueue& operator=(const SharedReceiveQueue&) = delete;
+
+    SharedReceiveQueue(SharedReceiveQueue&& other)
+            : mQueue(other.mQueue) {
+        other.mQueue = nullptr;
+    }
+
+    SharedReceiveQueue& operator=(SharedReceiveQueue&& other);
+
+    struct ibv_srq* get() const {
+        return mQueue;
+    }
+
+    /**
+     * @brief Post the buffer to the shared receive queue
+     *
+     * @param buffer The buffer to post on the queue
+     * @param ec Error code in case posting the buffer failed
+     */
+    void postBuffer(InfinibandBuffer& buffer, std::error_code& ec);
+
+private:
+    struct ibv_srq* mQueue;
+};
+
+/**
+ * @brief Wrapper managing a completion channel
+ */
+class CompletionChannel {
+public:
+    /**
+     * @brief Creates a completion channel
+     *
+     * @param context Verbs context to allocate the completion channel with
+     *
+     * @exception std::system_error In case allocating the channel failed
+     */
+    CompletionChannel(struct ibv_context* context);
+
+    /**
+     * @brief Destroys the completion channel
+     */
+    ~CompletionChannel();
+
+    CompletionChannel(const CompletionChannel&) = delete;
+    CompletionChannel& operator=(const CompletionChannel&) = delete;
+
+    CompletionChannel(CompletionChannel&& other)
+            : mChannel(other.mChannel) {
+        other.mChannel = nullptr;
+    }
+
+    CompletionChannel& operator=(CompletionChannel&& other);
+
+    int fd() const {
+        return mChannel->fd;
+    }
+
+    /**
+     * @brief Sets the non blocking mode of the channel's file descriptor.
+     *
+     * @param mode Whether to set the fd into nonblocking or blocking mode
+     */
+    void nonBlocking(bool mode);
+
+    /**
+     * @brief Retrieve pending events from the completion channel
+     *
+     * @param cq
+     * @return Number of events retrieved
+     */
+    int retrieveEvents(struct ibv_cq** cq);
+
+    struct ibv_comp_channel* get() const {
+        return mChannel;
+    }
+
+private:
+    struct ibv_comp_channel* mChannel;
+};
+
+/**
+ * @brief Wrapper managing a completion queue
+ */
+class CompletionQueue {
+public:
+    /**
+     * @brief Creates a completion queue
+     *
+     * @param context Verbs context to allocate the completion queue with
+     * @param channel Completino channel to associate the queue with
+     * @param length Length of the queue (i.e. maximum number of work completions pending on the queue)
+     *
+     * @exception std::system_error In case allocating the queue failed
+     */
+    CompletionQueue(struct ibv_context* context, const CompletionChannel& channel, int length);
+
+    /**
+     * @brief Destroys the completion queue
+     */
+    ~CompletionQueue();
+
+    CompletionQueue(const CompletionQueue&) = delete;
+    CompletionQueue& operator=(const CompletionQueue&) = delete;
+
+    CompletionQueue(CompletionQueue&& other)
+            : mQueue(other.mQueue) {
+        other.mQueue = nullptr;
+    }
+
+    CompletionQueue& operator=(CompletionQueue&& other);
+
+    /**
+     * @brief Poll the queue for new work completions
+     *
+     * @param num Maximum number of work completions to retrieve
+     * @param wc Array where to store the retrieved work completions
+     * @return Number of retrieved work completions
+     */
+    int poll(int num, struct ibv_wc* wc) {
+        return ibv_poll_cq(mQueue, num, wc);
+    }
+
+    /**
+     * @brief Acknowledge events from the completion channel
+     *
+     * @param num Number of events to acknowledge
+     */
+    void ackEvents(int num) {
+        ibv_ack_cq_events(mQueue, num);
+    }
+
+    /**
+     * @brief Request a event notification on the completion channel for the next work completion event
+     *
+     * @param ec Error code in case requesting the notification failed
+     */
+    void requestEvent(std::error_code& ec);
+
+    struct ibv_cq* get() const {
+        return mQueue;
+    }
+
+private:
+    struct ibv_cq* mQueue;
+};
 
 /**
  * @brief The CompletionContext class manages a completion queue on the device
@@ -33,31 +284,11 @@ class LocalMemoryRegion;
  */
 class CompletionContext : private EventPoll {
 public:
-    CompletionContext(DeviceContext& device, const InfinibandLimits& limits)
-            : mDevice(device),
-              mProcessor(limits.pollCycles),
-              mTaskQueue(mProcessor),
-              mSendBufferCount(limits.sendBufferCount),
-              mSendBufferLength(limits.bufferLength),
-              mSendQueueLength(limits.sendQueueLength),
-              mMaxScatterGather(limits.maxScatterGather),
-              mCompletionQueueLength(limits.completionQueueLength),
-              mSendDataRegion(nullptr),
-              mSendData(nullptr),
-              mCompletionChannel(nullptr),
-              mCompletionQueue(nullptr),
-              mSleeping(false),
-              mShutdown(false) {
-        mSocketMap.set_empty_key(0x1u << 25);
-        mSocketMap.set_deleted_key(0x1u << 26);
-    }
+    CompletionContext(DeviceContext& device, const InfinibandLimits& limits);
 
-    ~CompletionContext() {
-    }
+    ~CompletionContext();
 
-    void init(std::error_code& ec);
-
-    void shutdown(std::error_code& ec);
+    void shutdown();
 
     /**
      * @brief Executes the function in the event loop
@@ -81,9 +312,10 @@ public:
      *
      * @param id The RDMA ID associated with the socket
      * @param socket The socket to add
-     * @param ec Error code in case the initialization failed
+     *
+     * @exception std::system_error In case adding the connection failed
      */
-    void addConnection(struct rdma_cm_id* id, InfinibandSocket socket, std::error_code& ec);
+    void addConnection(struct rdma_cm_id* id, InfinibandSocket socket);
 
     /**
      * @brief Drains any events from a previously added connection
@@ -104,9 +336,8 @@ public:
      * established correctly).
      *
      * @param id The RDMA ID to remove
-     * @param ec Error in case the removal failed
      */
-    void removeConnection(struct rdma_cm_id* id, std::error_code& ec);
+    void removeConnection(struct rdma_cm_id* id);
 
     /**
      * @brief Maximum buffer length this buffer manager is able to allocate
@@ -165,13 +396,6 @@ private:
     virtual void wakeup() final override;
 
     /**
-     * @brief The offset into the associated memory region for a buffer with given ID
-     */
-    uint64_t bufferOffset(uint16_t id) {
-        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mSendBufferLength));
-    }
-
-    /**
      * @brief Releases a send buffer to the shared buffer queue
      *
      * @param id The ID of the send buffer
@@ -208,20 +432,20 @@ private:
     /// Size of the completion queue to allocate
     uint32_t mCompletionQueueLength;
 
-    /// Memory region registered to the shared send buffer memory block
-    struct ibv_mr* mSendDataRegion;
-
     /// Pointer to the shared send buffer arena
-    void* mSendData;
+    MmapRegion mSendData;
+
+    /// Memory region registered to the shared send buffer memory block
+    LocalMemoryRegion mSendDataRegion;
 
     /// Stack containing IDs of send buffers that are not in use
     std::stack<uint16_t> mSendBufferQueue;
 
     /// Completion channel used to poll from epoll after a period of inactivity
-    struct ibv_comp_channel* mCompletionChannel;
+    CompletionChannel mCompletionChannel;
 
     /// Completion queue of this context
-    struct ibv_cq* mCompletionQueue;
+    CompletionQueue mCompletionQueue;
 
     /// Map from queue number to the associated socket
     google::dense_hash_map<uint32_t, InfinibandSocket> mSocketMap;
@@ -244,53 +468,22 @@ private:
  */
 class DeviceContext {
 public:
-    DeviceContext(const InfinibandLimits& limits, struct ibv_context* verbs)
-            : mReceiveBufferCount(limits.receiveBufferCount),
-              mReceiveBufferLength(limits.bufferLength),
-              mContextThreads(limits.contextThreads),
-              mVerbs(verbs),
-              mProtectionDomain(nullptr),
-              mReceiveDataRegion(nullptr),
-              mReceiveData(nullptr),
-              mReceiveQueue(nullptr),
-              mShutdown(false) {
-        mCompletion.reserve(mContextThreads);
-        for (uint64_t i = 0; i < mContextThreads; ++i) {
-            mCompletion.emplace_back(new CompletionContext(*this, limits));
-        }
-    }
-
-    ~DeviceContext() {
-        std::error_code ec;
-        shutdown(ec);
-        if (ec) {
-            // TODO Log error?
-        }
-    }
-
-    CompletionContext* context(uint64_t num) {
-        return mCompletion.at(num % mContextThreads).get();
-    }
-
     /**
-     * @brief Initializes the device
+     * @brief Initializes the Infiniband device
      *
      * Initializes the protection domain for this device, allocates a buffer pool for use with this device, creates a
-     * shared receive queue to handle all incoming requests and adds a completion queue to handle all future events.
-     * After the succesfull initialization it starts polling the completion queue for entries on the event dispatcher.
-     *
-     * This function has to be called before using the device.
-     *
-     * @param ec Error code in case the initialization failed
+     * shared receive queue to handle all incoming requests and starts a completion context for all processor threads.
      */
-    void init(std::error_code& ec);
+    DeviceContext(const InfinibandLimits& limits, struct ibv_context* verbs);
+
+    CompletionContext* context(uint64_t num) {
+        return mCompletion.at(num % mCompletion.size()).get();
+    }
 
     /**
-     * @brief Shuts the device down and destroys all associated ressources
-     *
-     * @param ec Error code in case the initialization failed
+     * @brief Shuts the device down
      */
-    void shutdown(std::error_code& ec);
+    void shutdown();
 
     /**
      * @brief Registers a new local memory region
@@ -298,76 +491,75 @@ public:
      * @param data Start pointer to the memory region
      * @param length Length of the memory region
      * @param access Infiniband access flags
-     * @param ec Error code in case the registration failed
      * @return The newly registered memory region
      */
-    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec);
-
-private:
-    friend class CompletionContext;
-
-    /**
-     * @brief Initializes the memory region for the shared receive and send buffers
-     *
-     * Pushes the IDs for the shared send buffers onto the send buffer queue.
-     *
-     * @param ec Error code in case the initialization failed
-     */
-    struct ibv_mr* allocateMemoryRegion(size_t length, std::error_code& ec);
-
-    /**
-     * @brief Shutsdown the memory region for the shared receive and send buffers
-     *
-     * @param ec Error code in case the shutdown failed
-     */
-    void destroyMemoryRegion(ibv_mr* memoryRegion, std::error_code& ec);
-
-    /**
-     * @brief Initializes the shared receive queue
-     *
-     * @param ec Error code in case the initialization failed
-     */
-    void initReceiveQueue(std::error_code& ec);
-
-    /**
-     * @brief The offset into the associated memory region for a buffer with given ID
-     */
-    uint64_t bufferOffset(uint16_t id) {
-        return (static_cast<uint64_t>(id) * static_cast<uint64_t>(mReceiveBufferLength));
+    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access) {
+        return LocalMemoryRegion(mProtectionDomain, data, length, access);
     }
+
+    LocalMemoryRegion registerMemoryRegion(MmapRegion& region, int access) {
+        return LocalMemoryRegion(mProtectionDomain, region, access);
+    }
+
+    CompletionChannel createCompletionChannel() {
+        return CompletionChannel(mVerbs);
+    }
+
+    CompletionQueue createCompletionQueue(const CompletionChannel& channel, int length) {
+        return CompletionQueue(mVerbs, channel, length);
+    }
+
+    struct ibv_pd* protectionDomain() {
+        return mProtectionDomain.get();
+    }
+
+    struct ibv_srq* receiveQueue() {
+        return mReceiveQueue.get();
+    }
+
+    InfinibandBuffer acquireReceiveBuffer(uint16_t id) {
+        auto offset = static_cast<uint64_t>(id) * static_cast<uint64_t>(mReceiveBufferLength);
+        return mReceiveDataRegion.acquireBuffer(id, offset, mReceiveBufferLength);
+    }
+
+    /**
+     * @brief Posts the receive buffer to the shared receive queue
+     *
+     * @param buffer The receive buffer to post
+     */
+    void postReceiveBuffer(InfinibandBuffer& buffer);
 
     /**
      * @brief Posts the receive buffer with the given ID to the shared receive queue
      *
      * @param id The ID of the receive buffer
-     * @param ec Error code in case the post failed
      */
-    void postReceiveBuffer(uint16_t id, std::error_code& ec);
+    void postReceiveBuffer(uint16_t id) {
+        auto buffer = acquireReceiveBuffer(id);
+        postReceiveBuffer(buffer);
+    }
 
+private:
     /// Number of shared receive buffers to allocate
     uint16_t mReceiveBufferCount;
 
     /// Size of the allocated shared buffer
     uint32_t mReceiveBufferLength;
 
-    /// Number of poll threads each with their own completion context
-    uint64_t mContextThreads;
-
     /// Infiniband context associated with this device
     struct ibv_context* mVerbs;
 
     /// Protection domain associated with this device
-    struct ibv_pd* mProtectionDomain;
-
-    /// Memory region registered to the shared receive / send buffer memory block
-    /// The block contains the receive buffers first and then the send buffers
-    struct ibv_mr* mReceiveDataRegion;
+    ProtectionDomain mProtectionDomain;
 
     /// Pointer to the shared receive buffer arena
-    void* mReceiveData;
+    MmapRegion mReceiveData;
+
+    /// Memory region registered to the shared receive buffer memory block
+    LocalMemoryRegion mReceiveDataRegion;
 
     /// Shared receive queue associated with this device
-    struct ibv_srq* mReceiveQueue;
+    SharedReceiveQueue mReceiveQueue;
 
     std::vector<std::unique_ptr<CompletionContext>> mCompletion;
 

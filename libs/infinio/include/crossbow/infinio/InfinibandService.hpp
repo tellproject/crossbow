@@ -44,7 +44,7 @@ public:
     /**
      * @brief Shutsdown the Infiniband service
      */
-    void shutdown(std::error_code& ec);
+    void shutdown();
 
     InfinibandAcceptor createAcceptor() {
         return InfinibandAcceptor(new InfinibandAcceptorImpl(mChannel));
@@ -52,7 +52,7 @@ public:
 
     InfinibandSocket createSocket(uint64_t thread = 0);
 
-    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec);
+    LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access);
 
 private:
     friend class InfinibandSocketImpl;

@@ -22,6 +22,67 @@
 namespace crossbow {
 namespace infinio {
 
+namespace {
+
+/**
+ * @brief Wrapper managing the list of Infiniband devices
+ */
+class DeviceList {
+public:
+    DeviceList()
+            : mSize(0),
+              mDevices(rdma_get_devices(&mSize)) {
+        if (mDevices == nullptr) {
+            throw std::system_error(errno, std::system_category());
+        }
+        INFINIO_LOG("[DeviceList] Queried %1% device(s)", mSize);
+    }
+
+    ~DeviceList() {
+        if (mDevices != nullptr) {
+            rdma_free_devices(mDevices);
+        }
+    }
+
+    DeviceList(const DeviceList&) = delete;
+    DeviceList& operator=(const DeviceList&) = delete;
+
+    DeviceList(DeviceList&& other)
+            : mSize(other.mSize),
+              mDevices(other.mDevices) {
+        other.mSize = 0;
+        other.mDevices = nullptr;
+    }
+
+    DeviceList& operator=(DeviceList&& other) {
+        if (mDevices != nullptr) {
+            rdma_free_devices(mDevices);
+        }
+
+        mSize = other.mSize;
+        other.mSize = 0;
+        mDevices = other.mDevices;
+        other.mDevices = nullptr;
+    }
+
+    size_t size() const {
+        return mSize;
+    }
+
+    struct ibv_context* at(size_t index) {
+        if (index >= mSize) {
+            throw std::out_of_range("Index out of range");
+        }
+        return mDevices[index];
+    }
+
+private:
+    int mSize;
+    struct ibv_context** mDevices;
+};
+
+} // anonymous namespace
+
 InfinibandService::InfinibandService(const InfinibandLimits& limits)
         : mLimits(limits),
           mDevice(nullptr),
@@ -35,25 +96,16 @@ InfinibandService::InfinibandService(const InfinibandLimits& limits)
     }
 
     SERVICE_LOG("Initialize device context");
-    int numDevices = 0;
-    auto devices = rdma_get_devices(&numDevices);
-    if (numDevices != 1) {
+    DeviceList devices;
+    if (devices.size() != 1) {
         SERVICE_ERROR("Only one Infiniband device is supported at this moment");
         std::terminate();
     }
-    mDevice.reset(new DeviceContext(mLimits, *devices));
-
-    std::error_code ec;
-    mDevice->init(ec);
-    rdma_free_devices(devices);
+    mDevice.reset(new DeviceContext(mLimits, devices.at(0)));
 }
 
 InfinibandService::~InfinibandService() {
-    std::error_code ec;
-    shutdown(ec);
-    if (ec) {
-        SERVICE_ERROR("Error while shutting down Infiniband service [error = %1% %2%]", ec, ec.message());
-    }
+    shutdown();
 }
 
 void InfinibandService::run() {
@@ -71,22 +123,18 @@ void InfinibandService::run() {
         return;
     }
 
-    SERVICE_LOG("Error while processing RDMA CM event loop [error = %1% %2%]", errno, strerror(errno));
+    SERVICE_ERROR("Error while processing RDMA CM event loop [error = %1% %2%]", errno, strerror(errno));
     std::terminate();
 }
 
-void InfinibandService::shutdown(std::error_code& ec) {
+void InfinibandService::shutdown() {
     if (mShutdown.load()) {
         return;
     }
     mShutdown.store(true);
 
     if (mDevice) {
-        mDevice->shutdown(ec);
-        if (ec) {
-            SERVICE_ERROR("Unable to destroy Device Context [error = %1% %2%]", ec, ec.message());
-            return;
-        }
+        mDevice->shutdown();
         mDevice.reset();
     }
 
@@ -106,8 +154,8 @@ InfinibandSocket InfinibandService::createSocket(uint64_t thread) {
     return InfinibandSocket(new InfinibandSocketImpl(*this, mChannel, mDevice->context(thread)));
 }
 
-LocalMemoryRegion InfinibandService::registerMemoryRegion(void* data, size_t length, int access, std::error_code& ec) {
-    return mDevice->registerMemoryRegion(data, length, access, ec);
+LocalMemoryRegion InfinibandService::registerMemoryRegion(void* data, size_t length, int access) {
+    return mDevice->registerMemoryRegion(data, length, access);
 }
 
 CompletionContext* InfinibandService::context(uint64_t num) {

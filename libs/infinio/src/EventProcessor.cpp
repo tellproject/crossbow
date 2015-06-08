@@ -2,6 +2,7 @@
 
 #include "Logging.hpp"
 
+#include <algorithm>
 #include <cerrno>
 
 #include <sys/epoll.h>
@@ -9,49 +10,54 @@
 
 #define PROCESSOR_LOG(...) INFINIO_LOG("[EventProcessor] " __VA_ARGS__)
 #define PROCESSOR_ERROR(...) INFINIO_ERROR("[EventProcessor] " __VA_ARGS__)
+#define TASKQUEUE_LOG(...) INFINIO_LOG("[TaskQueue] " __VA_ARGS__)
+#define TASKQUEUE_ERROR(...) INFINIO_ERROR("[TaskQueue] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
 
-void EventProcessor::init(std::error_code& ec) {
+EventProcessor::EventProcessor(uint64_t pollCycles)
+        : mPollCycles(pollCycles) {
     PROCESSOR_LOG("Creating epoll file descriptor");
-    errno = 0;
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
-        ec = std::error_code(errno, std::system_category());
-        return;
+        throw std::system_error(errno, std::system_category());
     }
 }
 
-void EventProcessor::shutdown(std::error_code& ec) {
-    if (mEpoll == -1) {
-        return;
-    }
-
-    if (auto res = close(mEpoll)) {
-        ec = std::error_code(res, std::system_category());
-        return;
-    }
-
+EventProcessor::~EventProcessor() {
     // TODO We have to join the poll thread
     // We are not allowed to call join in the same thread as the poll loop is
+
+    if (close(mEpoll)) {
+        std::error_code ec(errno, std::system_category());
+        PROCESSOR_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
+    }
 }
 
-void EventProcessor::registerPoll(int fd, EventPoll* poll, std::error_code& ec) {
+void EventProcessor::registerPoll(int fd, EventPoll* poll) {
     PROCESSOR_LOG("Register event poller");
-
     struct epoll_event event;
     event.data.ptr = poll;
     event.events = EPOLLIN | EPOLLET;
-
-    errno = 0;
-    auto res = epoll_ctl(mEpoll, EPOLL_CTL_ADD, fd, &event);
-    if (res == -1) {
-        ec = std::error_code(errno, std::system_category());
-        return;
+    if (epoll_ctl(mEpoll, EPOLL_CTL_ADD, fd, &event)) {
+        throw std::system_error(errno, std::system_category());
     }
 
     mPoller.emplace_back(poll);
+}
+
+void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
+    PROCESSOR_LOG("Deregister event poller");
+    auto i = std::find(mPoller.begin(), mPoller.end(), poll);
+    if (i == mPoller.end()) {
+        return;
+    }
+    mPoller.erase(i);
+
+    if (epoll_ctl(mEpoll, EPOLL_CTL_DEL, fd, nullptr)) {
+        throw std::system_error(errno, std::system_category());
+    }
 }
 
 void EventProcessor::start() {
@@ -91,25 +97,27 @@ void EventProcessor::doPoll() {
     }
 }
 
-void TaskQueue::init(std::error_code& ec) {
-    errno = 0;
+TaskQueue::TaskQueue(EventProcessor& processor)
+        : mProcessor(processor),
+          mSleeping(false) {
     mInterrupt = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (mInterrupt == -1) {
-        ec = std::error_code(errno, std::system_category());
-        return;
+        throw std::system_error(errno, std::system_category());
     }
 
-    mProcessor.registerPoll(mInterrupt, this, ec);
+    mProcessor.registerPoll(mInterrupt, this);
 }
 
-void TaskQueue::shutdown(std::error_code& ec) {
-    if (mInterrupt == -1) {
-        return;
+TaskQueue::~TaskQueue() {
+    try {
+        mProcessor.deregisterPoll(mInterrupt, this);
+    } catch (std::system_error& e) {
+        TASKQUEUE_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
     }
 
-    if (auto res = close(mInterrupt)) {
-        ec = std::error_code(res, std::system_category());
-        return;
+    if (close(mInterrupt)) {
+        std::error_code ec(errno, std::system_category());
+        TASKQUEUE_ERROR("Failed to close the event descriptor [error = %1% %2%]", ec, ec.message());
     }
 }
 

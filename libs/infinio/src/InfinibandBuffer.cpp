@@ -1,8 +1,7 @@
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 
+#include "DeviceContext.hpp"
 #include "Logging.hpp"
-
-#define REGION_LOG(...) INFINIO_LOG("[LocalMemoryRegion] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -31,17 +30,33 @@ void ScatterGatherBuffer::add(const InfinibandBuffer& buffer, size_t offset, uin
     mLength += length;
 }
 
-void LocalMemoryRegion::releaseMemoryRegion(std::error_code& ec) {
-    if (!mDataRegion) {
-        return;
+LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, void* data, size_t length, int access)
+        : mDataRegion(ibv_reg_mr(domain.get(), data, length, access)) {
+    if (mDataRegion == nullptr) {
+        throw std::system_error(errno, std::system_category());
+    }
+    INFINIO_LOG("[LocalMemoryRegion] Created memory region at %1%", data);
+}
+
+LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion& region, int access)
+        : LocalMemoryRegion(domain, region.data(), region.length(), access) {
+}
+
+LocalMemoryRegion::~LocalMemoryRegion() {
+    if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
+        std::error_code ec(errno, std::system_category());
+        INFINIO_ERROR("[LocalMemoryRegion] Failed to deregister memory region [error = %1% %2%]", ec, ec.message());
+    }
+}
+
+LocalMemoryRegion& LocalMemoryRegion::operator=(LocalMemoryRegion&& other) {
+    if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
+        throw std::system_error(errno, std::system_category());
     }
 
-    REGION_LOG("Releasing memory region at %1%", mDataRegion->addr);
-    if (auto res = ibv_dereg_mr(mDataRegion)) {
-        ec = std::error_code(res, std::system_category());
-        return;
-    }
-    mDataRegion = nullptr;
+    mDataRegion = other.mDataRegion;
+    other.mDataRegion = nullptr;
+    return *this;
 }
 
 InfinibandBuffer LocalMemoryRegion::acquireBuffer(uint16_t id, size_t offset, uint32_t length) {
