@@ -61,8 +61,6 @@ protected:
             : mChannel(id->channel),
               mId(id),
               mReferenceCount(0x0u) {
-        assert(mId->context == nullptr);
-
         // The ID is already open, increment the reference count by one and then detach the pointer
         intrusive_ptr_add_ref(this);
         mId->context = static_cast<SocketType*>(this);
