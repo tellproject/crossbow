@@ -31,7 +31,7 @@ template<>
 struct parser<short> {
     short operator()(const char* str) const {
         try {
-            int val = std::stoi(std::string(str));
+            int val = std::stoi(std::string(str), nullptr, 0);
             if (val < std::numeric_limits<short>::min() || val > std::numeric_limits<short>::max()) {
                 throw std::out_of_range("Invalid range");
             }
@@ -46,7 +46,7 @@ template<>
 struct parser<int> {
     int operator()(const char* str) const {
         try {
-            return std::stoi(std::string(str));
+            return std::stoi(std::string(str), nullptr, 0);
         } catch (...) {
             throw parse_error(str + std::string("is not a valid int"));
         }
@@ -57,7 +57,7 @@ template<>
 struct parser<long> {
     long operator()(const char* str) const {
         try {
-            return std::stol(std::string(str));
+            return std::stol(std::string(str), nullptr, 0);
         } catch (...) {
             throw parse_error(str + std::string("is not a valid long"));
         }
@@ -68,7 +68,7 @@ template<>
 struct parser<long long> {
     long long operator()(const char* str) const {
         try {
-            return std::stoll(std::string(str));
+            return std::stoll(std::string(str), nullptr, 0);
         } catch (...) {
             throw parse_error(str + std::string("is not a valid long long"));
         }
@@ -79,7 +79,7 @@ template<>
 struct parser<unsigned short> {
     unsigned short operator()(const char* str) const {
         try {
-            unsigned long val = std::stoul(std::string(str));
+            unsigned long val = std::stoul(std::string(str), nullptr, 0);
             if (val > std::numeric_limits<unsigned short>::max()) {
                 throw std::out_of_range("Invalid range");
             }
@@ -94,7 +94,7 @@ template<>
 struct parser<unsigned> {
     unsigned operator()(const char* str) const {
         try {
-            unsigned long val = std::stoul(std::string(str));
+            unsigned long val = std::stoul(std::string(str), nullptr, 0);
             if (val > std::numeric_limits<unsigned>::max()) {
                 throw std::out_of_range("Invalid range");
             }
@@ -109,7 +109,7 @@ template<>
 struct parser<unsigned long> {
     unsigned long operator()(const char* str) const {
         try {
-            return std::stoul(std::string(str));
+            return std::stoul(std::string(str), nullptr, 0);
         } catch (...) {
             throw parse_error(str + std::string("is not a valid unsigned long"));
         }
@@ -120,7 +120,7 @@ template<>
 struct parser<unsigned long long> {
     unsigned long long operator()(const char* str) const {
         try {
-            return std::stoull(std::string(str));
+            return std::stoull(std::string(str), nullptr, 0);
         } catch (...) {
             throw parse_error(str + std::string("is not a valid unsigned long long"));
         }
