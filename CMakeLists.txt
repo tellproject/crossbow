@@ -36,7 +36,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     endif(APPLE)
 endif()
 
-set(Crossbow_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
+set(Crossbow_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH "Path to the crossbow binaries and configuration")
+set(Crossbow_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "Path to the crossbow include headers")
 
 # Install Crossbow headers
 install(DIRECTORY crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.hpp")
@@ -51,5 +52,5 @@ if (${ENABLE_TESTS})
 endif()
 
 # Create cmake config file
-configure_file(CrossbowConfig.cmake.in ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
-install(FILES ${CMAKE_BINARY_DIR}/CrossbowConfig.cmake DESTINATION ${CMAKE_INSTALL_DIR})
+configure_file(CrossbowConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CrossbowConfig.cmake DESTINATION ${CMAKE_INSTALL_DIR})
