@@ -216,8 +216,8 @@ private:
 class ScatterGatherBuffer {
 public:
     ScatterGatherBuffer(uint16_t id)
-            : mId(id),
-              mLength(0) {
+            : mLength(0),
+              mId(id) {
     }
 
     uint16_t id() const {
