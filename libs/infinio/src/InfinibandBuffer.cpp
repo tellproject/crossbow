@@ -1,7 +1,8 @@
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 
 #include "DeviceContext.hpp"
-#include "Logging.hpp"
+
+#include <crossbow/logger.hpp>
 
 namespace crossbow {
 namespace infinio {
@@ -35,7 +36,7 @@ LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, void* data,
     if (mDataRegion == nullptr) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[LocalMemoryRegion] Created memory region at %1%", data);
+    LOG_TRACE("Created memory region at %1%", data);
 }
 
 LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion& region, int access)
@@ -45,7 +46,7 @@ LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion&
 LocalMemoryRegion::~LocalMemoryRegion() {
     if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[LocalMemoryRegion] Failed to deregister memory region [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to deregister memory region [error = %1% %2%]", ec, ec.message());
     }
 }
 

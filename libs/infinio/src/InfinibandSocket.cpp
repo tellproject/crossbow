@@ -1,16 +1,13 @@
 #include <crossbow/infinio/InfinibandSocket.hpp>
 
 #include <crossbow/infinio/InfinibandService.hpp>
+#include <crossbow/logger.hpp>
 
 #include "AddressHelper.hpp"
 #include "DeviceContext.hpp"
-#include "Logging.hpp"
 #include "WorkRequestId.hpp"
 
 #include <cerrno>
-
-#define SOCKET_LOG(...) INFINIO_LOG("[InfinibandSocket] " __VA_ARGS__)
-#define SOCKET_ERROR(...) INFINIO_ERROR("[InfinibandSocket] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -30,7 +27,7 @@ void InfinibandBaseSocket<SocketType>::open() {
         throw std::error_code(error::already_open);
     }
 
-    SOCKET_LOG("Open socket");
+    LOG_TRACE("Open socket");
     if (rdma_create_id(mChannel, &mId, static_cast<SocketType*>(this), RDMA_PS_TCP)) {
         throw std::system_error(errno, std::system_category());
     }
@@ -51,7 +48,7 @@ void InfinibandBaseSocket<SocketType>::close() {
         throw std::error_code(EISCONN, std::system_category());
     }
 
-    SOCKET_LOG("Close socket");
+    LOG_TRACE("Close socket");
     if (rdma_destroy_id(mId)) {
         throw std::system_error(errno, std::system_category());
     }
@@ -67,7 +64,7 @@ void InfinibandBaseSocket<SocketType>::bind(Endpoint& addr) {
         throw std::system_error(EBADF, std::system_category());
     }
 
-    SOCKET_LOG("Bind on address %1%", addr);
+    LOG_TRACE("Bind on address %1%", addr);
     if (rdma_bind_addr(mId, addr.handle())) {
         throw std::system_error(errno, std::system_category());
     }
@@ -81,12 +78,12 @@ void InfinibandAcceptorHandler::onConnection(InfinibandSocket socket, const cros
     try {
         socket->reject(crossbow::string());
     } catch (std::system_error& e) {
-        SOCKET_ERROR("%1%: Rejecting connection failed [error = %2% %3%]", socket->remoteAddress(), e.code(), e.what());
+        LOG_ERROR("%1%: Rejecting connection failed [error = %2% %3%]", socket->remoteAddress(), e.code(), e.what());
     }
     try {
         socket->close();
     } catch (std::system_error& e) {
-        SOCKET_ERROR("%1%: Closing rejected connection failed [error = %2% %3%]", socket->remoteAddress(), e.code(),
+        LOG_ERROR("%1%: Closing rejected connection failed [error = %2% %3%]", socket->remoteAddress(), e.code(),
                         e.what());
     }
 }
@@ -96,7 +93,7 @@ void InfinibandAcceptorImpl::listen(int backlog) {
         throw std::system_error(EBADF, std::system_category());
     }
 
-    SOCKET_LOG("Listen on socket with backlog %1%", backlog);
+    LOG_TRACE("Listen on socket with backlog %1%", backlog);
     if (rdma_listen(mId, backlog)) {
         throw std::system_error(errno, std::system_category());
     }
@@ -146,7 +143,7 @@ void InfinibandSocketImpl::connect(Endpoint& addr) {
         throw std::system_error(EBADF, std::system_category());
     }
 
-    SOCKET_LOG("%1%: Connect to address", addr);
+    LOG_TRACE("%1%: Connect to address", addr);
     if (rdma_resolve_addr(mId, nullptr, addr.handle(), gTimeout.count())) {
         throw std::system_error(errno, std::system_category());
     }
@@ -162,14 +159,14 @@ void InfinibandSocketImpl::disconnect() {
         throw std::system_error(EBADF, std::system_category());
     }
 
-    SOCKET_LOG("%1%: Disconnect from address", formatRemoteAddress(mId));
+    LOG_TRACE("%1%: Disconnect from address", formatRemoteAddress(mId));
     if (rdma_disconnect(mId)) {
         throw std::system_error(errno, std::system_category());
     }
 }
 
 void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread) {
-    SOCKET_LOG("%1%: Accepting connection", formatRemoteAddress(mId));
+    LOG_TRACE("%1%: Accepting connection", formatRemoteAddress(mId));
     if (mContext != nullptr) {
         throw std::system_error(error::already_initialized);
     }
@@ -191,7 +188,7 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread)
 }
 
 void InfinibandSocketImpl::reject(const crossbow::string& data) {
-    SOCKET_LOG("%1%: Rejecting connection", formatRemoteAddress(mId));
+    LOG_TRACE("%1%: Rejecting connection", formatRemoteAddress(mId));
     if (rdma_reject(mId, data.c_str(), data.length())) {
         throw std::system_error(errno, std::system_category());
     }
@@ -212,7 +209,7 @@ void InfinibandSocketImpl::send(InfinibandBuffer& buffer, uint32_t userId, std::
     wr.num_sge = 1;
     wr.send_flags = IBV_SEND_SIGNALED;
 
-    SOCKET_LOG("%1%: Send %2% bytes from buffer %3%", formatRemoteAddress(mId), buffer.length(), buffer.id());
+    LOG_TRACE("%1%: Send %2% bytes from buffer %3%", formatRemoteAddress(mId), buffer.length(), buffer.id());
     doSend(&wr, ec);
 }
 
@@ -325,7 +322,7 @@ void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, 
     wr.wr.rdma.remote_addr = src.address();
     wr.wr.rdma.rkey = src.key();
 
-    SOCKET_LOG("%1%: RDMA read %2% bytes from remote %3% into %4% buffer with ID %5%", formatRemoteAddress(mId),
+    LOG_TRACE("%1%: RDMA read %2% bytes from remote %3% into %4% buffer with ID %5%", formatRemoteAddress(mId),
             dst.length(), reinterpret_cast<void*>(src.address()), dst.count(), dst.id());
     doSend(&wr, ec);
 }
@@ -350,7 +347,7 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
     wr.wr.rdma.remote_addr = dst.address();
     wr.wr.rdma.rkey = dst.key();
 
-    SOCKET_LOG("%1%: RDMA write %2% bytes to remote %3% from %4% buffer with ID %5%", formatRemoteAddress(mId),
+    LOG_TRACE("%1%: RDMA write %2% bytes to remote %3% from %4% buffer with ID %5%", formatRemoteAddress(mId),
             src.length(), reinterpret_cast<void*>(dst.address()), src.count(), src.id());
     doSend(&wr, ec);
 }
@@ -376,13 +373,13 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
     wr.wr.rdma.remote_addr = dst.address();
     wr.wr.rdma.rkey = dst.key();
 
-    SOCKET_LOG("%1%: RDMA write with immediate %2% bytes to remote %3% from %4% buffer with ID %5%",
+    LOG_TRACE("%1%: RDMA write with immediate %2% bytes to remote %3% from %4% buffer with ID %5%",
             formatRemoteAddress(mId), src.length(), reinterpret_cast<void*>(dst.address()), src.count(), src.id());
     doSend(&wr, ec);
 }
 
 void InfinibandSocketImpl::onAddressResolved() {
-    SOCKET_LOG("%1%: Address resolved", formatRemoteAddress(mId));
+    LOG_TRACE("%1%: Address resolved", formatRemoteAddress(mId));
     if (rdma_resolve_route(mId, gTimeout.count())) {
         onConnectionEvent(mData, std::error_code(errno, std::system_category()));
         return;
@@ -390,7 +387,7 @@ void InfinibandSocketImpl::onAddressResolved() {
 }
 
 void InfinibandSocketImpl::onRouteResolved() {
-    SOCKET_LOG("%1%: Route resolved", formatRemoteAddress(mId));
+    LOG_TRACE("%1%: Route resolved", formatRemoteAddress(mId));
 
     // Add connection to queue handler
     try {

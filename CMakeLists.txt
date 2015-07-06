@@ -7,7 +7,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 # Declare build options
 option(ENABLE_TESTS "Build and execute tests" ON)
 option(ENABLE_STRING_TESTS "enable tests for crossbow string (currently only supported for clang on OS X)" OFF)
-option(INFINIO_DEBUG "Build Infinio with debug logging enabled" OFF)
 
 # Set default install paths
 set(CMAKE_INSTALL_DIR cmake CACHE PATH "Installation directory for CMake files")

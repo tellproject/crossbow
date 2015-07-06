@@ -1,9 +1,9 @@
 #include "DeviceContext.hpp"
 
 #include <crossbow/infinio/ErrorCode.hpp>
+#include <crossbow/logger.hpp>
 
 #include "AddressHelper.hpp"
-#include "Logging.hpp"
 #include "WorkRequestId.hpp"
 
 #include <cerrno>
@@ -11,11 +11,6 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
-
-#define COMPLETION_LOG(...) INFINIO_LOG("[CompletionContext] " __VA_ARGS__)
-#define COMPLETION_ERROR(...) INFINIO_ERROR("[CompletionContext] " __VA_ARGS__)
-#define DEVICE_LOG(...) INFINIO_LOG("[DeviceContext] " __VA_ARGS__)
-#define DEVICE_ERROR(...) INFINIO_ERROR("[DeviceContext] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -27,13 +22,13 @@ MmapRegion::MmapRegion(size_t length)
     if (mData == MAP_FAILED) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[MmapRegion] Mapped %1% bytes of buffer space", mLength);
+    LOG_TRACE("Mapped %1% bytes of buffer space", mLength);
 }
 
 MmapRegion::~MmapRegion() {
     if (mData != nullptr && munmap(mData, mLength)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[MmapRegion] Failed to unmap memory region [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to unmap memory region [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -54,13 +49,13 @@ ProtectionDomain::ProtectionDomain(ibv_context* context)
     if (mDomain == nullptr) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[ProtectionDomain] Allocated protection domain");
+    LOG_TRACE("Allocated protection domain");
 }
 
 ProtectionDomain::~ProtectionDomain() {
     if (mDomain != nullptr && ibv_dealloc_pd(mDomain)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[ProtectionDomain] Failed to deallocate protection domain [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to deallocate protection domain [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -84,13 +79,13 @@ SharedReceiveQueue::SharedReceiveQueue(const ProtectionDomain& domain, uint32_t 
     if (mQueue == nullptr) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[SharedReceiveQueue] Created shared receive queue");
+    LOG_TRACE("Created shared receive queue");
 }
 
 SharedReceiveQueue::~SharedReceiveQueue() {
     if (mQueue != nullptr && ibv_destroy_srq(mQueue)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[SharedReceiveQueue] Failed to destroy receive queue [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("[SharedReceiveQueue] Failed to destroy receive queue [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -131,13 +126,13 @@ CompletionChannel::CompletionChannel(ibv_context* context)
     if (mChannel == nullptr) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[CompletionChannel] Created completion channel");
+    LOG_TRACE("Created completion channel");
 }
 
 CompletionChannel::~CompletionChannel() {
     if (mChannel != nullptr && ibv_destroy_comp_channel(mChannel)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[CompletionChannel] Failed to destroy completion channel [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to destroy completion channel [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -168,13 +163,13 @@ CompletionQueue::CompletionQueue(ibv_context* context, const CompletionChannel& 
     if (mQueue == nullptr) {
         throw std::system_error(errno, std::system_category());
     }
-    INFINIO_LOG("[CompletionQueue] Created completion queue");
+    LOG_TRACE("Created completion queue");
 }
 
 CompletionQueue::~CompletionQueue() {
     if (mQueue != nullptr && ibv_destroy_cq(mQueue)) {
         std::error_code ec(errno, std::system_category());
-        INFINIO_ERROR("[CompletionQueue] Failed to destroy completion queue [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to destroy completion queue [error = %1% %2%]", ec, ec.message());
     }
 }
 
@@ -216,12 +211,12 @@ CompletionContext::CompletionContext(DeviceContext& device, const InfinibandLimi
     mCompletionChannel.nonBlocking(true);
     mProcessor.registerPoll(mCompletionChannel.fd(), this);
 
-    COMPLETION_LOG("Add %1% buffers to send buffer queue", mSendBufferCount);
+    LOG_TRACE("Add %1% buffers to send buffer queue", mSendBufferCount);
     for (decltype(mSendBufferCount) id = 0; id < mSendBufferCount; ++id) {
         mSendBufferQueue.push(id);
     }
 
-    COMPLETION_LOG("Starting event processor");
+    LOG_TRACE("Starting event processor");
     mProcessor.start();
 }
 
@@ -229,7 +224,7 @@ CompletionContext::~CompletionContext() {
     try {
         mProcessor.deregisterPoll(mCompletionChannel.fd(), this);
     } catch (std::system_error& e) {
-        COMPLETION_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
+        LOG_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
     }
 }
 
@@ -250,14 +245,14 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
     qp_attr.pd = mDevice.protectionDomain();
 
-    COMPLETION_LOG("%1%: Creating queue pair", formatRemoteAddress(id));
+    LOG_TRACE("%1%: Creating queue pair", formatRemoteAddress(id));
     if (rdma_create_qp_ex(id, &qp_attr)) {
         throw std::error_code(errno, std::system_category());
     }
 
     // TODO Make this an assertion
     if (id->qp->qp_num >= (0x1u << 25)) {
-        COMPLETION_ERROR("QP number is larger than 24 bits");
+        LOG_ERROR("QP number is larger than 24 bits");
     }
 
     if (!mSocketMap.insert(std::make_pair(id->qp->qp_num, std::move(socket))).second) {
@@ -276,7 +271,7 @@ void CompletionContext::removeConnection(struct rdma_cm_id* id) {
         return;
     }
 
-    COMPLETION_LOG("%1%: Destroying queue pair", formatRemoteAddress(id));
+    LOG_TRACE("%1%: Destroying queue pair", formatRemoteAddress(id));
     mSocketMap.erase(id->qp->qp_num);
     rdma_destroy_qp(id);
 }
@@ -297,7 +292,7 @@ InfinibandBuffer CompletionContext::acquireSendBuffer(uint32_t length) {
 
 void CompletionContext::releaseSendBuffer(InfinibandBuffer& buffer) {
     if (!mSendDataRegion.belongsToRegion(buffer)) {
-        COMPLETION_ERROR("Trying to release send buffer registered to another region");
+        LOG_ERROR("Trying to release send buffer registered to another region");
         return;
     }
     releaseSendBuffer(buffer.id());
@@ -323,7 +318,7 @@ bool CompletionContext::poll() {
 
     // Check if polling the completion queue failed
     if (num < 0 && !mShutdown.load()) {
-        COMPLETION_ERROR("Polling completion queue failed [error = %1% %2%]", errno, strerror(errno));
+        LOG_ERROR("Polling completion queue failed [error = %1% %2%]", errno, strerror(errno));
     }
 
     // Process all polled work completions
@@ -345,11 +340,11 @@ void CompletionContext::prepareSleep() {
         return;
     }
 
-    COMPLETION_LOG("Activating completion channel");
+    LOG_TRACE("Activating completion channel");
     std::error_code ec;
     mCompletionQueue.requestEvent(ec);
     if (ec) {
-        COMPLETION_ERROR("Error while requesting completion queue notification [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Error while requesting completion queue notification [error = %1% %2%]", ec, ec.message());
         // TODO Error handling
         std::terminate();
     }
@@ -360,12 +355,12 @@ void CompletionContext::prepareSleep() {
 }
 
 void CompletionContext::wakeup() {
-    COMPLETION_LOG("Completion channel ready");
+    LOG_TRACE("Completion channel ready");
     struct ibv_cq* cq;
     int num = 0;
     while (mCompletionChannel.retrieveEvents(&cq) == 0) {
         if (cq != mCompletionQueue.get()) {
-            COMPLETION_ERROR("Unknown completion queue");
+            LOG_ERROR("Unknown completion queue");
             break;
         }
         ++num;
@@ -377,7 +372,7 @@ void CompletionContext::wakeup() {
 }
 
 void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
-    COMPLETION_LOG("Processing WC with ID %1% on queue %2% with status %3% %4%", wc->wr_id, wc->qp_num, wc->status,
+    LOG_TRACE("Processing WC with ID %1% on queue %2% with status %3% %4%", wc->wr_id, wc->qp_num, wc->status,
             ibv_wc_status_str(wc->status));
 
     WorkRequestId workId(wc->wr_id);
@@ -385,7 +380,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
 
     auto i = mSocketMap.find(wc->qp_num);
     if (i == mSocketMap.end()) {
-        COMPLETION_ERROR("No matching socket for qp_num %1%", wc->qp_num);
+        LOG_ERROR("No matching socket for qp_num %1%", wc->qp_num);
 
         // In the case that we have no socket associated with the qp_num we just repost the buffer to the shared receive
         // queue or release the buffer in the case of send
@@ -420,7 +415,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
 
     switch (workId.workType()) {
     case WorkType::RECEIVE: {
-        COMPLETION_LOG("Executing receive event of buffer %1%", workId.bufferId());
+        LOG_TRACE("Executing receive event of buffer %1%", workId.bufferId());
         auto buffer = mDevice.acquireReceiveBuffer(workId.bufferId());
         if (!buffer.valid()) {
             socket->onReceive(nullptr, 0x0u, error::invalid_buffer);
@@ -436,23 +431,23 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
     } break;
 
     case WorkType::SEND: {
-        COMPLETION_LOG("Executing send event of buffer %1%", workId.bufferId());
+        LOG_TRACE("Executing send event of buffer %1%", workId.bufferId());
         socket->onSend(workId.userId(), ec);
         releaseSendBuffer(workId.bufferId());
     } break;
 
     case WorkType::READ: {
-        COMPLETION_LOG("Executing read event of buffer %1%", workId.bufferId());
+        LOG_TRACE("Executing read event of buffer %1%", workId.bufferId());
         socket->onRead(workId.userId(), workId.bufferId(), ec);
     } break;
 
     case WorkType::WRITE: {
-        COMPLETION_LOG("Executing write event of buffer %1%", workId.bufferId());
+        LOG_TRACE("Executing write event of buffer %1%", workId.bufferId());
         socket->onWrite(workId.userId(), workId.bufferId(), ec);
     } break;
 
     default: {
-        COMPLETION_LOG("Unknown work type");
+        LOG_TRACE("Unknown work type");
     } break;
     }
 }
@@ -466,7 +461,7 @@ DeviceContext::DeviceContext(const InfinibandLimits& limits, ibv_context* verbs)
           mReceiveDataRegion(mProtectionDomain, mReceiveData, IBV_ACCESS_LOCAL_WRITE),
           mReceiveQueue(mProtectionDomain, mReceiveBufferCount),
           mShutdown(false) {
-    DEVICE_LOG("Post %1% buffers to shared receive queue", mReceiveBufferCount);
+    LOG_TRACE("Post %1% buffers to shared receive queue", mReceiveBufferCount);
     std::error_code ec;
     for (decltype(mReceiveBufferCount) id = 0; id < mReceiveBufferCount; ++id) {
         auto buffer = acquireReceiveBuffer(id);
@@ -488,7 +483,7 @@ void DeviceContext::shutdown() {
     }
     mShutdown.store(true);
 
-    DEVICE_LOG("Shutdown completion context");
+    LOG_TRACE("Shutdown completion context");
     for (auto& context : mCompletion) {
         context->shutdown();
     }
@@ -498,7 +493,7 @@ void DeviceContext::postReceiveBuffer(InfinibandBuffer& buffer) {
     std::error_code ec;
     mReceiveQueue.postBuffer(buffer, ec);
     if (ec) {
-        DEVICE_ERROR("Failed to post receive buffer [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to post receive buffer [error = %1% %2%]", ec, ec.message());
     }
 }
 

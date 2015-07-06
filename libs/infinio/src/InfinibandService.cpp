@@ -1,13 +1,12 @@
 #include <crossbow/infinio/InfinibandService.hpp>
 
 #include <crossbow/infinio/Endpoint.hpp>
-#include <crossbow/infinio/InfinibandSocket.hpp>
-
 #include <crossbow/infinio/ErrorCode.hpp>
+#include <crossbow/infinio/InfinibandSocket.hpp>
+#include <crossbow/logger.hpp>
 
 #include "AddressHelper.hpp"
 #include "DeviceContext.hpp"
-#include "Logging.hpp"
 #include "WorkRequestId.hpp"
 
 #include <cerrno>
@@ -15,9 +14,6 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
-
-#define SERVICE_LOG(...) INFINIO_LOG("[InfinibandService] " __VA_ARGS__)
-#define SERVICE_ERROR(...) INFINIO_ERROR("[InfinibandService] " __VA_ARGS__)
 
 namespace crossbow {
 namespace infinio {
@@ -35,7 +31,7 @@ public:
         if (mDevices == nullptr) {
             throw std::system_error(errno, std::system_category());
         }
-        INFINIO_LOG("[DeviceList] Queried %1% device(s)", mSize);
+        LOG_TRACE("Queried %1% device(s)", mSize);
     }
 
     ~DeviceList() {
@@ -87,18 +83,18 @@ InfinibandService::InfinibandService(const InfinibandLimits& limits)
         : mLimits(limits),
           mDevice(nullptr),
           mShutdown(false) {
-    SERVICE_LOG("Create event channel");
+    LOG_TRACE("Create event channel");
     errno = 0;
     mChannel = rdma_create_event_channel();
     if (!mChannel) {
-        SERVICE_ERROR("Unable to create RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
+        LOG_ERROR("Unable to create RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
         return;
     }
 
-    SERVICE_LOG("Initialize device context");
+    LOG_TRACE("Initialize device context");
     DeviceList devices;
     if (devices.size() != 1) {
-        SERVICE_ERROR("Only one Infiniband device is supported at this moment");
+        LOG_ERROR("Only one Infiniband device is supported at this moment");
         std::terminate();
     }
     mDevice.reset(new DeviceContext(mLimits, devices.at(0)));
@@ -109,7 +105,7 @@ InfinibandService::~InfinibandService() {
 }
 
 void InfinibandService::run() {
-    SERVICE_LOG("Start RDMA CM event polling");
+    LOG_TRACE("Start RDMA CM event polling");
     struct rdma_cm_event* event = nullptr;
     errno = 0;
     while (rdma_get_cm_event(mChannel, &event) == 0) {
@@ -119,11 +115,11 @@ void InfinibandService::run() {
 
     // Check if the system is shutting down
     if (mShutdown.load()) {
-        SERVICE_LOG("Exit RDMA CM event polling");
+        LOG_TRACE("Exit RDMA CM event polling");
         return;
     }
 
-    SERVICE_ERROR("Error while processing RDMA CM event loop [error = %1% %2%]", errno, strerror(errno));
+    LOG_ERROR("Error while processing RDMA CM event loop [error = %1% %2%]", errno, strerror(errno));
     std::terminate();
 }
 
@@ -139,11 +135,11 @@ void InfinibandService::shutdown() {
     }
 
     if (mChannel) {
-        SERVICE_LOG("Destroy event channel");
+        LOG_TRACE("Destroy event channel");
         errno = 0;
         rdma_destroy_event_channel(mChannel);
         if (errno) {
-            SERVICE_ERROR("Unable to destroy RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
+            LOG_ERROR("Unable to destroy RDMA Event Channel [error = %1% %2%]", errno, strerror(errno));
             return;
         }
         mChannel = nullptr;
@@ -163,7 +159,7 @@ CompletionContext* InfinibandService::context(uint64_t num) {
 }
 
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
-    SERVICE_LOG("Processing event %1%", rdma_event_str(event->event));
+    LOG_TRACE("Processing event %1%", rdma_event_str(event->event));
 
 #define HANDLE_EVENT(__case, __handler, ...)\
     case __case: {\
@@ -173,7 +169,7 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
             socket->__handler(__VA_ARGS__);\
         }, ec);\
         if (ec) {\
-            SERVICE_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
+            LOG_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
         }\
     } break;
 
@@ -187,7 +183,7 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
             socket->__handler(data);\
         }, ec);\
         if (ec) {\
-            SERVICE_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
+            LOG_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
         }\
     } break;
 

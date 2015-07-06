@@ -1,6 +1,6 @@
 #include "EventProcessor.hpp"
 
-#include "Logging.hpp"
+#include <crossbow/logger.hpp>
 
 #include <algorithm>
 #include <cerrno>
@@ -8,17 +8,12 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 
-#define PROCESSOR_LOG(...) INFINIO_LOG("[EventProcessor] " __VA_ARGS__)
-#define PROCESSOR_ERROR(...) INFINIO_ERROR("[EventProcessor] " __VA_ARGS__)
-#define TASKQUEUE_LOG(...) INFINIO_LOG("[TaskQueue] " __VA_ARGS__)
-#define TASKQUEUE_ERROR(...) INFINIO_ERROR("[TaskQueue] " __VA_ARGS__)
-
 namespace crossbow {
 namespace infinio {
 
 EventProcessor::EventProcessor(uint64_t pollCycles)
         : mPollCycles(pollCycles) {
-    PROCESSOR_LOG("Creating epoll file descriptor");
+    LOG_TRACE("Creating epoll file descriptor");
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
         throw std::system_error(errno, std::system_category());
@@ -31,12 +26,12 @@ EventProcessor::~EventProcessor() {
 
     if (close(mEpoll)) {
         std::error_code ec(errno, std::system_category());
-        PROCESSOR_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
     }
 }
 
 void EventProcessor::registerPoll(int fd, EventPoll* poll) {
-    PROCESSOR_LOG("Register event poller");
+    LOG_TRACE("Register event poller");
     struct epoll_event event;
     event.data.ptr = poll;
     event.events = EPOLLIN | EPOLLET;
@@ -48,7 +43,7 @@ void EventProcessor::registerPoll(int fd, EventPoll* poll) {
 }
 
 void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
-    PROCESSOR_LOG("Deregister event poller");
+    LOG_TRACE("Deregister event poller");
     auto i = std::find(mPoller.begin(), mPoller.end(), poll);
     if (i == mPoller.end()) {
         return;
@@ -81,14 +76,14 @@ void EventProcessor::doPoll() {
         poller->prepareSleep();
     }
 
-    PROCESSOR_LOG("Going to epoll sleep");
+    LOG_TRACE("Going to epoll sleep");
     struct epoll_event events[mPoller.size()];
     auto num = epoll_wait(mEpoll, events, 10, -1);
-    PROCESSOR_LOG("Wake up from epoll sleep with %1% events", num);
+    LOG_TRACE("Wake up from epoll sleep with %1% events", num);
 
     for (int i = 0; i < num; ++i) {
         if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (!(events[i].events & EPOLLIN))) {
-            PROCESSOR_ERROR("Error has occured on fd");
+            LOG_ERROR("Error has occured on fd");
             continue;
         }
 
@@ -112,12 +107,12 @@ TaskQueue::~TaskQueue() {
     try {
         mProcessor.deregisterPoll(mInterrupt, this);
     } catch (std::system_error& e) {
-        TASKQUEUE_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
+        LOG_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
     }
 
     if (close(mInterrupt)) {
         std::error_code ec(errno, std::system_category());
-        TASKQUEUE_ERROR("Failed to close the event descriptor [error = %1% %2%]", ec, ec.message());
+        LOG_ERROR("Failed to close the event descriptor [error = %1% %2%]", ec, ec.message());
     }
 }
 

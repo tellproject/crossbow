@@ -37,7 +37,6 @@ set(SRCS
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
-    src/Logging.hpp
     src/WorkRequestId.hpp
 )
 
@@ -47,13 +46,9 @@ target_include_directories(crossbow_infinio PUBLIC
         $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
-# Add compile definitions
-if(INFINIO_DEBUG)
-    target_compile_definitions(crossbow_infinio PRIVATE INFINIO_DEBUG)
-endif()
-
 # Link against Crossbow
 target_include_directories(crossbow_infinio PRIVATE ${Crossbow_INCLUDE_DIRS})
+target_link_libraries(crossbow_infinio PRIVATE crossbow_logger)
 
 # Link against Threads
 target_link_libraries(crossbow_infinio PUBLIC ${CMAKE_THREAD_LIBS_INIT})
