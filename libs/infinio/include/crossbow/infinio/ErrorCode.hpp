@@ -73,6 +73,9 @@ enum network_errors {
 
     /// Buffer is invalid.
     invalid_buffer,
+
+    /// Received message is invalid.
+    invalid_message,
 };
 
 /**
@@ -100,6 +103,9 @@ public:
 
         case error::invalid_buffer:
             return "Buffer is invalid";
+
+        case error::invalid_message:
+            return "Received message is invalid";
 
         default:
             return "infinio.network error";
