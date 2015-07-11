@@ -30,9 +30,9 @@ template<class Head, class... Tail>
 struct LogFormatter<Head, Tail...> {
     LogFormatter<Tail...> base;
 
-    void format(boost::format& f, Head h, Tail... tail) const {
+    void format(boost::format& f, Head h, Tail&&... tail) const {
         f % h;
-        base.format(f, tail...);
+        base.format(f, std::forward<Tail>(tail)...);
     }
 };
 
@@ -72,11 +72,11 @@ class LoggerT {
         unsigned line,
         const char* function,
         const crossbow::string& str,
-        Args... args) {
+        Args&&... args) {
         if (config.level > level) return;
         boost::format formatter(str.c_str());
         LogFormatter<Args...> fmt;
-        fmt.format(formatter, args...);
+        fmt.format(formatter, std::forward<Args>(args)...);
         std::lock_guard<std::mutex> _(mutex);
         stream << formatter.str();
         stream << " (in " << function << " at " << file << ':' << line << ')' << std::endl;
@@ -88,33 +88,33 @@ public:
     ~LoggerT();
 
     template<class...Args>
-    void trace(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::TRACE, *(config.traceOut), mTraceMutex, file, line, function, str, args...);
+    void trace(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::TRACE, *(config.traceOut), mTraceMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 
     template<class...Args>
-    void debug(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::DEBUG, *(config.debugOut), mDebugMutex, file, line, function, str, args...);
+    void debug(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::DEBUG, *(config.debugOut), mDebugMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 
     template<class...Args>
-    void info(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::INFO, *(config.infoOut), mInfoMutex, file, line, function, str, args...);
+    void info(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::INFO, *(config.infoOut), mInfoMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 
     template<class...Args>
-    void warn(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::WARN, *(config.warnOut), mWarnMutex, file, line, function, str, args...);
+    void warn(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::WARN, *(config.warnOut), mWarnMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 
     template<class...Args>
-    void error(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::ERROR, *(config.errorOut), mInfoMutex, file, line, function, str, args...);
+    void error(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::ERROR, *(config.errorOut), mInfoMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 
     template<class...Args>
-    void fatal(const char* file, unsigned line, const char* function, const crossbow::string& str, Args... args) {
-        log(LogLevel::FATAL, *(config.fatalOut), mInfoMutex, file, line, function, str, args...);
+    void fatal(const char* file, unsigned line, const char* function, const crossbow::string& str, Args&&... args) {
+        log(LogLevel::FATAL, *(config.fatalOut), mInfoMutex, file, line, function, str, std::forward<Args>(args)...);
     }
 };
 
