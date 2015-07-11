@@ -24,7 +24,7 @@ constexpr std::chrono::milliseconds gTimeout = std::chrono::milliseconds(10);
 template <typename SocketType>
 void InfinibandBaseSocket<SocketType>::open() {
     if (mId != nullptr) {
-        throw std::error_code(error::already_open);
+        throw std::system_error(error::already_open);
     }
 
     LOG_TRACE("Open socket");
@@ -45,7 +45,7 @@ void InfinibandBaseSocket<SocketType>::close() {
     }
 
     if (mId->qp != nullptr) {
-        throw std::error_code(EISCONN, std::system_category());
+        throw std::system_error(EISCONN, std::system_category());
     }
 
     LOG_TRACE("Close socket");
