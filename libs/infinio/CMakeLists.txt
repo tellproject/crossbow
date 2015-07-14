@@ -16,7 +16,7 @@ if(NOT ${Sparsehash_FOUND})
     return()
 endif()
 
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS context REQUIRED)
 
 find_package(Threads REQUIRED)
 
@@ -26,6 +26,7 @@ set(SRCS
     include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/ErrorCode.hpp
     include/crossbow/infinio/EventProcessor.hpp
+    include/crossbow/infinio/Fiber.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
     include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
@@ -36,6 +37,7 @@ set(SRCS
     src/DeviceContext.cpp
     src/Endpoint.cpp
     src/EventProcessor.cpp
+    src/Fiber.cpp
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
@@ -57,6 +59,7 @@ target_link_libraries(crossbow_infinio PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 
 # Link against Boost
 target_include_directories(crossbow_infinio PUBLIC ${Boost_INCLUDE_DIRS})
+target_link_libraries(crossbow_infinio PUBLIC ${Boost_LIBRARIES})
 
 # Link against ibverbs
 target_include_directories(crossbow_infinio PUBLIC ${Ibverbs_INCLUDE_DIRS})

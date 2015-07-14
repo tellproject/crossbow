@@ -13,6 +13,8 @@
 namespace crossbow {
 namespace infinio {
 
+class Fiber;
+
 /**
  * @brief Interface providing an event poller invoked by the EventProcessor
  */
@@ -93,6 +95,17 @@ public:
     void execute(std::function<void()> fun) {
         mTaskQueue.push(std::move(fun));
     }
+
+    /**
+     * @brief Execute the function as a new fiber
+     *
+     * The function is executed immediately.
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fun The function to execute in the fiber
+     */
+    void executeFiber(std::function<void(Fiber&)> fun);
 
 private:
     /**

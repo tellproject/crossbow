@@ -31,6 +31,16 @@ public:
         mProcessor.execute(std::move(fun));
     }
 
+    void executeFiber(std::function<void(Fiber&)> fun) {
+        mTaskQueue.execute([this, fun] () {
+            mProcessor.executeFiber(std::move(fun));
+        });
+    }
+
+    void executeLocalFiber(std::function<void(Fiber&)> fun) {
+            mProcessor.executeFiber(std::move(fun));
+    }
+
     CompletionContext* context() {
         return mContext.get();
     }

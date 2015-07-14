@@ -1,5 +1,6 @@
 #include <crossbow/infinio/EventProcessor.hpp>
 
+#include <crossbow/infinio/Fiber.hpp>
 #include <crossbow/logger.hpp>
 
 #include <algorithm>
@@ -63,6 +64,11 @@ void EventProcessor::start() {
             doPoll();
         }
     });
+}
+
+void EventProcessor::executeFiber(std::function<void(Fiber&)> fun) {
+    auto fiber = Fiber::create(*this, std::move(fun));
+    fiber->resume();
 }
 
 void EventProcessor::doPoll() {
