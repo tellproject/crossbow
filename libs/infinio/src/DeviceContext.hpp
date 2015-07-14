@@ -1,10 +1,9 @@
 #pragma once
 
+#include <crossbow/infinio/EventProcessor.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandLimits.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
-
-#include "EventProcessor.hpp"
 
 #include <sparsehash/dense_hash_map>
 
@@ -279,28 +278,15 @@ private:
 /**
  * @brief The CompletionContext class manages a completion queue on the device
  *
- * Sets up a completion queue and manages any sockets associated with the completion queue. Starts an event processor
- * used to poll the queue and execute all callbacks to sockets.
+ * Sets up a completion queue and manages any sockets associated with the completion queue.
  */
 class CompletionContext : private EventPoll {
 public:
-    CompletionContext(DeviceContext& device, const InfinibandLimits& limits);
+    CompletionContext(EventProcessor& processor, std::shared_ptr<DeviceContext> device, const InfinibandLimits& limits);
 
     ~CompletionContext();
 
     void shutdown();
-
-    /**
-     * @brief Executes the function in the event loop
-     *
-     * The function will be queued and executed by the poll thread.
-     *
-     * @param fun The function to execute in the poll thread
-     * @param ec Error code in case enqueueing the function failed
-     */
-    void execute(std::function<void()> fun, std::error_code& ec) {
-        mTaskQueue.execute(std::move(fun), ec);
-    }
 
     /**
      * @brief Add a new connection to completion queue
@@ -409,13 +395,11 @@ private:
      */
     void processWorkComplete(struct ibv_wc* wc);
 
-    DeviceContext& mDevice;
-
     /// The event loop processor handling all Infiniband events
-    EventProcessor mProcessor;
+    EventProcessor& mProcessor;
 
-    /// Task queue to execute functions in the poll thread
-    TaskQueue mTaskQueue;
+    /// The device associated with this completion context
+    std::shared_ptr<DeviceContext> mDevice;
 
     /// Number of shared send buffers to allocated
     uint16_t mSendBufferCount;
@@ -475,10 +459,6 @@ public:
      * shared receive queue to handle all incoming requests and starts a completion context for all processor threads.
      */
     DeviceContext(const InfinibandLimits& limits, struct ibv_context* verbs);
-
-    CompletionContext* context(uint64_t num) {
-        return mCompletion.at(num % mCompletion.size()).get();
-    }
 
     /**
      * @brief Shuts the device down
@@ -560,8 +540,6 @@ private:
 
     /// Shared receive queue associated with this device
     SharedReceiveQueue mReceiveQueue;
-
-    std::vector<std::unique_ptr<CompletionContext>> mCompletion;
 
     std::atomic<bool> mShutdown;
 };

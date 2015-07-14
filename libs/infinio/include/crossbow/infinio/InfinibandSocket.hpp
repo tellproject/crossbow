@@ -19,8 +19,7 @@
 namespace crossbow {
 namespace infinio {
 
-class CompletionContext;
-class InfinibandService;
+class InfinibandProcessor;
 
 class InfinibandSocketImpl;
 using InfinibandSocket = boost::intrusive_ptr<InfinibandSocketImpl>;
@@ -239,11 +238,13 @@ public:
  */
 class InfinibandSocketImpl: public InfinibandBaseSocket<InfinibandSocketImpl> {
 public:
+    InfinibandProcessor* processor() {
+        return mProcessor;
+    }
+
     void setHandler(InfinibandSocketHandler* handler) {
         mHandler = handler;
     }
-
-    void execute(std::function<void()> fun, std::error_code& ec);
 
     void connect(Endpoint& addr);
 
@@ -255,10 +256,10 @@ public:
      * @brief Accepts the pending connection request
      *
      * @param data The private data to send to the remote host
-     * @param thread The polling thread this socket should process on
+     * @param processor The polling thread this socket should process on
      * @param ec Error code in case the accept failed
      */
-    void accept(const crossbow::string& data, uint64_t thread);
+    void accept(const crossbow::string& data, InfinibandProcessor& processor);
 
     /**
      * @brief Rejects the pending connection request
@@ -387,17 +388,15 @@ private:
     friend class ConnectionRequest;
     friend class InfinibandService;
 
-    InfinibandSocketImpl(InfinibandService& service, struct rdma_event_channel* channel, CompletionContext* context)
+    InfinibandSocketImpl(InfinibandProcessor& processor, struct rdma_event_channel* channel)
             : InfinibandBaseSocket(channel),
-              mService(service),
-              mContext(context),
+              mProcessor(&processor),
               mHandler(nullptr) {
     }
 
-    InfinibandSocketImpl(InfinibandService& service, struct rdma_cm_id* id)
+    InfinibandSocketImpl(struct rdma_cm_id* id)
             : InfinibandBaseSocket(id),
-              mService(service),
-              mContext(nullptr),
+              mProcessor(nullptr),
               mHandler(nullptr) {
     }
 
@@ -434,9 +433,7 @@ private:
      *
      * Invoke the onConnected handler to inform the owner that the connection attempt failed.
      */
-    void onResolutionError(error::network_errors err) {
-        onConnectionEvent(mData, err);
-    }
+    void onResolutionError(error::network_errors err);
 
     /**
      * @brief An error has occured while establishing a connection
@@ -457,14 +454,7 @@ private:
      *
      * Invoke the onConnected handler to inform the owner that the socket is now connected.
      */
-    void onConnectionEstablished(const crossbow::string& data) {
-        onConnectionEvent(data, std::error_code());
-    }
-
-    void onConnectionEvent(const crossbow::string& data, const std::error_code& ec) {
-        mData.clear();
-        mHandler->onConnected(data, ec);
-    }
+    void onConnectionEstablished(const crossbow::string& data);
 
     /**
      * @brief The remote connection has been disconnected
@@ -472,10 +462,7 @@ private:
      * Executed when the remote host triggered a disconnect. Invoke the onDisconnect handler so that the socket can
      * close on the local host.
      */
-    void onDisconnected() {
-        mHandler->onDisconnect();
-        // TODO Call disconnect here directly? The socket has to call it anyway to succesfully shutdown the connection
-    }
+    void onDisconnected();
 
     /**
      * @brief The connection has exited the Timewait state
@@ -525,17 +512,13 @@ private:
      */
     void onDrained();
 
-    /// The Infiniband service managing this connection
-    InfinibandService& mService;
-
-    /// The completion context of the underlying NIC
-    CompletionContext* mContext;
+    /// The Infiniband processor managing this connection
+    InfinibandProcessor* mProcessor;
 
     /// Callback handlers for events occuring on this socket
     InfinibandSocketHandler* mHandler;
 
     /// The private data to send while connecting
-    /// This value will only be set during the connection process and freed when the connection is established.
     crossbow::string mData;
 };
 

@@ -25,6 +25,7 @@ set(SRCS
     include/crossbow/infinio/ByteBuffer.hpp
     include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/ErrorCode.hpp
+    include/crossbow/infinio/EventProcessor.hpp
     include/crossbow/infinio/InfinibandBuffer.hpp
     include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
@@ -34,7 +35,6 @@ set(SRCS
     src/DeviceContext.hpp
     src/DeviceContext.cpp
     src/Endpoint.cpp
-    src/EventProcessor.hpp
     src/EventProcessor.cpp
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp

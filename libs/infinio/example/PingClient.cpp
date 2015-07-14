@@ -12,14 +12,18 @@ using namespace crossbow::infinio;
 
 class PingConnection: private InfinibandSocketHandler {
 public:
-    PingConnection(InfinibandService& service, uint64_t maxSend)
+    PingConnection(InfinibandService& service, const crossbow::string& server, uint16_t port, uint64_t maxSend)
             : mService(service),
-              mSocket(service.createSocket()),
+              mProcessor(mService.createProcessor()),
+              mSocket(mService.createSocket(*mProcessor)),
               mMaxSend(maxSend),
               mSend(0) {
+        Endpoint ep(Endpoint::ipv4(), server, port);
+        mSocket->open();
+        mSocket->setHandler(this);
+        mSocket->connect(ep, "PingClient");
+        std::cout << "Connecting to server" << std::endl;
     }
-
-    void open(const crossbow::string& server, uint16_t port);
 
 private:
     virtual void onConnected(const crossbow::string& data, const std::error_code& ec) override;
@@ -35,21 +39,13 @@ private:
     void sendMessage();
 
     InfinibandService& mService;
+    std::unique_ptr<InfinibandProcessor> mProcessor;
 
     InfinibandSocket mSocket;
 
     uint64_t mMaxSend;
     uint64_t mSend;
 };
-
-void PingConnection::open(const crossbow::string& server, uint16_t port) {
-    // Open socket
-    Endpoint ep(Endpoint::ipv4(), server, port);
-    mSocket->open();
-    mSocket->setHandler(this);
-    mSocket->connect(ep, "PingClient");
-    std::cout << "Connecting to server" << std::endl;
-}
 
 void PingConnection::onConnected(const crossbow::string& data, const std::error_code& ec) {
     if (ec) {
@@ -160,8 +156,7 @@ int main(int argc, const char** argv) {
 
     std::cout << "Starting ping client" << std::endl;
     InfinibandService service;
-    PingConnection con(service, count);
-    con.open(server, port);
+    PingConnection con(service, server, port, count);
 
     service.run();
 

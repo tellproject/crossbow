@@ -190,19 +190,19 @@ void CompletionQueue::requestEvent(std::error_code& ec) {
     }
 }
 
-CompletionContext::CompletionContext(DeviceContext& device, const InfinibandLimits& limits)
-    : mDevice(device),
-      mProcessor(limits.pollCycles),
-      mTaskQueue(mProcessor),
-      mSendBufferCount(limits.sendBufferCount),
+CompletionContext::CompletionContext(EventProcessor& processor, std::shared_ptr<DeviceContext> device,
+        const InfinibandLimits& limits)
+        : mProcessor(processor),
+          mDevice(std::move(device)),
+          mSendBufferCount(limits.sendBufferCount),
           mSendBufferLength(limits.bufferLength),
           mSendQueueLength(limits.sendQueueLength),
           mMaxScatterGather(limits.maxScatterGather),
           mCompletionQueueLength(limits.completionQueueLength),
           mSendData(static_cast<size_t>(mSendBufferCount) * static_cast<size_t>(mSendBufferLength)),
-          mSendDataRegion(mDevice.registerMemoryRegion(mSendData, IBV_ACCESS_LOCAL_WRITE)),
-          mCompletionChannel(mDevice.createCompletionChannel()),
-          mCompletionQueue(mDevice.createCompletionQueue(mCompletionChannel, mCompletionQueueLength)),
+          mSendDataRegion(mDevice->registerMemoryRegion(mSendData, IBV_ACCESS_LOCAL_WRITE)),
+          mCompletionChannel(mDevice->createCompletionChannel()),
+          mCompletionQueue(mDevice->createCompletionQueue(mCompletionChannel, mCompletionQueueLength)),
           mSleeping(false),
           mShutdown(false) {
     mSocketMap.set_empty_key(0x1u << 25);
@@ -215,9 +215,6 @@ CompletionContext::CompletionContext(DeviceContext& device, const InfinibandLimi
     for (decltype(mSendBufferCount) id = 0; id < mSendBufferCount; ++id) {
         mSendBufferQueue.push(id);
     }
-
-    LOG_TRACE("Starting event processor");
-    mProcessor.start();
 }
 
 CompletionContext::~CompletionContext() {
@@ -238,12 +235,12 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.send_cq = mCompletionQueue.get();
     qp_attr.recv_cq = mCompletionQueue.get();
-    qp_attr.srq = mDevice.receiveQueue();
+    qp_attr.srq = mDevice->receiveQueue();
     qp_attr.cap.max_send_wr = mSendQueueLength;
     qp_attr.cap.max_send_sge = mMaxScatterGather;
     qp_attr.qp_type = IBV_QPT_RC;
     qp_attr.comp_mask = IBV_QP_INIT_ATTR_PD;
-    qp_attr.pd = mDevice.protectionDomain();
+    qp_attr.pd = mDevice->protectionDomain();
 
     LOG_TRACE("%1%: Creating queue pair", formatRemoteAddress(id));
     if (rdma_create_qp_ex(id, &qp_attr)) {
@@ -388,7 +385,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
 
         // In the case the work request was a receive, we try to repost the shared receive buffer
         case WorkType::RECEIVE: {
-            mDevice.postReceiveBuffer(workId.bufferId());
+            mDevice->postReceiveBuffer(workId.bufferId());
         } break;
 
         // In the case the work request was a send we just release the send buffer
@@ -416,7 +413,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
     switch (workId.workType()) {
     case WorkType::RECEIVE: {
         LOG_TRACE("Executing receive event of buffer %1%", workId.bufferId());
-        auto buffer = mDevice.acquireReceiveBuffer(workId.bufferId());
+        auto buffer = mDevice->acquireReceiveBuffer(workId.bufferId());
         if (!buffer.valid()) {
             socket->onReceive(nullptr, 0x0u, error::invalid_buffer);
             break;
@@ -427,7 +424,7 @@ void CompletionContext::processWorkComplete(struct ibv_wc* wc) {
         } else {
             socket->onReceive(buffer.data(), wc->byte_len, ec);
         }
-        mDevice.postReceiveBuffer(buffer);
+        mDevice->postReceiveBuffer(buffer);
     } break;
 
     case WorkType::SEND: {
@@ -470,11 +467,6 @@ DeviceContext::DeviceContext(const InfinibandLimits& limits, ibv_context* verbs)
             throw std::system_error(ec);
         }
     }
-
-    mCompletion.reserve(limits.contextThreads);
-    for (decltype(limits.contextThreads) i = 0; i < limits.contextThreads; ++i) {
-        mCompletion.emplace_back(new CompletionContext(*this, limits));
-    }
 }
 
 void DeviceContext::shutdown() {
@@ -483,10 +475,7 @@ void DeviceContext::shutdown() {
     }
     mShutdown.store(true);
 
-    LOG_TRACE("Shutdown completion context");
-    for (auto& context : mCompletion) {
-        context->shutdown();
-    }
+    // TODO Implement
 }
 
 void DeviceContext::postReceiveBuffer(InfinibandBuffer& buffer) {

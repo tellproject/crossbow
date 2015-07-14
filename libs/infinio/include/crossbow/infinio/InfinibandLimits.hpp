@@ -17,8 +17,7 @@ public:
               sendQueueLength(64),
               maxScatterGather(1),
               completionQueueLength(128),
-              pollCycles(1000000),
-              contextThreads(2) {
+              pollCycles(1000000) {
     }
 
     /**
@@ -55,11 +54,6 @@ public:
      * @brief Number of iterations without action to poll until going to epoll sleep
      */
     uint64_t pollCycles;
-
-    /**
-     * @brief Number of poll threads each with their own completion context
-     */
-    uint64_t contextThreads;
 };
 
 } // namespace infinio

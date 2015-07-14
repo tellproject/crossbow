@@ -19,6 +19,8 @@ public:
         mSocket->setHandler(this);
     }
 
+    ~EchoConnection();
+
 private:
     virtual void onConnected(const crossbow::string& data, const std::error_code& ec) override;
 
@@ -32,6 +34,14 @@ private:
 
     InfinibandSocket mSocket;
 };
+
+EchoConnection::~EchoConnection() {
+    try {
+        mSocket->close();
+    } catch (std::system_error& e) {
+        std::cout << "Closing failed socket failed " << e.code() << " - " << e.what() << std::endl;
+    }
+}
 
 void EchoConnection::onConnected(const crossbow::string& data, const std::error_code& ec) {
     std::cout << "Connected [data = \"" << data << "\"]" << std::endl;
@@ -81,30 +91,26 @@ void EchoConnection::handleError(std::string message, const std::error_code& ec)
 
 class EchoAcceptor: protected InfinibandAcceptorHandler {
 public:
-    EchoAcceptor(InfinibandService& service)
-            : mAcceptor(service.createAcceptor()) {
+    EchoAcceptor(InfinibandService& service, uint16_t port)
+            : mProcessor(service.createProcessor()),
+              mAcceptor(service.createAcceptor()) {
+        Endpoint ep(Endpoint::ipv4(), port);
+        mAcceptor->open();
+        mAcceptor->setHandler(this);
+        mAcceptor->bind(ep);
+        mAcceptor->listen(10);
+        std::cout << "Echo server started up" << std::endl;
     }
-
-    void open(uint16_t port);
 
 protected:
     virtual void onConnection(InfinibandSocket socket, const crossbow::string& data) override;
 
 private:
+    std::unique_ptr<InfinibandProcessor> mProcessor;
     InfinibandAcceptor mAcceptor;
 
     std::unordered_set<std::unique_ptr<EchoConnection>> mConnections;
 };
-
-void EchoAcceptor::open(uint16_t port) {
-    // Open socket
-    Endpoint ep(Endpoint::ipv4(), port);
-    mAcceptor->open();
-    mAcceptor->setHandler(this);
-    mAcceptor->bind(ep);
-    mAcceptor->listen(10);
-    std::cout << "Echo server started up" << std::endl;
-}
 
 void EchoAcceptor::onConnection(InfinibandSocket socket, const crossbow::string& data) {
     std::cout << "New incoming connection [data = \"" << data << "\"]" << std::endl;
@@ -112,14 +118,9 @@ void EchoAcceptor::onConnection(InfinibandSocket socket, const crossbow::string&
     std::unique_ptr<EchoConnection> con(new EchoConnection(socket));
 
     try {
-        socket->accept("EchoServer", 0);
+        socket->accept("EchoServer", *mProcessor);
     } catch (std::system_error& e) {
         std::cout << "Accepting connection failed " << e.code() << " - " << e.what() << std::endl;
-        try {
-            socket->close();
-        } catch (std::system_error& e2) {
-            std::cout << "Closing failed socket failed " << e2.code() << " - " << e2.what() << std::endl;
-        }
         return;
     }
 
@@ -148,8 +149,7 @@ int main(int argc, const char** argv) {
 
     std::cout << "Starting echo server" << std::endl;
     InfinibandService service;
-    EchoAcceptor echo(service);
-    echo.open(port);
+    EchoAcceptor echo(service, port);
 
     service.run();
 

@@ -23,7 +23,7 @@ namespace {
 /**
  * @brief Wrapper managing the list of Infiniband devices
  */
-class DeviceList {
+class DeviceList : crossbow::non_copyable {
 public:
     DeviceList()
             : mSize(0),
@@ -39,9 +39,6 @@ public:
             rdma_free_devices(mDevices);
         }
     }
-
-    DeviceList(const DeviceList&) = delete;
-    DeviceList& operator=(const DeviceList&) = delete;
 
     DeviceList(DeviceList&& other)
             : mSize(other.mSize),
@@ -79,9 +76,17 @@ private:
 
 } // anonymous namespace
 
+InfinibandProcessor::InfinibandProcessor(std::shared_ptr<DeviceContext> device, const InfinibandLimits& limits)
+        : mProcessor(limits.pollCycles),
+          mTaskQueue(mProcessor),
+          mContext(new CompletionContext(mProcessor, std::move(device), limits)) {
+    mProcessor.start();
+}
+
+InfinibandProcessor::~InfinibandProcessor() = default;
+
 InfinibandService::InfinibandService(const InfinibandLimits& limits)
         : mLimits(limits),
-          mDevice(nullptr),
           mShutdown(false) {
     LOG_TRACE("Create event channel");
     errno = 0;
@@ -97,7 +102,7 @@ InfinibandService::InfinibandService(const InfinibandLimits& limits)
         LOG_ERROR("Only one Infiniband device is supported at this moment");
         std::terminate();
     }
-    mDevice.reset(new DeviceContext(mLimits, devices.at(0)));
+    mDevice = std::make_shared<DeviceContext>(mLimits, devices.at(0));
 }
 
 InfinibandService::~InfinibandService() {
@@ -131,7 +136,6 @@ void InfinibandService::shutdown() {
 
     if (mDevice) {
         mDevice->shutdown();
-        mDevice.reset();
     }
 
     if (mChannel) {
@@ -146,16 +150,16 @@ void InfinibandService::shutdown() {
     }
 }
 
-InfinibandSocket InfinibandService::createSocket(uint64_t thread) {
-    return InfinibandSocket(new InfinibandSocketImpl(*this, mChannel, mDevice->context(thread)));
+std::unique_ptr<InfinibandProcessor> InfinibandService::createProcessor() {
+    return std::unique_ptr<InfinibandProcessor>(new InfinibandProcessor(mDevice, mLimits));
+}
+
+InfinibandSocket InfinibandService::createSocket(InfinibandProcessor& processor) {
+    return InfinibandSocket(new InfinibandSocketImpl(processor, mChannel));
 }
 
 LocalMemoryRegion InfinibandService::registerMemoryRegion(void* data, size_t length, int access) {
     return mDevice->registerMemoryRegion(data, length, access);
-}
-
-CompletionContext* InfinibandService::context(uint64_t num) {
-    return mDevice->context(num);
 }
 
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
@@ -163,28 +167,14 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
 
 #define HANDLE_EVENT(__case, __handler, ...)\
     case __case: {\
-        std::error_code ec;\
-        auto socket = reinterpret_cast<InfinibandSocketImpl*>(event->id->context);\
-        socket->execute([socket] () {\
-            socket->__handler(__VA_ARGS__);\
-        }, ec);\
-        if (ec) {\
-            LOG_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
-        }\
+        reinterpret_cast<InfinibandSocketImpl*>(event->id->context)->__handler(__VA_ARGS__);\
     } break;
 
 #define HANDLE_DATA_EVENT(__case, __handler)\
     case __case: {\
         crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),\
                 event->param.conn.private_data_len);\
-        std::error_code ec;\
-        auto socket = reinterpret_cast<InfinibandSocketImpl*>(event->id->context);\
-        socket->execute([socket, data] () {\
-            socket->__handler(data);\
-        }, ec);\
-        if (ec) {\
-            LOG_ERROR("Unable to execute event on socket [error = %1% %2%]", ec, ec.message());\
-        }\
+        reinterpret_cast<InfinibandSocketImpl*>(event->id->context)->__handler(data);\
     } break;
 
     switch (event->event) {
@@ -194,7 +184,7 @@ void InfinibandService::processEvent(struct rdma_cm_event* event) {
     HANDLE_EVENT(RDMA_CM_EVENT_ROUTE_ERROR, onResolutionError, error::route_resolution);
 
     case RDMA_CM_EVENT_CONNECT_REQUEST: {
-        InfinibandSocket socket(new InfinibandSocketImpl(*this, event->id));
+        InfinibandSocket socket(new InfinibandSocketImpl(event->id));
         crossbow::string data(reinterpret_cast<const char*>(event->param.conn.private_data),
                 event->param.conn.private_data_len);
         auto listener = reinterpret_cast<InfinibandAcceptorImpl*>(event->listen_id->context);

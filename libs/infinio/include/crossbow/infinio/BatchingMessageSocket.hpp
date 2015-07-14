@@ -2,7 +2,9 @@
 
 #include <crossbow/infinio/ByteBuffer.hpp>
 #include <crossbow/infinio/ErrorCode.hpp>
+#include <crossbow/infinio/EventProcessor.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
+#include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/logger.hpp>
 
@@ -30,6 +32,8 @@ protected:
               mFlush(false) {
         mSocket->setHandler(this);
     }
+
+    ~BatchingMessageSocket() = default;
 
     /**
      * @brief Allocates buffer space for a message
@@ -88,7 +92,7 @@ private:
      *
      * @param ec Error in case the scheduling failed
      */
-    void scheduleFlush(std::error_code& ec);
+    void scheduleFlush();
 
     /// The current Infiniband send buffer
     InfinibandBuffer mBuffer;
@@ -119,10 +123,7 @@ BufferWriter BatchingMessageSocket<Handler>::writeMessage(uint64_t transactionId
         }
         mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()), mBuffer.length());
 
-        scheduleFlush(ec);
-        if (ec) {
-            return BufferWriter(nullptr, 0x0u);
-        }
+        scheduleFlush();
     }
 
     mOldOffset = static_cast<uint32_t>(mSendBuffer.data() - reinterpret_cast<char*>(mBuffer.data()));
@@ -198,12 +199,12 @@ void BatchingMessageSocket<Handler>::sendCurrentBuffer(std::error_code& ec) {
 }
 
 template <typename Handler>
-void BatchingMessageSocket<Handler>::scheduleFlush(std::error_code& ec) {
+void BatchingMessageSocket<Handler>::scheduleFlush() {
     if (mFlush) {
         return;
     }
 
-    mSocket->execute([this] () {
+    mSocket->processor()->executeLocal([this] () {
         // Check if buffer is valid
         if (!mBuffer.valid()) {
             return;
@@ -225,10 +226,7 @@ void BatchingMessageSocket<Handler>::scheduleFlush(std::error_code& ec) {
         }
 
         mFlush = false;
-    }, ec);
-    if (ec) {
-        return;
-    }
+    });
 
     mFlush = true;
 }

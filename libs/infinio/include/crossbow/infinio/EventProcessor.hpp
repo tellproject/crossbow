@@ -1,10 +1,12 @@
 #pragma once
 
+#include <crossbow/non_copyable.hpp>
 #include <crossbow/singleconsumerqueue.hpp>
 
 #include <atomic>
 #include <cstddef>
 #include <functional>
+#include <queue>
 #include <system_error>
 #include <vector>
 
@@ -14,7 +16,7 @@ namespace infinio {
 /**
  * @brief Interface providing an event poller invoked by the EventProcessor
  */
-class EventPoll {
+class EventPoll : private crossbow::non_copyable, crossbow::non_movable {
 public:
     /**
      * @brief Poll and process any new events
@@ -40,7 +42,7 @@ public:
  * After a number of unsuccessful poll rounds the EventProcessor will go into epoll sleep and wake up whenever an event
  * on any fd is triggered.
  */
-class EventProcessor {
+class EventProcessor : private crossbow::non_copyable, crossbow::non_movable {
 public:
     /**
      * @brief Initializes the event processor
@@ -81,6 +83,17 @@ public:
      */
     void start();
 
+    /**
+     * @brief Queue the function for later execution in the event processor
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fun The function to execute in the event loop
+     */
+    void execute(std::function<void()> fun) {
+        mTaskQueue.push(std::move(fun));
+    }
+
 private:
     /**
      * @brief Execute the event loop
@@ -98,6 +111,9 @@ private:
 
     /// Vector containing all registered event poller
     std::vector<EventPoll*> mPoller;
+
+    /// Local task queue containing locally enqueued tasks
+    std::queue<std::function<void()>> mTaskQueue;
 };
 
 /**
@@ -112,9 +128,13 @@ public:
     /**
      * @brief Enqueues the given function into the task queue
      *
+     * Can only be called from outside the current event processor. In case the task queue reached maximum capacity the
+     * call blocks until a free slot opens up in the task queue (this can lead to a deadlock if the queue is full and
+     * execute is called from within the event processor).
+     *
      * @param fun The function to execute in the poll thread
      */
-    void execute(std::function<void()> fun, std::error_code& ec);
+    void execute(std::function<void()> fun);
 
 private:
     virtual bool poll() final override;

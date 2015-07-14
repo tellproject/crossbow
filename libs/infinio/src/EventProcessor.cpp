@@ -1,4 +1,4 @@
-#include "EventProcessor.hpp"
+#include <crossbow/infinio/EventProcessor.hpp>
 
 #include <crossbow/logger.hpp>
 
@@ -24,6 +24,7 @@ EventProcessor::~EventProcessor() {
     // TODO We have to join the poll thread
     // We are not allowed to call join in the same thread as the poll loop is
 
+    LOG_TRACE("Destroying epoll file descriptor");
     if (close(mEpoll)) {
         std::error_code ec(errno, std::system_category());
         LOG_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
@@ -56,6 +57,7 @@ void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
 }
 
 void EventProcessor::start() {
+    LOG_TRACE("Starting event processor");
     mPollThread = std::thread([this] () {
         while (true) {
             doPoll();
@@ -69,6 +71,11 @@ void EventProcessor::doPoll() {
             if (poller->poll()) {
                 i = 0;
             }
+        }
+        while (!mTaskQueue.empty()) {
+            mTaskQueue.front()();
+            mTaskQueue.pop();
+            i = 0;
         }
     }
 
@@ -116,8 +123,7 @@ TaskQueue::~TaskQueue() {
     }
 }
 
-void TaskQueue::execute(std::function<void ()> fun, std::error_code& ec) {
-    // TODO This can lead to a deadlock because write blocks when the queue is full
+void TaskQueue::execute(std::function<void()> fun) {
     mTaskQueue.write(std::move(fun));
     if (mSleeping.load()) {
         uint64_t counter = 0x1u;

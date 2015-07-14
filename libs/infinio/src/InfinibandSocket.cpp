@@ -19,6 +19,8 @@ namespace {
  */
 constexpr std::chrono::milliseconds gTimeout = std::chrono::milliseconds(10);
 
+const crossbow::string gEmptyString = crossbow::string();
+
 } // anonymous namespace
 
 template <typename SocketType>
@@ -134,10 +136,6 @@ void InfinibandSocketHandler::onDisconnected() {
     // Empty default function
 }
 
-void InfinibandSocketImpl::execute(std::function<void()> fun, std::error_code& ec) {
-    mContext->execute(std::move(fun), ec);
-}
-
 void InfinibandSocketImpl::connect(Endpoint& addr) {
     if (mId == nullptr) {
         throw std::system_error(EBADF, std::system_category());
@@ -165,15 +163,15 @@ void InfinibandSocketImpl::disconnect() {
     }
 }
 
-void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread) {
+void InfinibandSocketImpl::accept(const crossbow::string& data, InfinibandProcessor& processor) {
     LOG_TRACE("%1%: Accepting connection", formatRemoteAddress(mId));
-    if (mContext != nullptr) {
-        throw std::system_error(error::already_initialized);
+    if (mProcessor != nullptr) {
+        throw std::system_error(EISCONN, std::system_category());
     }
-    mContext = mService.context(thread);
+    mProcessor = &processor;
 
     // Add connection to queue handler
-    mContext->addConnection(mId, this);
+    mProcessor->context()->addConnection(mId, this);
 
     struct rdma_conn_param cm_params;
     memset(&cm_params, 0, sizeof(cm_params));
@@ -182,7 +180,7 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, uint64_t thread)
 
     if (rdma_accept(mId, &cm_params)) {
         auto res = errno;
-        mContext->removeConnection(mId);
+        mProcessor->context()->removeConnection(mId);
         throw std::system_error(res, std::system_category());
     }
 }
@@ -274,24 +272,24 @@ void InfinibandSocketImpl::writeUnsignaled(ScatterGatherBuffer& src, const Remot
 }
 
 uint32_t InfinibandSocketImpl::bufferLength() const {
-    return mContext->bufferLength();
+    return mProcessor->context()->bufferLength();
 }
 
 InfinibandBuffer InfinibandSocketImpl::acquireSendBuffer() {
-    return mContext->acquireSendBuffer();
+    return mProcessor->context()->acquireSendBuffer();
 }
 
 InfinibandBuffer InfinibandSocketImpl::acquireSendBuffer(uint32_t length) {
-    return mContext->acquireSendBuffer(length);
+    return mProcessor->context()->acquireSendBuffer(length);
 }
 
 void InfinibandSocketImpl::releaseSendBuffer(InfinibandBuffer& buffer) {
-    mContext->releaseSendBuffer(buffer);
+    mProcessor->context()->releaseSendBuffer(buffer);
 }
 
 void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
     if (mId == nullptr) {
-        ec = std::error_code(EBADF, std::system_category());
+        throw std::system_error(EBADF, std::system_category());
         return;
     }
 
@@ -379,52 +377,81 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
 }
 
 void InfinibandSocketImpl::onAddressResolved() {
-    LOG_TRACE("%1%: Address resolved", formatRemoteAddress(mId));
-    if (rdma_resolve_route(mId, gTimeout.count())) {
-        onConnectionEvent(mData, std::error_code(errno, std::system_category()));
-        return;
-    }
+    mProcessor->execute([this] () {
+        LOG_TRACE("%1%: Address resolved", formatRemoteAddress(mId));
+        if (rdma_resolve_route(mId, gTimeout.count())) {
+            mHandler->onConnected(gEmptyString, std::error_code(errno, std::system_category()));
+            return;
+        }
+    });
 }
 
 void InfinibandSocketImpl::onRouteResolved() {
-    LOG_TRACE("%1%: Route resolved", formatRemoteAddress(mId));
+    mProcessor->execute([this] () {
+        LOG_TRACE("%1%: Route resolved", formatRemoteAddress(mId));
 
-    // Add connection to queue handler
-    try {
-        mContext->addConnection(mId, this);
-    } catch (std::system_error& e) {
-        onConnectionEvent(mData, e.code());
-        return;
-    }
+        // Add connection to queue handler
+        try {
+            mProcessor->context()->addConnection(mId, this);
+        } catch (std::system_error& e) {
+            mHandler->onConnected(gEmptyString, e.code());
+            return;
+        }
 
-    struct rdma_conn_param cm_params;
-    memset(&cm_params, 0, sizeof(cm_params));
-    cm_params.private_data = mData.c_str();
-    cm_params.private_data_len = mData.length();
+        struct rdma_conn_param cm_params;
+        memset(&cm_params, 0, sizeof(cm_params));
+        cm_params.private_data = mData.c_str();
+        cm_params.private_data_len = mData.length();
 
-    if (rdma_connect(mId, &cm_params)) {
-        std::error_code ec(errno, std::system_category());
-        mContext->removeConnection(mId);
-        onConnectionEvent(mData, ec);
-    }
+        if (rdma_connect(mId, &cm_params)) {
+            std::error_code ec(errno, std::system_category());
+            mProcessor->context()->removeConnection(mId);
+            mHandler->onConnected(gEmptyString, ec);
+        }
+    });
+}
+
+void InfinibandSocketImpl::onResolutionError(error::network_errors err) {
+    mProcessor->execute([this, err] () {
+        mHandler->onConnected(gEmptyString, err);
+    });
 }
 
 void InfinibandSocketImpl::onConnectionError(error::network_errors err) {
-    mContext->removeConnection(mId);
-    onConnectionEvent(mData, err);
+    mProcessor->execute([this, err] () {
+        mProcessor->context()->removeConnection(mId);
+        mHandler->onConnected(gEmptyString, err);
+    });
 }
 
 void InfinibandSocketImpl::onConnectionRejected(const crossbow::string& data) {
-    mContext->removeConnection(mId);
-    onConnectionEvent(data, std::error_code(ECONNREFUSED, std::system_category()));
+    mProcessor->execute([this, data] () {
+        mProcessor->context()->removeConnection(mId);
+        mHandler->onConnected(data, std::error_code(ECONNREFUSED, std::system_category()));
+    });
+}
+
+void InfinibandSocketImpl::onConnectionEstablished(const string& data) {
+    mProcessor->execute([this, data] () {
+        mHandler->onConnected(data, std::error_code());
+    });
+}
+
+void InfinibandSocketImpl::onDisconnected() {
+    mProcessor->execute([this] () {
+        // TODO Call disconnect here directly? The socket has to call it anyway to succesfully shutdown the connection
+        mHandler->onDisconnect();
+    });
 }
 
 void InfinibandSocketImpl::onTimewaitExit() {
-    mContext->drainConnection(this);
+    mProcessor->execute([this] () {
+        mProcessor->context()->drainConnection(this);
+    });
 }
 
 void InfinibandSocketImpl::onDrained() {
-    mContext->removeConnection(mId);
+    mProcessor->context()->removeConnection(mId);
     mHandler->onDisconnected();
 }
 
