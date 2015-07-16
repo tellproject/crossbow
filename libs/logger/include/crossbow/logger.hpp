@@ -122,7 +122,11 @@ using Logger = crossbow::singleton<LoggerT>;
 
 extern Logger logger;
 
+#ifdef NDEBUG
+#define LOG_TRACE(...)
+#else
 #define LOG_TRACE(...) crossbow::logger::logger->trace(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+#endif
 #define LOG_DEBUG(...) crossbow::logger::logger->debug(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
 #define LOG_INFO(...) crossbow::logger::logger->info(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
 #define LOG_WARN(...) crossbow::logger::logger->warn(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
