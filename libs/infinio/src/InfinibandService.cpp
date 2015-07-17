@@ -56,6 +56,7 @@ public:
         other.mSize = 0;
         mDevices = other.mDevices;
         other.mDevices = nullptr;
+        return *this;
     }
 
     size_t size() const {
