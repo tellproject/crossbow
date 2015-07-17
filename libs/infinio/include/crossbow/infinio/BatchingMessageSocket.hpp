@@ -2,11 +2,12 @@
 
 #include <crossbow/infinio/ByteBuffer.hpp>
 #include <crossbow/infinio/ErrorCode.hpp>
-#include <crossbow/infinio/EventProcessor.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
+#include <crossbow/infinio/MessageId.hpp>
 #include <crossbow/logger.hpp>
+#include <crossbow/non_copyable.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -22,18 +23,52 @@ namespace infinio {
  * cost of latency. Messages are flushed every time all events in the poll round have been processed.
  */
 template <typename Handler>
-class BatchingMessageSocket : protected InfinibandSocketHandler {
+class BatchingMessageSocket : protected InfinibandSocketHandler, crossbow::non_copyable, crossbow::non_movable {
+public:
+    bool isConnected() const {
+        return (mState == ConnectionState::CONNECTED);
+    }
+
 protected:
+    enum class ConnectionState {
+        DISCONNECTED,
+        SHUTDOWN,
+        CONNECTING,
+        CONNECTED,
+    };
+
     BatchingMessageSocket(InfinibandSocket socket)
             : mSocket(std::move(socket)),
               mBuffer(InfinibandBuffer::INVALID_ID),
               mSendBuffer(static_cast<char*>(nullptr), 0),
-              mOldOffset(std::numeric_limits<uint32_t>::max()),
+              mState(ConnectionState::DISCONNECTED),
               mFlush(false) {
         mSocket->setHandler(this);
+        if (!mSocket->isOpen()) {
+            mSocket->open();
+        }
     }
 
-    ~BatchingMessageSocket() = default;
+    virtual ~BatchingMessageSocket();
+
+    ConnectionState state() const {
+        return mState;
+    }
+
+    /**
+     * @brief Start the connection to the remote host
+     */
+    void connect(const crossbow::string& host, uint16_t port, const crossbow::string& data);
+
+    /**
+     * @brief Accept the connection from the remote host
+     */
+    void accept(const crossbow::string& data, InfinibandProcessor& processor);
+
+    /**
+     * @brief Shutdown the connection to the remote host
+     */
+    void shutdown();
 
     /**
      * @brief Allocates buffer space for a message
@@ -41,29 +76,32 @@ protected:
      * The implementation performs message batching: Messages share a common send buffer which is scheduled for sending
      * each poll interval.
      *
-     * @param transactionId The transaction ID associated with the message to be written
+     * @param messageId A unique ID associated with the message to be written
      * @param messageType The type of the message to be written
      * @param messageLength The length of the message to be written
      * @param ec Error in case allocating the buffer failed
      * @return The buffer to write the message content
      */
-    BufferWriter writeMessage(uint64_t transactionId, uint32_t messageType, uint32_t messageLength,
-            std::error_code& ec);
+    template <typename Fun>
+    void writeMessage(MessageId messageId, uint32_t messageType, uint32_t messageLength, Fun fun, std::error_code& ec);
 
-    /**
-     * @brief Deallocates the buffer space for the last allocated message
-     *
-     * This can only be called once and only after writeMessage has been called.
-     */
-    void revertMessage();
+    void handleSocketError(const std::error_code& ec);
 
     InfinibandSocket mSocket;
 
 private:
-    static constexpr size_t HEADER_SIZE = sizeof(uint64_t) + 2 * sizeof(uint32_t);
+    static constexpr uint32_t HEADER_SIZE = sizeof(uint64_t) + 2 * sizeof(uint32_t);
 
     /**
-     * @brief Callback function invoked by the Infinibadn socket.
+     * @brief Callback function invoked by the Infiniband socket
+     *
+     * Handles the connection setup phase: In case the connection was successfully established the onSocketConnected
+     * callback is invoked.
+     */
+    virtual void onConnected(const crossbow::string& data, const std::error_code& ec) final override;
+
+    /**
+     * @brief Callback function invoked by the Infiniband socket
      *
      * Reads all messages contained in the receive buffer and for every message invokes the onMessage callback on the
      * handler.
@@ -71,11 +109,23 @@ private:
     virtual void onReceive(const void* buffer, size_t length, const std::error_code& ec) final override;
 
     /**
-     * @brief Callback function invoked by the Infiniband socket.
-     *
-     * Checks if the send was successfull and if it was not invokes the onSocketError callback on the handler.
+     * @brief Callback function invoked by the Infiniband socket
      */
     virtual void onSend(uint32_t userId, const std::error_code& ec) final override;
+
+    /**
+     * @brief Callback function invoked by the Infiniband socket
+     *
+     * Invoked when the remote host disconnected: Disconnects the this side of connection.
+     */
+    virtual void onDisconnect() final override;
+
+    /**
+     * @brief Callback function invoked by the Infiniband socket
+     *
+     * Invoked when the remote host completely disconnected: Invokes the onSocketDisconnected callback.
+     */
+    virtual void onDisconnected() final override;
 
     /**
      * @brief Sends the current send buffer
@@ -100,74 +150,132 @@ private:
     /// A buffer writer to write data to the current Infiniband buffer
     BufferWriter mSendBuffer;
 
-    uint32_t mOldOffset;
+    /// The connection state of the socket
+    ConnectionState mState;
 
     /// Whether a flush task is pending
     bool mFlush;
 };
 
 template <typename Handler>
-BufferWriter BatchingMessageSocket<Handler>::writeMessage(uint64_t transactionId, uint32_t messageType,
-        uint32_t messageLength, std::error_code& ec) {
+BatchingMessageSocket<Handler>::~BatchingMessageSocket() {
+    // TODO Make this less restrictive
+    LOG_ASSERT(mState == ConnectionState::DISCONNECTED, "Socket must be disconnected");
+
+    try {
+        mSocket->close();
+    } catch (std::system_error& e) {
+        LOG_ERROR("Error while closing socket [error = %1% %2%]", e.code(), e.what());
+    }
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::connect(const crossbow::string& host, uint16_t port,
+        const crossbow::string& data) {
+    if (mState != ConnectionState::DISCONNECTED) {
+        throw std::system_error(EISCONN, std::system_category());
+    }
+
+    Endpoint ep(Endpoint::ipv4(), host, port);
+    mSocket->connect(ep, data);
+
+    mState = ConnectionState::CONNECTING;
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::accept(const crossbow::string& data, InfinibandProcessor& processor) {
+    if (mState != ConnectionState::DISCONNECTED) {
+        throw std::system_error(EISCONN, std::system_category());
+    }
+
+    mSocket->accept(data, processor);
+    mState = ConnectionState::CONNECTING;
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::shutdown() {
+    if (mState != ConnectionState::CONNECTED) {
+        throw std::system_error(ENOTCONN, std::system_category());
+    }
+
+    mState = ConnectionState::SHUTDOWN;
+    try {
+        mSocket->disconnect();
+    } catch (std::system_error& e) {
+        LOG_ERROR("Error disconnecting socket [error = %1% %2%]", e.code(), e.what());
+    }
+}
+
+template <typename Handler>
+template <typename Fun>
+void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t messageType, uint32_t messageLength,
+        Fun fun, std::error_code& ec) {
     auto length = HEADER_SIZE + messageLength;
     if (!mSendBuffer.canWrite(length)) {
         sendCurrentBuffer(ec);
         if (ec) {
-            return BufferWriter(nullptr, 0x0u);
+            return;
         }
 
         mBuffer = mSocket->acquireSendBuffer();
         if (!mBuffer.valid()) {
             ec = error::invalid_buffer;
-            return BufferWriter(nullptr, 0x0u);
+            return;
         }
         mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()), mBuffer.length());
 
         scheduleFlush();
     }
 
-    mOldOffset = static_cast<uint32_t>(mSendBuffer.data() - reinterpret_cast<char*>(mBuffer.data()));
+    auto oldOffset = static_cast<uint32_t>(mSendBuffer.data() - reinterpret_cast<char*>(mBuffer.data()));
 
-    mSendBuffer.write<uint64_t>(transactionId);
+    mSendBuffer.write<uint64_t>(messageId.id());
     mSendBuffer.write<uint32_t>(messageType);
     mSendBuffer.write<uint32_t>(messageLength);
-
     auto message = mSendBuffer.extract(messageLength);
-
     mSendBuffer.align(sizeof(uint64_t));
 
-    return message;
+    fun(message, ec);
+    if (ec) {
+        mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()) + oldOffset, mBuffer.length() - oldOffset);
+    }
 }
 
 template <typename Handler>
-void BatchingMessageSocket<Handler>::revertMessage() {
-    LOG_ASSERT(mOldOffset != std::numeric_limits<uint32_t>::max(), "Invalid offset");
-    LOG_ASSERT(mBuffer.length() < mOldOffset, "Offset larger than buffer length");
+void BatchingMessageSocket<Handler>::onConnected(const crossbow::string& data, const std::error_code& ec) {
+    LOG_ASSERT(mState == ConnectionState::CONNECTING, "State is not connecting");
 
-    mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()) + mOldOffset, mBuffer.length() - mOldOffset);
-    mOldOffset = std::numeric_limits<uint32_t>::max();
+    if (ec) {
+        mState = ConnectionState::DISCONNECTED;
+        handleSocketError(ec);
+        return;
+    }
+
+    mState = ConnectionState::CONNECTED;
+
+    static_cast<Handler*>(this)->onSocketConnected(data);
 }
 
 template <typename Handler>
 void BatchingMessageSocket<Handler>::onReceive(const void* buffer, size_t length, const std::error_code& ec) {
     if (ec) {
-        static_cast<Handler*>(this)->onSocketError(ec);
+        handleSocketError(ec);
         return;
     }
 
     BufferReader receiveBuffer(reinterpret_cast<const char*>(buffer), length);
     while (receiveBuffer.canRead(HEADER_SIZE)) {
-        auto transactionId = receiveBuffer.read<uint64_t>();
+        MessageId messageId(receiveBuffer.read<uint64_t>());
         auto messageType = receiveBuffer.read<uint32_t>();
         auto messageLength = receiveBuffer.read<uint32_t>();
 
         if (!receiveBuffer.canRead(messageLength)) {
-            static_cast<Handler*>(this)->onSocketError(error::invalid_message);
+            handleSocketError(error::invalid_message);
             return;
         }
         auto message = receiveBuffer.extract(messageLength);
 
-        static_cast<Handler*>(this)->onMessage(transactionId, messageType, message);
+        static_cast<Handler*>(this)->onMessage(messageId, messageType, message);
 
         receiveBuffer.align(sizeof(uint64_t));
     }
@@ -176,9 +284,21 @@ void BatchingMessageSocket<Handler>::onReceive(const void* buffer, size_t length
 template <typename Handler>
 void BatchingMessageSocket<Handler>::onSend(uint32_t userId, const std::error_code& ec) {
     if (ec) {
-        static_cast<Handler*>(this)->onSocketError(ec);
+        handleSocketError(ec);
         return;
     }
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::onDisconnect() {
+    shutdown();
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::onDisconnected() {
+    mState = ConnectionState::DISCONNECTED;
+
+    static_cast<Handler*>(this)->onSocketDisconnected();
 }
 
 template <typename Handler>
@@ -221,7 +341,7 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
         std::error_code ec;
         sendCurrentBuffer(ec);
         if (ec) {
-            static_cast<Handler*>(this)->onSocketError(ec);
+            handleSocketError(ec);
             return;
         }
 
@@ -229,6 +349,15 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
     });
 
     mFlush = true;
+}
+
+template <typename Handler>
+void BatchingMessageSocket<Handler>::handleSocketError(const std::error_code& ec) {
+    LOG_ERROR("Error during socket operation [error = %1% %2%]", ec, ec.message());
+
+    // TODO Try to recover from errors
+
+    shutdown();
 }
 
 } // namespace infinio

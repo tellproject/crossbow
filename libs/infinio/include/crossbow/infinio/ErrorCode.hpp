@@ -11,45 +11,53 @@ namespace infinio {
 namespace error {
 
 /**
- * @brief Basic errors that can happen everywhere
+ * @brief RPC errors related to actions on the RPC interface
  */
-enum basic_errors {
-    already_initialized,
+enum rpc_errors {
+    /// No response received
+    no_response = 1,
 
-    /// Memory access out of range
-    out_of_range,
+    /// Received message is invalid.
+    invalid_message,
+
+    /// Received message of wrong type.
+    wrong_type,
 };
 
 /**
- * @brief Category for basic errors
+ * @brief Category for RPC errors
  */
-class basic_category : public std::error_category {
+class rpc_category : public std::error_category {
 public:
     const char* name() const noexcept {
-        return "infinio.basic";
+        return "infinio.rpc";
     }
 
     std::string message(int value) const {
         switch (value) {
-        case error::already_initialized:
-            return "Already initialized";
+        case error::no_response:
+            return "No response received";
 
-        case error::out_of_range:
-            return "Memory access out of range";
+        case error::invalid_message:
+            return "Received message is invalid";
+
+        case error::wrong_type:
+            return "Received message of wrong type";
+
 
         default:
-            return "infinio.basic error";
+            return "infinio.rpc error";
         }
     }
 };
 
-inline const std::error_category& get_basic_category() {
-    static basic_category instance;
+inline const std::error_category& get_rpc_category() {
+    static rpc_category instance;
     return instance;
 }
 
-inline std::error_code make_error_code(basic_errors e) {
-    return std::error_code(static_cast<int>(e), get_basic_category());
+inline std::error_code make_error_code(rpc_errors e) {
+    return std::error_code(static_cast<int>(e), get_rpc_category());
 }
 
 /**
@@ -74,8 +82,8 @@ enum network_errors {
     /// Buffer is invalid.
     invalid_buffer,
 
-    /// Received message is invalid.
-    invalid_message,
+    /// Memory access out of range
+    out_of_range,
 };
 
 /**
@@ -98,14 +106,17 @@ public:
         case error::route_resolution:
             return "Route resolution failed";
 
+        case error::unreachable:
+            return "Remote unreachable";
+
         case error::connection_error:
             return "Connection error";
 
         case error::invalid_buffer:
             return "Buffer is invalid";
 
-        case error::invalid_message:
-            return "Received message is invalid";
+        case error::out_of_range:
+            return "Memory access out of range";
 
         default:
             return "infinio.network error";
@@ -152,7 +163,7 @@ inline std::error_code make_error_code(ibv_wc_status e) {
 namespace std {
 
 template<>
-struct is_error_code_enum<crossbow::infinio::error::basic_errors> : public std::true_type {
+struct is_error_code_enum<crossbow::infinio::error::rpc_errors> : public std::true_type {
 };
 
 template<>

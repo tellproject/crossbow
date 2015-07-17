@@ -16,6 +16,12 @@ if(NOT ${Sparsehash_FOUND})
     return()
 endif()
 
+find_package(TBB)
+if(NOT ${TBB_FOUND})
+    message(STATUS "Did not find TBB, InfinIO will not be built")
+    return()
+endif()
+
 find_package(Boost COMPONENTS context REQUIRED)
 
 find_package(Threads REQUIRED)
@@ -31,6 +37,9 @@ set(SRCS
     include/crossbow/infinio/InfinibandLimits.hpp
     include/crossbow/infinio/InfinibandService.hpp
     include/crossbow/infinio/InfinibandSocket.hpp
+    include/crossbow/infinio/MessageId.hpp
+    include/crossbow/infinio/RpcClient.hpp
+    include/crossbow/infinio/RpcServer.hpp
     src/AddressHelper.cpp
     src/AddressHelper.hpp
     src/DeviceContext.hpp
@@ -41,6 +50,7 @@ set(SRCS
     src/InfinibandBuffer.cpp
     src/InfinibandService.cpp
     src/InfinibandSocket.cpp
+    src/RpcClient.cpp
     src/WorkRequestId.hpp
 )
 
@@ -70,7 +80,11 @@ target_include_directories(crossbow_infinio PUBLIC ${Rdmacm_INCLUDE_DIRS})
 target_link_libraries(crossbow_infinio PUBLIC ${Rdmacm_LIBRARIES})
 
 # Link against sparsehash
-target_include_directories(crossbow_infinio PRIVATE ${Sparsehash_INCLUDE_DIRS})
+target_include_directories(crossbow_infinio PUBLIC ${Sparsehash_INCLUDE_DIRS})
+
+# Link against TBB
+target_include_directories(crossbow_infinio PUBLIC ${TBB_INCLUDE_DIRS})
+target_link_libraries(crossbow_infinio PUBLIC ${TBB_LIBRARIES})
 
 # Install the library
 install(TARGETS crossbow_infinio
