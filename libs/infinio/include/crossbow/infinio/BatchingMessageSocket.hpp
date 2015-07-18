@@ -58,7 +58,7 @@ protected:
     /**
      * @brief Start the connection to the remote host
      */
-    void connect(const crossbow::string& host, uint16_t port, const crossbow::string& data);
+    void connect(Endpoint endpoint, const crossbow::string& data);
 
     /**
      * @brief Accept the connection from the remote host
@@ -170,14 +170,12 @@ BatchingMessageSocket<Handler>::~BatchingMessageSocket() {
 }
 
 template <typename Handler>
-void BatchingMessageSocket<Handler>::connect(const crossbow::string& host, uint16_t port,
-        const crossbow::string& data) {
+void BatchingMessageSocket<Handler>::connect(Endpoint endpoint, const crossbow::string& data) {
     if (mState != ConnectionState::DISCONNECTED) {
         throw std::system_error(EISCONN, std::system_category());
     }
 
-    Endpoint ep(Endpoint::ipv4(), host, port);
-    mSocket->connect(ep, data);
+    mSocket->connect(endpoint, data);
 
     mState = ConnectionState::CONNECTING;
 }
