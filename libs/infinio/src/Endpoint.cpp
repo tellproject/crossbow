@@ -9,23 +9,22 @@
 namespace crossbow {
 namespace infinio {
 
-Endpoint::Endpoint(int family, const crossbow::string& host, uint16_t port) {
-    switch (family) {
-    case AF_INET: {
-        memset(&mAddress.ipv4, 0, sizeof(mAddress.ipv4));
-        mAddress.ipv4.sin_family = AF_INET;
-        inet_pton(AF_INET, host.c_str(), &mAddress.ipv4.sin_addr);
-        mAddress.ipv4.sin_port = htons(port);
-    } break;
-    case AF_INET6: {
-        memset(&mAddress.ipv6, 0, sizeof(mAddress.ipv6));
-        mAddress.ipv6.sin6_family = AF_INET6;
-        inet_pton(AF_INET6, host.c_str(), &mAddress.ipv6.sin6_addr);
-        mAddress.ipv6.sin6_port = htons(port);
-    } break;
-    default:
-        break;
+Endpoint::Endpoint() {
+    memset(&mAddress, 0, sizeof(mAddress));
+}
+
+Endpoint::Endpoint(int family, const crossbow::string& host) {
+    if (host.empty()) {
+        return;
     }
+    auto pos = host.find(':');
+    auto hostPart = host.substr(0, pos);
+    uint16_t portPart = std::stoul(host.substr(pos + 1).c_str());
+    setAddress(family, hostPart, portPart);
+}
+
+Endpoint::Endpoint(int family, const crossbow::string& host, uint16_t port) {
+    setAddress(family, host, port);
 }
 
 Endpoint::Endpoint(int family, uint16_t port) {
@@ -52,6 +51,25 @@ Endpoint::Endpoint(sockaddr* addr) {
     } break;
     case AF_INET6: {
         memcpy(&mAddress.ipv6, addr, sizeof(struct sockaddr_in6));
+    } break;
+    default:
+        break;
+    }
+}
+
+void Endpoint::setAddress(int family, const string& host, uint16_t port) {
+    switch (family) {
+    case AF_INET: {
+        memset(&mAddress.ipv4, 0, sizeof(mAddress.ipv4));
+        mAddress.ipv4.sin_family = AF_INET;
+        inet_pton(AF_INET, host.c_str(), &mAddress.ipv4.sin_addr);
+        mAddress.ipv4.sin_port = htons(port);
+    } break;
+    case AF_INET6: {
+        memset(&mAddress.ipv6, 0, sizeof(mAddress.ipv6));
+        mAddress.ipv6.sin6_family = AF_INET6;
+        inet_pton(AF_INET6, host.c_str(), &mAddress.ipv6.sin6_addr);
+        mAddress.ipv6.sin6_port = htons(port);
     } break;
     default:
         break;

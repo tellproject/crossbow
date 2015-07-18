@@ -30,6 +30,19 @@ public:
     }
 
     /**
+     * @brief Creates a new empty endpoint
+     */
+    Endpoint();
+
+    /**
+     * @brief Creates a new endpoint of the given protocol family, host and port
+     *
+     * @param family The protocol family
+     * @param host IP Address and port of the target address in the format IP:Port
+     */
+    Endpoint(int family, const crossbow::string& host);
+
+    /**
      * @brief Creates a new endpoint of the given protocol family, host and port
      *
      * @param family The protocol family
@@ -57,6 +70,8 @@ public:
 
 private:
     friend std::ostream& operator<<(std::ostream&, const Endpoint&);
+
+    void setAddress(int family, const crossbow::string& host, uint16_t port);
 
     union {
         struct sockaddr_in ipv4;
