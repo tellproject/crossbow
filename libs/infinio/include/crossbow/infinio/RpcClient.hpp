@@ -1,8 +1,9 @@
 #pragma once
 
 #include <crossbow/enum_underlying.hpp>
-#include <crossbow/infinio/ByteBuffer.hpp>
 #include <crossbow/infinio/BatchingMessageSocket.hpp>
+#include <crossbow/infinio/ByteBuffer.hpp>
+#include <crossbow/infinio/Fiber.hpp>
 #include <crossbow/logger.hpp>
 #include <crossbow/string.hpp>
 
@@ -43,6 +44,10 @@ public:
      */
     bool done() const {
         return !mPending;
+    }
+
+    Fiber& fiber() {
+        return mFiber;
     }
 
 protected:
@@ -316,7 +321,7 @@ private:
     bool sendInternalRequest(std::shared_ptr<RpcResponse> response, Message messageType, bool async, uint32_t length,
             Fun fun);
 
-    bool waitForConnected(std::shared_ptr<RpcResponse>& response);
+    bool waitForConnected(Fiber& fiber);
 
     void onSocketConnected(const crossbow::string& data);
 
@@ -338,7 +343,7 @@ private:
     google::dense_hash_map<uint32_t, std::shared_ptr<RpcResponse>> mAsyncResponses;
 
     /// Requests waiting for the connection to become ready
-    std::queue<std::shared_ptr<RpcResponse>> mRequests;
+    ConditionVariable mConnected;
 };
 
 template <typename Fun, typename Message>
@@ -349,7 +354,7 @@ bool RpcClientSocket::sendInternalRequest(std::shared_ptr<RpcResponse> response,
     LOG_ASSERT(crossbow::to_underlying(messageType) != std::numeric_limits<uint32_t>::max(),
             "Invalid message tupe");
 
-    if (!waitForConnected(response)) {
+    if (!waitForConnected(response->fiber())) {
         response->onAbort(std::make_error_code(std::errc::connection_aborted));
         return false;
     }

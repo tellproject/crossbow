@@ -42,24 +42,18 @@ RpcClientSocket::RpcClientSocket(InfinibandSocket socket)
     mAsyncResponses.set_deleted_key(std::numeric_limits<uint32_t>::max());
 }
 
-bool RpcClientSocket::waitForConnected(std::shared_ptr<RpcResponse>& response) {
+bool RpcClientSocket::waitForConnected(Fiber& fiber) {
     while (state() == ConnectionState::CONNECTING) {
         LOG_TRACE("Waiting for connection to become ready");
-        mRequests.push(response);
-        response->wait();
+        mConnected.wait(fiber);
     }
 
     return (isConnected());
 }
 
 void RpcClientSocket::onSocketConnected(const crossbow::string& data) {
-    while (!mRequests.empty()) {
-        auto request = std::move(mRequests.front());
-        mRequests.pop();
-
-        LOG_TRACE("Resuming waiting request");
-        request->notify();
-    }
+    LOG_TRACE("Resuming waiting requests");
+    mConnected.notify();
 }
 
 void RpcClientSocket::onSocketDisconnected() {

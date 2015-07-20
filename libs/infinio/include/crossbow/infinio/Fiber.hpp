@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <functional>
 #include <new>
+#include <queue>
 #include <utility>
 
 namespace crossbow {
@@ -57,6 +58,28 @@ private:
 
     boost::context::fcontext_t mReturnContext;
 };
+
+class ConditionVariable {
+public:
+    ~ConditionVariable();
+
+    void wait(Fiber& fiber);
+
+    template <typename Predicate>
+    void wait(Fiber& fiber, Predicate pred);
+
+    void notify();
+
+private:
+    std::queue<Fiber*> mWaiting;
+};
+
+template <typename Predicate>
+void ConditionVariable::wait(Fiber& fiber, Predicate pred) {
+    while (!pred()) {
+        wait(fiber);
+    }
+}
 
 } // namespace infinio
 } // namespace crossbow

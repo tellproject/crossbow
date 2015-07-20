@@ -92,5 +92,28 @@ void Fiber::start() {
     wait();
 }
 
+ConditionVariable::~ConditionVariable() {
+    notify();
+}
+
+void ConditionVariable::wait(Fiber& fiber) {
+    mWaiting.push(&fiber);
+    fiber.wait();
+}
+
+void ConditionVariable::notify() {
+    if (mWaiting.empty()) {
+        return;
+    }
+
+    decltype(mWaiting) waiting;
+    waiting.swap(mWaiting);
+    do {
+        auto fiber = waiting.front();
+        waiting.pop();
+        fiber->resume();
+    } while (!waiting.empty());
+}
+
 } // namespace infinio
 } // namespace crossbow
