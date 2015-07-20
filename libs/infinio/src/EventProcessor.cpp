@@ -78,10 +78,14 @@ void EventProcessor::doPoll() {
                 i = 0;
             }
         }
-        while (!mTaskQueue.empty()) {
-            mTaskQueue.front()();
-            mTaskQueue.pop();
-            i = 0;
+        if (!mTaskQueue.empty()) {
+            decltype(mTaskQueue) taskQueue;
+            taskQueue.swap(mTaskQueue);
+            do {
+                taskQueue.front()();
+                taskQueue.pop();
+                i = 0;
+            } while (!taskQueue.empty());
         }
     }
 
