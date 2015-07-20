@@ -29,7 +29,7 @@ public:
             : mSize(0),
               mDevices(rdma_get_devices(&mSize)) {
         if (mDevices == nullptr) {
-            throw std::system_error(errno, std::system_category());
+            throw std::system_error(errno, std::generic_category());
         }
         LOG_TRACE("Queried %1% device(s)", mSize);
     }

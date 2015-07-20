@@ -20,21 +20,21 @@ MmapRegion::MmapRegion(size_t length)
           mLength(length) {
     // TODO Size might have to be a multiple of the page size
     if (mData == MAP_FAILED) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Mapped %1% bytes of buffer space", mLength);
 }
 
 MmapRegion::~MmapRegion() {
     if (mData != nullptr && munmap(mData, mLength)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to unmap memory region [error = %1% %2%]", ec, ec.message());
     }
 }
 
 MmapRegion& MmapRegion::operator=(MmapRegion&& other) {
     if (mData != nullptr && munmap(mData, mLength)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mData = other.mData;
@@ -47,21 +47,21 @@ MmapRegion& MmapRegion::operator=(MmapRegion&& other) {
 ProtectionDomain::ProtectionDomain(ibv_context* context)
         : mDomain(ibv_alloc_pd(context)) {
     if (mDomain == nullptr) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Allocated protection domain");
 }
 
 ProtectionDomain::~ProtectionDomain() {
     if (mDomain != nullptr && ibv_dealloc_pd(mDomain)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to deallocate protection domain [error = %1% %2%]", ec, ec.message());
     }
 }
 
 ProtectionDomain& ProtectionDomain::operator=(ProtectionDomain&& other) {
     if (mDomain != nullptr && ibv_dealloc_pd(mDomain)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mDomain = other.mDomain;
@@ -77,21 +77,21 @@ SharedReceiveQueue::SharedReceiveQueue(const ProtectionDomain& domain, uint32_t 
 
     mQueue = ibv_create_srq(domain.get(), &srq_attr);
     if (mQueue == nullptr) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Created shared receive queue");
 }
 
 SharedReceiveQueue::~SharedReceiveQueue() {
     if (mQueue != nullptr && ibv_destroy_srq(mQueue)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("[SharedReceiveQueue] Failed to destroy receive queue [error = %1% %2%]", ec, ec.message());
     }
 }
 
 SharedReceiveQueue& SharedReceiveQueue::operator=(SharedReceiveQueue&& other) {
     if (mQueue != nullptr && ibv_destroy_srq(mQueue)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mQueue = other.mQueue;
@@ -116,7 +116,7 @@ void SharedReceiveQueue::postBuffer(InfinibandBuffer& buffer, std::error_code& e
     // Repost receives on shared queue
     struct ibv_recv_wr* bad_wr = nullptr;
     if (ibv_post_srq_recv(mQueue, &wr, &bad_wr)) {
-        ec = std::error_code(errno, std::system_category());
+        ec = std::error_code(errno, std::generic_category());
         return;
     }
 }
@@ -124,21 +124,21 @@ void SharedReceiveQueue::postBuffer(InfinibandBuffer& buffer, std::error_code& e
 CompletionChannel::CompletionChannel(ibv_context* context)
         : mChannel(ibv_create_comp_channel(context)) {
     if (mChannel == nullptr) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Created completion channel");
 }
 
 CompletionChannel::~CompletionChannel() {
     if (mChannel != nullptr && ibv_destroy_comp_channel(mChannel)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to destroy completion channel [error = %1% %2%]", ec, ec.message());
     }
 }
 
 CompletionChannel& CompletionChannel::operator=(CompletionChannel&& other) {
     if (mChannel != nullptr && ibv_destroy_comp_channel(mChannel)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mChannel = other.mChannel;
@@ -149,7 +149,7 @@ CompletionChannel& CompletionChannel::operator=(CompletionChannel&& other) {
 void CompletionChannel::nonBlocking(bool mode) {
     auto flags = fcntl(mChannel->fd, F_GETFL);
     if (fcntl(mChannel->fd, F_SETFL, (mode ? flags | O_NONBLOCK : flags & ~O_NONBLOCK))) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -161,21 +161,21 @@ int CompletionChannel::retrieveEvents(ibv_cq** cq) {
 CompletionQueue::CompletionQueue(ibv_context* context, const CompletionChannel& channel, int length)
         : mQueue(ibv_create_cq(context, length, nullptr, channel.get(), 0)) {
     if (mQueue == nullptr) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Created completion queue");
 }
 
 CompletionQueue::~CompletionQueue() {
     if (mQueue != nullptr && ibv_destroy_cq(mQueue)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to destroy completion queue [error = %1% %2%]", ec, ec.message());
     }
 }
 
 CompletionQueue& CompletionQueue::operator=(CompletionQueue&& other) {
     if (mQueue != nullptr && ibv_destroy_cq(mQueue)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mQueue = other.mQueue;
@@ -185,7 +185,7 @@ CompletionQueue& CompletionQueue::operator=(CompletionQueue&& other) {
 
 void CompletionQueue::requestEvent(std::error_code& ec) {
     if (ibv_req_notify_cq(mQueue, 0)) {
-        ec = std::error_code(errno, std::system_category());
+        ec = std::error_code(errno, std::generic_category());
         return;
     }
 }
@@ -244,7 +244,7 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
 
     LOG_TRACE("%1%: Creating queue pair", formatRemoteAddress(id));
     if (rdma_create_qp_ex(id, &qp_attr)) {
-        throw std::error_code(errno, std::system_category());
+        throw std::error_code(errno, std::generic_category());
     }
 
     // TODO Make this an assertion

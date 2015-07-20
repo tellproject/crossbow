@@ -350,7 +350,7 @@ bool RpcClientSocket::sendInternalRequest(std::shared_ptr<RpcResponse> response,
             "Invalid message tupe");
 
     if (!waitForConnected(response)) {
-        response->onAbort(std::error_code(ECONNABORTED, std::system_category()));
+        response->onAbort(std::make_error_code(std::errc::connection_aborted));
         return false;
     }
 

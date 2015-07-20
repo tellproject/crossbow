@@ -31,7 +31,7 @@ void InfinibandBaseSocket<SocketType>::open() {
 
     LOG_TRACE("Open socket");
     if (rdma_create_id(mChannel, &mId, static_cast<SocketType*>(this), RDMA_PS_TCP)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     // Increment the reference count by one because we assigned it as context
@@ -47,12 +47,12 @@ void InfinibandBaseSocket<SocketType>::close() {
     }
 
     if (mId->qp != nullptr) {
-        throw std::system_error(EISCONN, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::already_connected));
     }
 
     LOG_TRACE("Close socket");
     if (rdma_destroy_id(mId)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     mId = nullptr;
 
@@ -63,12 +63,12 @@ void InfinibandBaseSocket<SocketType>::close() {
 template <typename SocketType>
 void InfinibandBaseSocket<SocketType>::bind(Endpoint& addr) {
     if (mId == nullptr) {
-        throw std::system_error(EBADF, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
     }
 
     LOG_TRACE("Bind on address %1%", addr);
     if (rdma_bind_addr(mId, addr.handle())) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -92,12 +92,12 @@ void InfinibandAcceptorHandler::onConnection(InfinibandSocket socket, const cros
 
 void InfinibandAcceptorImpl::listen(int backlog) {
     if (mId == nullptr) {
-        throw std::system_error(EBADF, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
     }
 
     LOG_TRACE("Listen on socket with backlog %1%", backlog);
     if (rdma_listen(mId, backlog)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -138,12 +138,12 @@ void InfinibandSocketHandler::onDisconnected() {
 
 void InfinibandSocketImpl::connect(Endpoint& addr) {
     if (mId == nullptr) {
-        throw std::system_error(EBADF, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
     }
 
     LOG_TRACE("%1%: Connect to address", addr);
     if (rdma_resolve_addr(mId, nullptr, addr.handle(), gTimeout.count())) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -154,19 +154,19 @@ void InfinibandSocketImpl::connect(Endpoint& addr, const crossbow::string& data)
 
 void InfinibandSocketImpl::disconnect() {
     if (mId == nullptr) {
-        throw std::system_error(EBADF, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
     }
 
     LOG_TRACE("%1%: Disconnect from address", formatRemoteAddress(mId));
     if (rdma_disconnect(mId)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
 void InfinibandSocketImpl::accept(const crossbow::string& data, InfinibandProcessor& processor) {
     LOG_TRACE("%1%: Accepting connection", formatRemoteAddress(mId));
     if (mProcessor != nullptr) {
-        throw std::system_error(EISCONN, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::already_connected));
     }
     mProcessor = &processor;
 
@@ -181,14 +181,14 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, InfinibandProces
     if (rdma_accept(mId, &cm_params)) {
         auto res = errno;
         mProcessor->context()->removeConnection(mId);
-        throw std::system_error(res, std::system_category());
+        throw std::system_error(res, std::generic_category());
     }
 }
 
 void InfinibandSocketImpl::reject(const crossbow::string& data) {
     LOG_TRACE("%1%: Rejecting connection", formatRemoteAddress(mId));
     if (rdma_reject(mId, data.c_str(), data.length())) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -289,13 +289,13 @@ void InfinibandSocketImpl::releaseSendBuffer(InfinibandBuffer& buffer) {
 
 void InfinibandSocketImpl::doSend(struct ibv_send_wr* wr, std::error_code& ec) {
     if (mId == nullptr) {
-        throw std::system_error(EBADF, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::bad_file_descriptor));
         return;
     }
 
     struct ibv_send_wr* bad_wr = nullptr;
     if (auto res = ibv_post_send(mId->qp, wr, &bad_wr)) {
-        ec = std::error_code(res, std::system_category());
+        ec = std::error_code(res, std::generic_category());
         return;
     }
 }
@@ -380,7 +380,7 @@ void InfinibandSocketImpl::onAddressResolved() {
     mProcessor->execute([this] () {
         LOG_TRACE("%1%: Address resolved", formatRemoteAddress(mId));
         if (rdma_resolve_route(mId, gTimeout.count())) {
-            mHandler->onConnected(gEmptyString, std::error_code(errno, std::system_category()));
+            mHandler->onConnected(gEmptyString, std::error_code(errno, std::generic_category()));
             return;
         }
     });
@@ -404,7 +404,7 @@ void InfinibandSocketImpl::onRouteResolved() {
         cm_params.private_data_len = mData.length();
 
         if (rdma_connect(mId, &cm_params)) {
-            std::error_code ec(errno, std::system_category());
+            std::error_code ec(errno, std::generic_category());
             mProcessor->context()->removeConnection(mId);
             mHandler->onConnected(gEmptyString, ec);
         }
@@ -427,7 +427,7 @@ void InfinibandSocketImpl::onConnectionError(error::network_errors err) {
 void InfinibandSocketImpl::onConnectionRejected(const crossbow::string& data) {
     mProcessor->execute([this, data] () {
         mProcessor->context()->removeConnection(mId);
-        mHandler->onConnected(data, std::error_code(ECONNREFUSED, std::system_category()));
+        mHandler->onConnected(data, std::make_error_code(std::errc::connection_refused));
     });
 }
 

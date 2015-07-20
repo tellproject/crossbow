@@ -17,7 +17,7 @@ EventProcessor::EventProcessor(uint64_t pollCycles)
     LOG_TRACE("Creating epoll file descriptor");
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -27,7 +27,7 @@ EventProcessor::~EventProcessor() {
 
     LOG_TRACE("Destroying epoll file descriptor");
     if (close(mEpoll)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
     }
 }
@@ -38,7 +38,7 @@ void EventProcessor::registerPoll(int fd, EventPoll* poll) {
     event.data.ptr = poll;
     event.events = EPOLLIN | EPOLLET;
     if (epoll_ctl(mEpoll, EPOLL_CTL_ADD, fd, &event)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mPoller.emplace_back(poll);
@@ -53,7 +53,7 @@ void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
     mPoller.erase(i);
 
     if (epoll_ctl(mEpoll, EPOLL_CTL_DEL, fd, nullptr)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 }
 
@@ -114,7 +114,7 @@ TaskQueue::TaskQueue(EventProcessor& processor)
           mSleeping(false) {
     mInterrupt = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (mInterrupt == -1) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mProcessor.registerPoll(mInterrupt, this);
@@ -128,7 +128,7 @@ TaskQueue::~TaskQueue() {
     }
 
     if (close(mInterrupt)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to close the event descriptor [error = %1% %2%]", ec, ec.message());
     }
 }

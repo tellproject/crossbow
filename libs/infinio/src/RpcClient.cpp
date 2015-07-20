@@ -68,12 +68,12 @@ void RpcClientSocket::onSocketDisconnected() {
         mSyncResponses.pop();
 
         LOG_TRACE("Aborting waiting sync response");
-        response->onAbort(std::error_code(ECONNABORTED, std::system_category()));
+        response->onAbort(std::make_error_code(std::errc::connection_aborted));
     }
 
     for (auto& response : mAsyncResponses) {
         LOG_TRACE("Aborting waiting async response");
-        response.second->onAbort(std::error_code(ECONNABORTED, std::system_category()));
+        response.second->onAbort(std::make_error_code(std::errc::connection_aborted));
     }
 }
 

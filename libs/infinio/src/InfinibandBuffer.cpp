@@ -34,7 +34,7 @@ void ScatterGatherBuffer::add(const InfinibandBuffer& buffer, size_t offset, uin
 LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, void* data, size_t length, int access)
         : mDataRegion(ibv_reg_mr(domain.get(), data, length, access)) {
     if (mDataRegion == nullptr) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
     LOG_TRACE("Created memory region at %1%", data);
 }
@@ -45,14 +45,14 @@ LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion&
 
 LocalMemoryRegion::~LocalMemoryRegion() {
     if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
-        std::error_code ec(errno, std::system_category());
+        std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to deregister memory region [error = %1% %2%]", ec, ec.message());
     }
 }
 
 LocalMemoryRegion& LocalMemoryRegion::operator=(LocalMemoryRegion&& other) {
     if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
-        throw std::system_error(errno, std::system_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     mDataRegion = other.mDataRegion;

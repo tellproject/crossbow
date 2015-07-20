@@ -172,7 +172,7 @@ BatchingMessageSocket<Handler>::~BatchingMessageSocket() {
 template <typename Handler>
 void BatchingMessageSocket<Handler>::connect(Endpoint endpoint, const crossbow::string& data) {
     if (mState != ConnectionState::DISCONNECTED) {
-        throw std::system_error(EISCONN, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::already_connected));
     }
 
     mSocket->connect(endpoint, data);
@@ -183,7 +183,7 @@ void BatchingMessageSocket<Handler>::connect(Endpoint endpoint, const crossbow::
 template <typename Handler>
 void BatchingMessageSocket<Handler>::accept(const crossbow::string& data, InfinibandProcessor& processor) {
     if (mState != ConnectionState::DISCONNECTED) {
-        throw std::system_error(EISCONN, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::already_connected));
     }
 
     mSocket->accept(data, processor);
@@ -193,7 +193,7 @@ void BatchingMessageSocket<Handler>::accept(const crossbow::string& data, Infini
 template <typename Handler>
 void BatchingMessageSocket<Handler>::shutdown() {
     if (mState != ConnectionState::CONNECTED) {
-        throw std::system_error(ENOTCONN, std::system_category());
+        throw std::system_error(std::make_error_code(std::errc::not_connected));
     }
 
     mState = ConnectionState::SHUTDOWN;
