@@ -23,54 +23,6 @@ namespace infinio {
 class DeviceContext;
 
 /**
- * @brief Wrapper managing a mmap memory region
- */
-class MmapRegion {
-public:
-    /**
-     * @brief Acquires a memory region
-     *
-     * @param length Length of the memory region to mmap
-     *
-     * @exception std::system_error In case mapping the memory failed
-     */
-    MmapRegion(size_t length);
-
-    /**
-     * @brief Releases the memory region
-     */
-    ~MmapRegion();
-
-    MmapRegion(const MmapRegion&) = delete;
-    MmapRegion& operator=(const MmapRegion&) = delete;
-
-    MmapRegion(MmapRegion&& other)
-            : mData(other.mData),
-              mLength(other.mLength) {
-        other.mData = nullptr;
-        other.mLength = 0;
-    }
-
-    MmapRegion& operator=(MmapRegion&& other);
-
-    void* data() {
-        return const_cast<void*>(const_cast<const MmapRegion*>(this)->data());
-    }
-
-    const void* data() const {
-        return mData;
-    }
-
-    size_t length() const {
-        return mLength;
-    }
-
-private:
-    void* mData;
-    size_t mLength;
-};
-
-/**
  * @brief Wrapper managing a protection domain
  */
 class ProtectionDomain {
@@ -416,11 +368,8 @@ private:
     /// Size of the completion queue to allocate
     uint32_t mCompletionQueueLength;
 
-    /// Pointer to the shared send buffer arena
-    MmapRegion mSendData;
-
-    /// Memory region registered to the shared send buffer memory block
-    LocalMemoryRegion mSendDataRegion;
+    /// Pointer to the shared send buffer region
+    AllocatedMemoryRegion mSendData;
 
     /// Stack containing IDs of send buffers that are not in use
     std::stack<uint16_t> mSendBufferQueue;
@@ -477,8 +426,8 @@ public:
         return LocalMemoryRegion(mProtectionDomain, data, length, access);
     }
 
-    LocalMemoryRegion registerMemoryRegion(MmapRegion& region, int access) {
-        return LocalMemoryRegion(mProtectionDomain, region, access);
+    AllocatedMemoryRegion allocateMemoryRegion(size_t length, int access) {
+        return AllocatedMemoryRegion(mProtectionDomain, length, access);
     }
 
     CompletionChannel createCompletionChannel() {
@@ -499,7 +448,7 @@ public:
 
     InfinibandBuffer acquireReceiveBuffer(uint16_t id) {
         auto offset = static_cast<uint64_t>(id) * static_cast<uint64_t>(mReceiveBufferLength);
-        return mReceiveDataRegion.acquireBuffer(id, offset, mReceiveBufferLength);
+        return mReceiveData.acquireBuffer(id, offset, mReceiveBufferLength);
     }
 
     /**
@@ -532,11 +481,8 @@ private:
     /// Protection domain associated with this device
     ProtectionDomain mProtectionDomain;
 
-    /// Pointer to the shared receive buffer arena
-    MmapRegion mReceiveData;
-
-    /// Memory region registered to the shared receive buffer memory block
-    LocalMemoryRegion mReceiveDataRegion;
+    /// Pointer to the shared receive buffer region
+    AllocatedMemoryRegion mReceiveData;
 
     /// Shared receive queue associated with this device
     SharedReceiveQueue mReceiveQueue;

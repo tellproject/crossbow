@@ -1,5 +1,7 @@
 #pragma once
 
+#include <crossbow/non_copyable.hpp>
+
 #include <cstddef>
 #include <cstring>
 #include <limits>
@@ -11,7 +13,6 @@
 namespace crossbow {
 namespace infinio {
 
-class MmapRegion;
 class ProtectionDomain;
 
 /**
@@ -97,7 +98,7 @@ private:
  * Can be used to let a remote host read and write to the memory region or read/write data from this region to a remote
  * memory region.
  */
-class LocalMemoryRegion {
+class LocalMemoryRegion : crossbow::non_copyable {
 public:
     LocalMemoryRegion()
             : mDataRegion(nullptr) {
@@ -110,10 +111,10 @@ public:
      * @param data The start pointer of the memory region
      * @param length The length of the memory region
      * @param access Access flags for the Infiniband Adapter
+     *
+     * @exception std::system_error In case allocating the region failed
      */
     LocalMemoryRegion(const ProtectionDomain& domain, void* data, size_t length, int access);
-
-    LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion& region, int access);
 
     /**
      * @brief Deregisters the memory region
@@ -121,9 +122,6 @@ public:
      * The data referenced by this memory region should not be used in any further RDMA operations.
      */
     ~LocalMemoryRegion();
-
-    LocalMemoryRegion(const LocalMemoryRegion&) = delete;
-    LocalMemoryRegion& operator=(const LocalMemoryRegion&) = delete;
 
     LocalMemoryRegion(LocalMemoryRegion&& other)
             : mDataRegion(other.mDataRegion) {
@@ -142,6 +140,10 @@ public:
 
     uint32_t rkey() const {
         return mDataRegion->rkey;
+    }
+
+    bool valid() const {
+        return (mDataRegion != nullptr);
     }
 
     /**
@@ -164,13 +166,79 @@ public:
     }
 
 private:
+    friend class AllocatedMemoryRegion;
     friend class ScatterGatherBuffer;
 
     uint32_t lkey() const {
         return mDataRegion->lkey;
     }
 
+    void deregisterRegion();
+
     struct ibv_mr* mDataRegion;
+};
+
+/**
+ * @brief Wrapper managing a LocalMemoryRegion with allocated memory
+ */
+class AllocatedMemoryRegion : crossbow::non_copyable {
+public:
+    AllocatedMemoryRegion() = default;
+
+    /**
+     * @brief Acquires a memory region
+     *
+     * @param domain The protection domain to register this region with
+     * @param length The length of the memory region
+     * @param access Access flags for the Infiniband Adapter
+     *
+     * @exception std::system_error In case mapping the memory or allocating the region failed
+     */
+    AllocatedMemoryRegion(const ProtectionDomain& domain, size_t length, int access);
+
+    /**
+     * @brief Releases the memory region
+     */
+    ~AllocatedMemoryRegion();
+
+    AllocatedMemoryRegion(AllocatedMemoryRegion&& other)
+            : mRegion(std::move(other.mRegion)) {
+    }
+
+    AllocatedMemoryRegion& operator=(AllocatedMemoryRegion&& other);
+
+    operator const LocalMemoryRegion&() const {
+        return mRegion;
+    }
+
+    uintptr_t address() const {
+        return mRegion.address();
+    }
+
+    size_t length() const {
+        return mRegion.length();
+    }
+
+    uint32_t rkey() const {
+        return mRegion.rkey();
+    }
+
+    bool valid() const {
+        return mRegion.valid();
+    }
+
+    InfinibandBuffer acquireBuffer(uint16_t id, size_t offset, uint32_t length) {
+        return mRegion.acquireBuffer(id, offset, length);
+    }
+
+    bool belongsToRegion(InfinibandBuffer& buffer) {
+        return mRegion.belongsToRegion(buffer);
+    }
+
+private:
+    static void* allocateMemory(size_t length);
+
+    LocalMemoryRegion mRegion;
 };
 
 /**

@@ -97,6 +97,8 @@ public:
 
     LocalMemoryRegion registerMemoryRegion(void* data, size_t length, int access);
 
+    AllocatedMemoryRegion allocateMemoryRegion(size_t length, int access);
+
 private:
     friend class InfinibandSocketImpl;
 

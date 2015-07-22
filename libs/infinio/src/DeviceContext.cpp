@@ -10,39 +10,9 @@
 #include <cstring>
 
 #include <fcntl.h>
-#include <sys/mman.h>
 
 namespace crossbow {
 namespace infinio {
-
-MmapRegion::MmapRegion(size_t length)
-        : mData(mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0)),
-          mLength(length) {
-    // TODO Size might have to be a multiple of the page size
-    if (mData == MAP_FAILED) {
-        throw std::system_error(errno, std::generic_category());
-    }
-    LOG_TRACE("Mapped %1% bytes of buffer space", mLength);
-}
-
-MmapRegion::~MmapRegion() {
-    if (mData != nullptr && munmap(mData, mLength)) {
-        std::error_code ec(errno, std::generic_category());
-        LOG_ERROR("Failed to unmap memory region [error = %1% %2%]", ec, ec.message());
-    }
-}
-
-MmapRegion& MmapRegion::operator=(MmapRegion&& other) {
-    if (mData != nullptr && munmap(mData, mLength)) {
-        throw std::system_error(errno, std::generic_category());
-    }
-
-    mData = other.mData;
-    other.mData = nullptr;
-    mLength = other.mLength;
-    other.mLength = 0;
-    return *this;
-}
 
 ProtectionDomain::ProtectionDomain(ibv_context* context)
         : mDomain(ibv_alloc_pd(context)) {
@@ -199,8 +169,8 @@ CompletionContext::CompletionContext(EventProcessor& processor, std::shared_ptr<
           mSendQueueLength(limits.sendQueueLength),
           mMaxScatterGather(limits.maxScatterGather),
           mCompletionQueueLength(limits.completionQueueLength),
-          mSendData(static_cast<size_t>(mSendBufferCount) * static_cast<size_t>(mSendBufferLength)),
-          mSendDataRegion(mDevice->registerMemoryRegion(mSendData, IBV_ACCESS_LOCAL_WRITE)),
+          mSendData(mDevice->allocateMemoryRegion(static_cast<size_t>(mSendBufferCount)
+                * static_cast<size_t>(mSendBufferLength), IBV_ACCESS_LOCAL_WRITE)),
           mCompletionChannel(mDevice->createCompletionChannel()),
           mCompletionQueue(mDevice->createCompletionQueue(mCompletionChannel, mCompletionQueueLength)),
           mSleeping(false),
@@ -284,11 +254,11 @@ InfinibandBuffer CompletionContext::acquireSendBuffer(uint32_t length) {
     auto id = mSendBufferQueue.top();
     mSendBufferQueue.pop();
     auto offset = static_cast<size_t>(id) * static_cast<size_t>(mSendBufferLength);
-    return mSendDataRegion.acquireBuffer(id, offset, length);
+    return mSendData.acquireBuffer(id, offset, length);
 }
 
 void CompletionContext::releaseSendBuffer(InfinibandBuffer& buffer) {
-    if (!mSendDataRegion.belongsToRegion(buffer)) {
+    if (!mSendData.belongsToRegion(buffer)) {
         LOG_ERROR("Trying to release send buffer registered to another region");
         return;
     }
@@ -454,8 +424,8 @@ DeviceContext::DeviceContext(const InfinibandLimits& limits, ibv_context* verbs)
           mReceiveBufferLength(limits.bufferLength),
           mVerbs(verbs),
           mProtectionDomain(mVerbs),
-          mReceiveData(static_cast<size_t>(mReceiveBufferCount) * static_cast<size_t>(mReceiveBufferLength)),
-          mReceiveDataRegion(mProtectionDomain, mReceiveData, IBV_ACCESS_LOCAL_WRITE),
+          mReceiveData(mProtectionDomain, static_cast<size_t>(mReceiveBufferCount)
+                * static_cast<size_t>(mReceiveBufferLength), IBV_ACCESS_LOCAL_WRITE),
           mReceiveQueue(mProtectionDomain, mReceiveBufferCount),
           mShutdown(false) {
     LOG_TRACE("Post %1% buffers to shared receive queue", mReceiveBufferCount);

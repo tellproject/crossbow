@@ -4,6 +4,8 @@
 
 #include <crossbow/logger.hpp>
 
+#include <sys/mman.h>
+
 namespace crossbow {
 namespace infinio {
 
@@ -39,10 +41,6 @@ LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, void* data,
     LOG_TRACE("Created memory region at %1%", data);
 }
 
-LocalMemoryRegion::LocalMemoryRegion(const ProtectionDomain& domain, MmapRegion& region, int access)
-        : LocalMemoryRegion(domain, region.data(), region.length(), access) {
-}
-
 LocalMemoryRegion::~LocalMemoryRegion() {
     if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
         std::error_code ec(errno, std::generic_category());
@@ -70,6 +68,69 @@ InfinibandBuffer LocalMemoryRegion::acquireBuffer(uint16_t id, size_t offset, ui
     buffer.handle()->length = length;
     buffer.handle()->lkey = mDataRegion->lkey;
     return buffer;
+}
+
+void LocalMemoryRegion::deregisterRegion() {
+    if (mDataRegion != nullptr && ibv_dereg_mr(mDataRegion)) {
+        throw std::system_error(errno, std::generic_category());
+    }
+    mDataRegion = nullptr;
+}
+
+AllocatedMemoryRegion::AllocatedMemoryRegion(const ProtectionDomain& domain, size_t length, int access)
+        : mRegion(domain, allocateMemory(length), length, access) {
+}
+
+AllocatedMemoryRegion::~AllocatedMemoryRegion() {
+    if (!mRegion.valid()) {
+        return;
+    }
+
+    auto data = reinterpret_cast<void*>(mRegion.address());
+    auto length = mRegion.length();
+
+    // We have to release the memory region with the Infiniband adapter first
+    try {
+        mRegion.deregisterRegion();
+    } catch (std::system_error& e) {
+        LOG_ERROR("Failed to deregister memory region [error = %1% %2%]", e.code(), e.what());
+    }
+
+    if (munmap(data, length)) {
+        std::error_code ec(errno, std::generic_category());
+        LOG_ERROR("Failed to unmap memory region [error = %1% %2%]", ec, ec.message());
+    }
+}
+
+AllocatedMemoryRegion& AllocatedMemoryRegion::operator=(AllocatedMemoryRegion&& other) {
+    if (!mRegion.valid()) {
+        mRegion = std::move(other.mRegion);
+        return *this;
+    }
+
+    auto data = reinterpret_cast<void*>(mRegion.address());
+    auto length = mRegion.length();
+
+    // We have to release the memory region with the Infiniband adapter first
+    mRegion = std::move(other.mRegion);
+
+    if (munmap(data, length)) {
+        throw std::system_error(errno, std::generic_category());
+    }
+
+    return *this;
+}
+
+void* AllocatedMemoryRegion::allocateMemory(size_t length) {
+    // TODO Size might have to be a multiple of the page size
+    auto data = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+
+    if (data == MAP_FAILED) {
+        throw std::system_error(errno, std::generic_category());
+    }
+    LOG_TRACE("Mapped %1% bytes of buffer space", length);
+
+    return data;
 }
 
 } // namespace infinio

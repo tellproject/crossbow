@@ -163,6 +163,10 @@ LocalMemoryRegion InfinibandService::registerMemoryRegion(void* data, size_t len
     return mDevice->registerMemoryRegion(data, length, access);
 }
 
+AllocatedMemoryRegion InfinibandService::allocateMemoryRegion(size_t length, int access) {
+    return mDevice->allocateMemoryRegion(length, access);
+}
+
 void InfinibandService::processEvent(struct rdma_cm_event* event) {
     LOG_TRACE("Processing event %1%", rdma_event_str(event->event));
 
