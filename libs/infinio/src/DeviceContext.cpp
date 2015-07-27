@@ -214,7 +214,7 @@ void CompletionContext::addConnection(struct rdma_cm_id* id, InfinibandSocket so
 
     LOG_TRACE("%1%: Creating queue pair", formatRemoteAddress(id));
     if (rdma_create_qp_ex(id, &qp_attr)) {
-        throw std::error_code(errno, std::generic_category());
+        throw std::system_error(errno, std::generic_category());
     }
 
     // TODO Make this an assertion
