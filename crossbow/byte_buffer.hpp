@@ -5,14 +5,13 @@
 #include <cstring>
 
 namespace crossbow {
-namespace infinio {
 
 /**
- * @brief The BufferReader class used to read values from a buffer
+ * @brief The buffer_reader class used to read values from a buffer
  */
-class BufferReader {
+class buffer_reader {
 public:
-    BufferReader(const char* pos, size_t length)
+    buffer_reader(const char* pos, size_t length)
             : mPos(pos),
               mEnd(pos + length) {
     }
@@ -47,13 +46,11 @@ public:
     }
 
     void align(size_t alignment) {
-        mPos += ((reinterpret_cast<const uintptr_t>(mPos) % alignment != 0)
-                 ? (alignment - (reinterpret_cast<const uintptr_t>(mPos) % alignment))
-                 :  0);
+        mPos = reinterpret_cast<const char*>((reinterpret_cast<const uintptr_t>(mPos) - 0x1u + alignment) & -alignment);
     }
 
-    BufferReader extract(size_t length) {
-        auto value = BufferReader(mPos, length);
+    buffer_reader extract(size_t length) {
+        auto value = buffer_reader(mPos, length);
         mPos += length;
         return value;
     }
@@ -64,11 +61,11 @@ private:
 };
 
 /**
- * @brief The BufferWriter class used to write values to a buffer
+ * @brief The buffer_writer class used to write values to a buffer
  */
-class BufferWriter {
+class buffer_writer {
 public:
-    BufferWriter(char* pos, size_t length)
+    buffer_writer(char* pos, size_t length)
             : mPos(pos),
               mEnd(pos + length) {
     }
@@ -101,13 +98,11 @@ public:
     }
 
     void align(size_t alignment) {
-        mPos += ((reinterpret_cast<uintptr_t>(mPos) % alignment != 0)
-                 ? (alignment - (reinterpret_cast<uintptr_t>(mPos) % alignment))
-                 :  0);
+        mPos = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(mPos) - 0x1u + alignment) & -alignment);
     }
 
-    BufferWriter extract(size_t length) {
-        auto value = BufferWriter(mPos, length);
+    buffer_writer extract(size_t length) {
+        auto value = buffer_writer(mPos, length);
         mPos += length;
         return value;
     }
@@ -117,5 +112,4 @@ private:
     char* mEnd;
 };
 
-} // namespace infinio
 } // namespace crossbow

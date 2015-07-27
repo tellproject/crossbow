@@ -71,7 +71,7 @@ void RpcClientSocket::onSocketDisconnected() {
     }
 }
 
-void RpcClientSocket::onMessage(MessageId messageId, uint32_t messageType, BufferReader& message) {
+void RpcClientSocket::onMessage(MessageId messageId, uint32_t messageType, crossbow::buffer_reader& message) {
     if (messageId.isAsync()) {
         onAsyncResponse(messageId.userId(), messageType, message);
     } else {
@@ -79,7 +79,7 @@ void RpcClientSocket::onMessage(MessageId messageId, uint32_t messageType, Buffe
     }
 }
 
-void RpcClientSocket::onSyncResponse(uint32_t userId, uint32_t messageType, BufferReader& message) {
+void RpcClientSocket::onSyncResponse(uint32_t userId, uint32_t messageType, crossbow::buffer_reader& message) {
     while (!mSyncResponses.empty()) {
         uint32_t responseId;
         std::shared_ptr<RpcResponse> response;
@@ -99,7 +99,7 @@ void RpcClientSocket::onSyncResponse(uint32_t userId, uint32_t messageType, Buff
     LOG_ERROR("Received message but no responses were waiting");
 }
 
-void RpcClientSocket::onAsyncResponse(uint32_t userId, uint32_t messageType, BufferReader& message) {
+void RpcClientSocket::onAsyncResponse(uint32_t userId, uint32_t messageType, crossbow::buffer_reader& message) {
     auto i = mAsyncResponses.find(userId);
     if (i == mAsyncResponses.end()) {
         LOG_ERROR("Received message but no responses were waiting");

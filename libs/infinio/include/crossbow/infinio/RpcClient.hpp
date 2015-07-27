@@ -1,8 +1,8 @@
 #pragma once
 
+#include <crossbow/byte_buffer.hpp>
 #include <crossbow/enum_underlying.hpp>
 #include <crossbow/infinio/BatchingMessageSocket.hpp>
-#include <crossbow/infinio/ByteBuffer.hpp>
 #include <crossbow/infinio/Fiber.hpp>
 #include <crossbow/logger.hpp>
 #include <crossbow/string.hpp>
@@ -82,7 +82,7 @@ private:
      * @param messageType The type of the received message
      * @param message The response message
      */
-    virtual void onResponse(uint32_t messageType, BufferReader& message) = 0;
+    virtual void onResponse(uint32_t messageType, crossbow::buffer_reader& message) = 0;
 
     /**
      * @brief Called when the RPC was aborted due to an error
@@ -156,7 +156,7 @@ protected:
     }
 
 private:
-    virtual void onResponse(uint32_t messageType, BufferReader& message) final override;
+    virtual void onResponse(uint32_t messageType, crossbow::buffer_reader& message) final override;
 
     virtual void onAbort(std::error_code ec) final override;
 
@@ -230,7 +230,7 @@ const std::error_code& RpcResponseResult<Handler, Result>::error() {
 }
 
 template <typename Handler, typename Result>
-void RpcResponseResult<Handler, Result>::onResponse(uint32_t messageType, BufferReader& message) {
+void RpcResponseResult<Handler, Result>::onResponse(uint32_t messageType, crossbow::buffer_reader& message) {
     static_assert(std::is_same<typename std::underlying_type<decltype(Handler::MessageType)>::type,
                   uint32_t>::value, "Given message type is not of the correct type");
 
@@ -327,11 +327,11 @@ private:
 
     void onSocketDisconnected();
 
-    void onMessage(MessageId messageId, uint32_t messageType, BufferReader& message);
+    void onMessage(MessageId messageId, uint32_t messageType, crossbow::buffer_reader& message);
 
-    void onSyncResponse(uint32_t userId, uint32_t messageType, BufferReader& message);
+    void onSyncResponse(uint32_t userId, uint32_t messageType, crossbow::buffer_reader& message);
 
-    void onAsyncResponse(uint32_t userId, uint32_t messageType, BufferReader& message);
+    void onAsyncResponse(uint32_t userId, uint32_t messageType, crossbow::buffer_reader& message);
 
     /// Current user ID incremented for each request sent
     uint32_t mUserId;

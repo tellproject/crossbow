@@ -28,7 +28,6 @@ find_package(Threads REQUIRED)
 
 set(SRCS
     include/crossbow/infinio/BatchingMessageSocket.hpp
-    include/crossbow/infinio/ByteBuffer.hpp
     include/crossbow/infinio/Endpoint.hpp
     include/crossbow/infinio/ErrorCode.hpp
     include/crossbow/infinio/EventProcessor.hpp

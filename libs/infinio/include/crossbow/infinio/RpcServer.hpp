@@ -1,8 +1,8 @@
 #pragma once
 
+#include <crossbow/byte_buffer.hpp>
 #include <crossbow/enum_underlying.hpp>
 #include <crossbow/infinio/BatchingMessageSocket.hpp>
-#include <crossbow/infinio/ByteBuffer.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/logger.hpp>
 
@@ -95,7 +95,7 @@ void RpcServerManager<Manager, Socket>::removeConnection(Socket* con) {
 /**
  * @brief Socket base class implementing server side basic remote procedure calls functionality
  *
- * A RPC request handler has to implement the onResponse(MessageId messageId, uint32_t messageType, BufferReader&
+ * A RPC request handler has to implement the onResponse(MessageId messageId, uint32_t messageType, buffer_reader&
  * message) function to handle incoming requests.
  */
 template <typename Manager, typename Socket>
@@ -124,7 +124,7 @@ private:
     template <typename Fun>
     bool writeInternalResponse(MessageId messageId, uint32_t messageType, uint32_t length, Fun fun);
 
-    void onMessage(MessageId messageId, uint32_t messageType, BufferReader& message) {
+    void onMessage(MessageId messageId, uint32_t messageType, crossbow::buffer_reader& message) {
         static_cast<Socket*>(this)->onRequest(messageId, messageType, message);
     }
 
@@ -161,7 +161,7 @@ bool RpcServerSocket<Manager, Socket>::writeErrorResponse(MessageId messageId, E
 
     uint32_t messageLength = sizeof(uint64_t);
     return writeInternalResponse(messageId, std::numeric_limits<uint32_t>::max(), messageLength, [error]
-            (BufferWriter& message, std::error_code& /* ec */) {
+            (crossbow::buffer_writer& message, std::error_code& /* ec */) {
         message.write<uint64_t>(static_cast<uint64_t>(error));
     });
 }

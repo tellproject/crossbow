@@ -1,6 +1,6 @@
 #pragma once
 
-#include <crossbow/infinio/ByteBuffer.hpp>
+#include <crossbow/byte_buffer.hpp>
 #include <crossbow/infinio/ErrorCode.hpp>
 #include <crossbow/infinio/InfinibandBuffer.hpp>
 #include <crossbow/infinio/InfinibandService.hpp>
@@ -148,7 +148,7 @@ private:
     InfinibandBuffer mBuffer;
 
     /// A buffer writer to write data to the current Infiniband buffer
-    BufferWriter mSendBuffer;
+    crossbow::buffer_writer mSendBuffer;
 
     /// The connection state of the socket
     ConnectionState mState;
@@ -220,7 +220,7 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
             ec = error::invalid_buffer;
             return;
         }
-        mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()), mBuffer.length());
+        mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()), mBuffer.length());
 
         scheduleFlush();
     }
@@ -235,7 +235,8 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
 
     fun(message, ec);
     if (ec) {
-        mSendBuffer = BufferWriter(reinterpret_cast<char*>(mBuffer.data()) + oldOffset, mBuffer.length() - oldOffset);
+        mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()) + oldOffset,
+                mBuffer.length() - oldOffset);
     }
 }
 
@@ -261,7 +262,7 @@ void BatchingMessageSocket<Handler>::onReceive(const void* buffer, size_t length
         return;
     }
 
-    BufferReader receiveBuffer(reinterpret_cast<const char*>(buffer), length);
+    crossbow::buffer_reader receiveBuffer(reinterpret_cast<const char*>(buffer), length);
     while (receiveBuffer.canRead(HEADER_SIZE)) {
         MessageId messageId(receiveBuffer.read<uint64_t>());
         auto messageType = receiveBuffer.read<uint32_t>();
@@ -313,7 +314,7 @@ void BatchingMessageSocket<Handler>::sendCurrentBuffer(std::error_code& ec) {
         mSocket->releaseSendBuffer(mBuffer);
     }
     mBuffer = InfinibandBuffer(InfinibandBuffer::INVALID_ID);
-    mSendBuffer = BufferWriter(static_cast<char*>(nullptr), 0);
+    mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);
 }
 
 template <typename Handler>
@@ -332,7 +333,7 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
         if (mSendBuffer.data() == reinterpret_cast<char*>(mBuffer.data())) {
             mSocket->releaseSendBuffer(mBuffer);
             mBuffer = InfinibandBuffer(InfinibandBuffer::INVALID_ID);
-            mSendBuffer = BufferWriter(static_cast<char*>(nullptr), 0);
+            mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);
             return;
         }
 
