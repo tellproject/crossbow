@@ -342,11 +342,11 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
     wr.sg_list = src.handle();
     wr.num_sge = src.count();
     wr.send_flags = flags;
-    wr.wr.rdma.remote_addr = dst.address();
+    wr.wr.rdma.remote_addr = dst.address() + offset;
     wr.wr.rdma.rkey = dst.key();
 
     LOG_TRACE("%1%: RDMA write %2% bytes to remote %3% from %4% buffer with ID %5%", formatRemoteAddress(mId),
-            src.length(), reinterpret_cast<void*>(dst.address()), src.count(), src.id());
+            src.length(), reinterpret_cast<void*>(dst.address() + offset), src.count(), src.id());
     doSend(&wr, ec);
 }
 
@@ -368,11 +368,12 @@ void InfinibandSocketImpl::doWrite(Buffer& src, const RemoteMemoryRegion& dst, s
     wr.num_sge = src.count();
     wr.imm_data = htonl(immediate);
     wr.send_flags = flags;
-    wr.wr.rdma.remote_addr = dst.address();
+    wr.wr.rdma.remote_addr = dst.address() + offset;
     wr.wr.rdma.rkey = dst.key();
 
     LOG_TRACE("%1%: RDMA write with immediate %2% bytes to remote %3% from %4% buffer with ID %5%",
-            formatRemoteAddress(mId), src.length(), reinterpret_cast<void*>(dst.address()), src.count(), src.id());
+            formatRemoteAddress(mId), src.length(), reinterpret_cast<void*>(dst.address() + offset), src.count(),
+            src.id());
     doSend(&wr, ec);
 }
 
