@@ -1,5 +1,7 @@
 #pragma once
 
+#include <crossbow/alignment.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -46,7 +48,7 @@ public:
     }
 
     void align(size_t alignment) {
-        mPos = reinterpret_cast<const char*>((reinterpret_cast<const uintptr_t>(mPos) - 0x1u + alignment) & -alignment);
+        mPos = crossbow::align(mPos, alignment);
     }
 
     buffer_reader extract(size_t length) {
@@ -70,6 +72,10 @@ public:
               mEnd(pos + length) {
     }
 
+    buffer_writer(void* pos, size_t length)
+            : buffer_writer(reinterpret_cast<char*>(pos), length) {
+    }
+
     bool exhausted() const {
         return (mPos >= mEnd);
     }
@@ -89,6 +95,11 @@ public:
         mPos += length;
     }
 
+    void set(int value, size_t length) {
+        memset(mPos, value, length);
+        mPos += length;
+    }
+
     char* data() {
         return mPos;
     }
@@ -98,7 +109,7 @@ public:
     }
 
     void align(size_t alignment) {
-        mPos = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(mPos) - 0x1u + alignment) & -alignment);
+        mPos = crossbow::align(mPos, alignment);
     }
 
     buffer_writer extract(size_t length) {
