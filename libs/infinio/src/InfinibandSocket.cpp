@@ -317,11 +317,11 @@ void InfinibandSocketImpl::doRead(const RemoteMemoryRegion& src, size_t offset, 
     wr.sg_list = dst.handle();
     wr.num_sge = dst.count();
     wr.send_flags = flags;
-    wr.wr.rdma.remote_addr = src.address();
+    wr.wr.rdma.remote_addr = src.address() + offset;
     wr.wr.rdma.rkey = src.key();
 
     LOG_TRACE("%1%: RDMA read %2% bytes from remote %3% into %4% buffer with ID %5%", formatRemoteAddress(mId),
-            dst.length(), reinterpret_cast<void*>(src.address()), dst.count(), dst.id());
+            dst.length(), reinterpret_cast<void*>(src.address() + offset), dst.count(), dst.id());
     doSend(&wr, ec);
 }
 
