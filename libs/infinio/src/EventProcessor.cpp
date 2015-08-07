@@ -72,7 +72,7 @@ void EventProcessor::executeFiber(std::function<void(Fiber&)> fun) {
 }
 
 void EventProcessor::doPoll() {
-    for (uint32_t i = 0; i < mPollCycles; ++i) {
+    for (decltype(mPollCycles) i = 0; i < mPollCycles; ++i) {
         for (auto poller : mPoller) {
             if (poller->poll()) {
                 i = 0;
@@ -84,8 +84,8 @@ void EventProcessor::doPoll() {
             do {
                 taskQueue.front()();
                 taskQueue.pop();
-                i = 0;
             } while (!taskQueue.empty());
+            i = 0;
         }
     }
 
