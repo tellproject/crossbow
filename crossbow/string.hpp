@@ -1323,6 +1323,11 @@ template<class V>
 string to_string(V value);
 
 template<>
+inline string to_string<short>(short value) {
+    return impl::as_string(snprintf, impl::initial_string<string, short>()(), "%hd", value);
+}
+
+template<>
 inline string to_string<int>(int value) {
     return impl::as_string(snprintf, impl::initial_string<string, int>()(), "%d", value);
 }
@@ -1335,6 +1340,11 @@ inline string to_string<long>(long value) {
 template<>
 inline string to_string<long long>(long long value) {
     return impl::as_string(snprintf, impl::initial_string<string, int>()(), "%lld", value);
+}
+
+template<>
+inline string to_string<unsigned short>(unsigned short value) {
+    return impl::as_string(snprintf, impl::initial_string<string, short>()(), "%hu", value);
 }
 
 template<>
