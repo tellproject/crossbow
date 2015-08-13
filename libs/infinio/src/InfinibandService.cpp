@@ -28,6 +28,7 @@ public:
     DeviceList()
             : mSize(0),
               mDevices(rdma_get_devices(&mSize)) {
+        LOG_ASSERT(mSize >= 0, "Number of devices is negative");
         if (mDevices == nullptr) {
             throw std::system_error(errno, std::generic_category());
         }
@@ -64,7 +65,7 @@ public:
     }
 
     struct ibv_context* at(size_t index) {
-        if (index >= mSize) {
+        if (index >= static_cast<decltype(index)>(mSize)) {
             throw std::out_of_range("Index out of range");
         }
         return mDevices[index];

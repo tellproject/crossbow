@@ -505,7 +505,7 @@ public: // Operations
         for (size_type i = 0; i < chars_to_move; ++i) {
             ptr[nsize - 1 - i] = ptr[sz - 1 - i];
         }
-        for (size_type i = 0; i < count; ++i) {
+        for (size_type i = 0; i < static_cast<size_type>(count); ++i) {
             ptr[index + i] = *(first++);
         }
         set_size(nsize);
