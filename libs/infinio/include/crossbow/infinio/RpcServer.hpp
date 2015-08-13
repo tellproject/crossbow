@@ -75,7 +75,7 @@ void RpcServerManager<Manager, Socket>::onConnection(InfinibandSocket socket, co
         auto con = static_cast<Manager*>(this)->createConnection(std::move(socket), data);
 
         typename decltype(mSocketsMutex)::scoped_lock _(mSocketsMutex, false);
-        auto res = mSockets.insert(con);
+        __attribute__((unused)) auto res = mSockets.insert(con);
         LOG_ASSERT(res.second, "New connection already in connection set");
     } catch (std::system_error& e) {
         LOG_ERROR("Error accepting connection [error = %1% %2%]", e.code(), e.what());

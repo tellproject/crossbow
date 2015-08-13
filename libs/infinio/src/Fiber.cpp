@@ -53,9 +53,11 @@ void Fiber::yield() {
 void Fiber::wait() {
 #if BOOST_VERSION >= 105600
     LOG_ASSERT(mReturnContext, "Not waiting from active fiber");
-    auto res = boost::context::jump_fcontext(&mContext, mReturnContext, reinterpret_cast<intptr_t>(this));
+    __attribute__((unused)) auto res = boost::context::jump_fcontext(&mContext, mReturnContext,
+            reinterpret_cast<intptr_t>(this));
 #else
-    auto res = boost::context::jump_fcontext(mContext, &mReturnContext, reinterpret_cast<intptr_t>(this));
+    __attribute__((unused)) auto res = boost::context::jump_fcontext(mContext, &mReturnContext,
+            reinterpret_cast<intptr_t>(this));
 #endif
     LOG_ASSERT(res == reinterpret_cast<intptr_t>(this), "Not returning from resume()");
 }
@@ -63,10 +65,12 @@ void Fiber::wait() {
 void Fiber::resume() {
 #if BOOST_VERSION >= 105600
     LOG_ASSERT(!mReturnContext, "Resuming an already active fiber");
-    auto res = boost::context::jump_fcontext(&mReturnContext, mContext, reinterpret_cast<intptr_t>(this));
+    __attribute__((unused)) auto res = boost::context::jump_fcontext(&mReturnContext, mContext,
+            reinterpret_cast<intptr_t>(this));
     mReturnContext = nullptr;
 #else
-    auto res = boost::context::jump_fcontext(&mReturnContext, mContext, reinterpret_cast<intptr_t>(this));
+    __attribute__((unused)) auto res = boost::context::jump_fcontext(&mReturnContext, mContext,
+            reinterpret_cast<intptr_t>(this));
 #endif
     LOG_ASSERT(res == reinterpret_cast<intptr_t>(this), "Not returning from wait()");
 }
