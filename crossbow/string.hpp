@@ -492,8 +492,11 @@ public: // Operations
     template< class InputIt >
     iterator insert(const_iterator pos, InputIt first, InputIt last) {
         auto sz = size();
-        auto count = std::distance(first, last);
         auto index = pos - cbegin();
+        auto count = std::distance(first, last);
+        if (count < 0) {
+            return begin() + index;
+        }
         auto nsize = sz + count;
         reserve(nsize);
         auto ptr = get_ptr();
