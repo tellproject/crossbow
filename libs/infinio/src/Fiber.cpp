@@ -97,7 +97,7 @@ void Fiber::start() {
 }
 
 ConditionVariable::~ConditionVariable() {
-    notify();
+    notify_all();
 }
 
 void ConditionVariable::wait(Fiber& fiber) {
@@ -105,7 +105,17 @@ void ConditionVariable::wait(Fiber& fiber) {
     fiber.wait();
 }
 
-void ConditionVariable::notify() {
+void ConditionVariable::notify_one() {
+    if (mWaiting.empty()) {
+        return;
+    }
+
+    auto fiber = mWaiting.front();
+    mWaiting.pop();
+    fiber->resume();
+}
+
+void ConditionVariable::notify_all() {
     if (mWaiting.empty()) {
         return;
     }

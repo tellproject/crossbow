@@ -10,6 +10,7 @@
 #include <sparsehash/dense_hash_map>
 
 #include <cstdint>
+#include <limits>
 #include <queue>
 #include <system_error>
 #include <tuple>
@@ -283,13 +284,14 @@ class RpcClientSocket : protected BatchingMessageSocket<RpcClientSocket> {
     using Base = BatchingMessageSocket<RpcClientSocket>;
 
 public:
-    RpcClientSocket(InfinibandSocket socket);
+    RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses = std::numeric_limits<size_t>::max());
 
 protected:
     /**
      * @brief Send the synchronous request to the remote host
      *
-     * Blocks the request if the connection is not yet ready.
+     * Blocks the request if the connection is not yet ready - either when not yet connected or the maximum number of
+     * concurrent pending responses has been reached.
      *
      * The server is expected to process all requests in the order they arrived.
      *
@@ -304,7 +306,8 @@ protected:
     /**
      * @brief Send the asynchronous request to the remote host
      *
-     * Blocks the request if the connection is not yet ready.
+     * Blocks the request if the connection is not yet ready - either when not yet connected or the maximum number of
+     * concurrent pending responses has been reached.
      *
      * @param response The handler object to invoke when receiving the response
      * @param messageType The message type of the request to send
@@ -321,7 +324,7 @@ private:
     bool sendInternalRequest(std::shared_ptr<RpcResponse> response, Message messageType, bool async, uint32_t length,
             Fun fun);
 
-    bool waitForConnected(Fiber& fiber);
+    bool waitUntilReady(Fiber& fiber);
 
     void onSocketConnected(const crossbow::string& data);
 
@@ -336,6 +339,12 @@ private:
     /// Current user ID incremented for each request sent
     uint32_t mUserId;
 
+    /// Number of requests pending a response
+    size_t mPendingResponses;
+
+    /// Maximum number of concurrent pending responses
+    size_t mMaxPendingResponses;
+
     /// Queue containing pending synchronous responses in the order they were sent
     std::queue<std::tuple<uint32_t, std::shared_ptr<RpcResponse>>> mSyncResponses;
 
@@ -343,7 +352,7 @@ private:
     google::dense_hash_map<uint32_t, std::shared_ptr<RpcResponse>> mAsyncResponses;
 
     /// Requests waiting for the connection to become ready
-    ConditionVariable mConnected;
+    ConditionVariable mWaitingRequests;
 };
 
 template <typename Fun, typename Message>
@@ -354,7 +363,7 @@ bool RpcClientSocket::sendInternalRequest(std::shared_ptr<RpcResponse> response,
     LOG_ASSERT(crossbow::to_underlying(messageType) != std::numeric_limits<uint32_t>::max(),
             "Invalid message tupe");
 
-    if (!waitForConnected(response->fiber())) {
+    if (!waitUntilReady(response->fiber())) {
         response->onAbort(std::make_error_code(std::errc::connection_aborted));
         return false;
     }
@@ -377,6 +386,7 @@ bool RpcClientSocket::sendRequest(std::shared_ptr<RpcResponse> response, Message
         Fun fun) {
     auto succeeded = sendInternalRequest(response, messageType, false, length, std::move(fun));
     if (succeeded) {
+        ++mPendingResponses;
         mSyncResponses.emplace(mUserId, std::move(response));
     }
     return succeeded;
@@ -387,6 +397,7 @@ bool RpcClientSocket::sendAsyncRequest(std::shared_ptr<RpcResponse> response, Me
         Fun fun) {
     auto succeeded = sendInternalRequest(response, messageType, true, length, std::move(fun));
     if (succeeded) {
+        ++mPendingResponses;
         mAsyncResponses.insert(std::make_pair(mUserId, std::move(response)));
     }
     return succeeded;

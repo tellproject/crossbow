@@ -68,7 +68,9 @@ public:
     template <typename Predicate>
     void wait(Fiber& fiber, Predicate pred);
 
-    void notify();
+    void notify_one();
+
+    void notify_all();
 
 private:
     std::queue<Fiber*> mWaiting;
