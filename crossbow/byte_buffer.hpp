@@ -1,6 +1,7 @@
 #pragma once
 
 #include <crossbow/alignment.hpp>
+#include <crossbow/enum_underlying.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -57,6 +58,11 @@ public:
         return value;
     }
 
+    template<class T>
+    T read_enum() {
+        return crossbow::from_underlying<T>(read<typename std::underlying_type<T>::type>());
+    }
+
 private:
     const char* mPos;
     const char* mEnd;
@@ -88,6 +94,11 @@ public:
     void write(T value) {
         (*reinterpret_cast<T*>(mPos)) = value;
         mPos += sizeof(T);
+    }
+
+    template<class T>
+    void write_enum(T value) {
+        write(crossbow::to_underlying(value));
     }
 
     void write(const void* value, size_t length) {
