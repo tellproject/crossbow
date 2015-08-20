@@ -37,9 +37,19 @@ public:
         while (isFull(pos)) {
             usleep(1);
         }
-        auto real_pos = pos % QueueSize;
-        new(&_data[real_pos].value) T(std::forward<Args>(recordArgs)...);
-        _data[real_pos].is_valid = true;
+        writeItem(pos, std::forward<Args>(recordArgs)...);
+        return true;
+    }
+
+    template<class ...Args>
+    bool tryWrite(Args && ... recordArgs) {
+        auto pos = _insert_place.load();
+        do {
+            if (isFull(pos)) {
+                return false;
+            }
+        } while (!_insert_place.compare_exchange_strong(pos, pos + 1));
+        writeItem(pos, std::forward<Args>(recordArgs)...);
         return true;
     }
 
@@ -82,6 +92,14 @@ private:
         auto size = pos - _consumed.load();
         return size >= QueueSize;
     }
+
+    template<class ...Args>
+    void writeItem(size_t pos, Args&&... recordArgs) {
+        auto real_pos = pos % QueueSize;
+        new(&_data[real_pos].value) T(std::forward<Args>(recordArgs)...);
+        _data[real_pos].is_valid = true;
+    }
+
     //    uint32_t startpadding[11];
     std::array<Item, QueueSize> _data;
     std::atomic_size_t _consumed;
