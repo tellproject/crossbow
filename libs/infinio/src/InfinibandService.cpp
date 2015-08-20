@@ -79,7 +79,7 @@ private:
 } // anonymous namespace
 
 InfinibandProcessor::InfinibandProcessor(std::shared_ptr<DeviceContext> device, const InfinibandLimits& limits)
-        : mProcessor(limits.pollCycles),
+        : mProcessor(limits.pollCycles, limits.fiberCacheSize),
           mTaskQueue(mProcessor),
           mContext(new CompletionContext(mProcessor, std::move(device), limits)) {
     mProcessor.start();

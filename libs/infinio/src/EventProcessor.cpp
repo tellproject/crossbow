@@ -12,8 +12,9 @@
 namespace crossbow {
 namespace infinio {
 
-EventProcessor::EventProcessor(uint64_t pollCycles)
-        : mPollCycles(pollCycles) {
+EventProcessor::EventProcessor(uint64_t pollCycles, size_t fiberCacheSize)
+        : mPollCycles(pollCycles),
+          mFiberCacheSize(fiberCacheSize) {
     LOG_TRACE("Creating epoll file descriptor");
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
@@ -67,8 +68,28 @@ void EventProcessor::start() {
 }
 
 void EventProcessor::executeFiber(std::function<void(Fiber&)> fun) {
-    auto fiber = Fiber::create(*this, std::move(fun));
-    fiber->resume();
+    Fiber* fiber;
+    if (mFiberCache.empty()) {
+        fiber = Fiber::create(*this);
+    } else {
+        fiber = mFiberCache.front();
+        mFiberCache.pop();
+    }
+    fiber->execute(std::move(fun));
+}
+
+void EventProcessor::recycleFiber(Fiber* fiber) {
+    LOG_ASSERT(fiber != nullptr, "Fiber must be non-null");
+    LOG_ASSERT(fiber->empty(), "Fiber to recycle not empty");
+    if (mFiberCache.size() < mFiberCacheSize) {
+        // Add fiber to cache
+        mFiberCache.emplace(fiber);
+    } else {
+        // Queue fiber for delete (recycle function might be called from within the fiber)
+        execute([fiber] () {
+            delete fiber;
+        });
+    }
 }
 
 void EventProcessor::doPoll() {

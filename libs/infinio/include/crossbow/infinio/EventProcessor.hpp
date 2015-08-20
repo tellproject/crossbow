@@ -53,7 +53,7 @@ public:
      *
      * @exception std::system_error In case setting up the epoll descriptor failed
      */
-    EventProcessor(uint64_t pollCycles);
+    EventProcessor(uint64_t pollCycles, size_t fiberCacheSize);
 
     /**
      * @brief Shuts down the event processor
@@ -107,6 +107,17 @@ public:
      */
     void executeFiber(std::function<void(Fiber&)> fun);
 
+    /**
+     * @brief Recycles the fiber for later reuse
+     *
+     * Adds the fiber to the cache.
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fiber The fiber to recycle
+     */
+    void recycleFiber(Fiber* fiber);
+
 private:
     /**
      * @brief Execute the event loop
@@ -115,6 +126,9 @@ private:
 
     /// Number of iterations without action to poll until going to epoll sleep
     uint64_t mPollCycles;
+
+    /// Maximum size of the recycled fiber cache
+    size_t mFiberCacheSize;
 
     /// File descriptor for epoll
     int mEpoll;
@@ -127,6 +141,9 @@ private:
 
     /// Local task queue containing locally enqueued tasks
     std::queue<std::function<void()>> mTaskQueue;
+
+    /// Cache for recycled fibers
+    std::queue<Fiber*> mFiberCache;
 };
 
 /**

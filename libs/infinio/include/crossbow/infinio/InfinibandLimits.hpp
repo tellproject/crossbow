@@ -17,7 +17,8 @@ public:
               sendQueueLength(64),
               maxScatterGather(1),
               completionQueueLength(128),
-              pollCycles(1000000) {
+              pollCycles(1000000),
+              fiberCacheSize(50) {
     }
 
     /**
@@ -54,6 +55,11 @@ public:
      * @brief Number of iterations without action to poll until going to epoll sleep
      */
     uint64_t pollCycles;
+
+    /**
+     * @brief Maximum size of the recycled fiber cache for each event processor
+     */
+    size_t fiberCacheSize;
 };
 
 } // namespace infinio

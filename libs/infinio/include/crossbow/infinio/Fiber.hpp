@@ -33,16 +33,22 @@ public:
 
     void operator delete[](void* ptr) = delete;
 
+    bool empty() const {
+        return !mFun;
+    }
+
     void yield();
 
     void wait();
 
     void resume();
 
+    void execute(std::function<void(Fiber&)> fun);
+
 private:
     static void entry(intptr_t ptr);
 
-    Fiber(EventProcessor& processor, std::function<void(Fiber&)> fun);
+    Fiber(EventProcessor& processor);
 
     void start();
 

@@ -22,9 +22,8 @@ void Fiber::entry(intptr_t ptr) {
     LOG_ASSERT(false, "Fiber start function returned");
 }
 
-Fiber::Fiber(EventProcessor& processor, std::function<void(Fiber&)> fun)
+Fiber::Fiber(EventProcessor& processor)
         : mProcessor(processor),
-          mFun(std::move(fun)),
           mContext(boost::context::make_fcontext(stackFromFiber(this), STACK_SIZE, &Fiber::entry)),
 #if BOOST_VERSION >= 105600
           mReturnContext(nullptr) {
@@ -75,25 +74,31 @@ void Fiber::resume() {
     LOG_ASSERT(res == reinterpret_cast<intptr_t>(this), "Not returning from wait()");
 }
 
+void Fiber::execute(std::function<void (Fiber&)> fun) {
+    LOG_ASSERT(!mFun, "Fiber function is still valid");
+
+    mFun = std::move(fun);
+    resume();
+}
+
 void Fiber::start() {
-    try {
-        LOG_TRACE("Invoking fiber function");
-        mFun(*this);
-        LOG_TRACE("Exiting fiber function");
-    } catch (std::exception& e) {
-        LOG_ERROR("Exception triggered in fiber function [error = %1%]", e.what());
-    } catch (...) {
-        LOG_ERROR("Exception triggered in fiber function");
+    while (true) {
+        try {
+            LOG_TRACE("Invoking fiber function");
+            mFun(*this);
+            LOG_TRACE("Exiting fiber function");
+        } catch (std::exception& e) {
+            LOG_ERROR("Exception triggered in fiber function [error = %1%]", e.what());
+        } catch (...) {
+            LOG_ERROR("Exception triggered in fiber function");
+        }
+        mFun = std::function<void(Fiber&)>();
+
+        mProcessor.recycleFiber(this);
+
+        // Return to previous context
+        wait();
     }
-
-    // Enqueue deletion of Fiber object
-    auto self = this;
-    mProcessor.execute([self] () {
-        delete self;
-    });
-
-    // Return to previous context
-    wait();
 }
 
 ConditionVariable::~ConditionVariable() {
