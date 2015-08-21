@@ -61,6 +61,13 @@ public:
     ~EventProcessor();
 
     /**
+     * @brief The ID of the polling thread
+     */
+    std::thread::id threadId() const {
+        return mPollThread.get_id();
+    }
+
+    /**
      * @brief Register a new event poller
      *
      * @param fd The file descriptor to listen for new events in case the event processor goes to sleep

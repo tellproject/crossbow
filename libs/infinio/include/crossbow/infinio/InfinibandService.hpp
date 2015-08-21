@@ -23,6 +23,10 @@ public:
 
     ~InfinibandProcessor();
 
+    std::thread::id threadId() const {
+        return mProcessor.threadId();
+    }
+
     void execute(std::function<void()> fun) {
         mTaskQueue.execute(std::move(fun));
     }

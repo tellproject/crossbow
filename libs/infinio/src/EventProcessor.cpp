@@ -60,6 +60,9 @@ void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
 
 void EventProcessor::start() {
     LOG_TRACE("Starting event processor");
+    if (mPollThread.joinable()) {
+        throw std::runtime_error("Poll thread already running");
+    }
     mPollThread = std::thread([this] () {
         while (true) {
             doPoll();
