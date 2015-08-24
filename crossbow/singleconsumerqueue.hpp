@@ -45,7 +45,8 @@ public:
     bool tryWrite(Args && ... recordArgs) {
         auto pos = _insert_place.load();
         do {
-            if (isFull(pos)) {
+            auto consume = _consumed.load();
+            if (consume < pos && (pos - consume) >= QueueSize) {
                 return false;
             }
         } while (!_insert_place.compare_exchange_strong(pos, pos + 1));
