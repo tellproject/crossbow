@@ -2,6 +2,7 @@
 
 #include <crossbow/alignment.hpp>
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -18,11 +19,15 @@ public:
               mEnd(pos + length) {
     }
 
+    ~buffer_reader() {
+        assert(mPos <= mEnd);
+    }
+
     bool exhausted() const {
         return (mPos >= mEnd);
     }
 
-    bool canRead(size_t length) {
+    bool canRead(size_t length) const {
         return (mPos + length <= mEnd);
     }
 
@@ -74,6 +79,10 @@ public:
 
     buffer_writer(void* pos, size_t length)
             : buffer_writer(reinterpret_cast<char*>(pos), length) {
+    }
+
+    ~buffer_writer() {
+        assert(mPos <= mEnd);
     }
 
     bool exhausted() const {
