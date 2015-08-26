@@ -210,6 +210,13 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
         Fun fun, std::error_code& ec) {
     auto length = HEADER_SIZE + messageLength;
     if (!mSendBuffer.canWrite(length)) {
+        // Check if the buffer writer points to the beginning of the send buffer - in this case nothing has been written
+        // and the message is too big to fit into a buffer.
+        if (mBuffer.valid() && (mSendBuffer.data() == reinterpret_cast<char*>(mBuffer.data()))) {
+            ec = error::message_too_big;
+            return;
+        }
+
         sendCurrentBuffer(ec);
         if (ec) {
             return;
@@ -223,6 +230,12 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
         mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()), mBuffer.length());
 
         scheduleFlush();
+
+        // If a new buffer is still too small the message must be too big
+        if (!mSendBuffer.canWrite(length)) {
+            ec = error::message_too_big;
+            return;
+        }
     }
 
     auto oldOffset = static_cast<uint32_t>(mSendBuffer.data() - reinterpret_cast<char*>(mBuffer.data()));

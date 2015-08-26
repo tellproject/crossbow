@@ -22,6 +22,9 @@ enum rpc_errors {
 
     /// Received message of wrong type.
     wrong_type,
+
+    /// Tried to write a message exceeding the buffer size.
+    message_too_big,
 };
 
 /**
@@ -44,6 +47,8 @@ public:
         case error::wrong_type:
             return "Received message of wrong type";
 
+        case error::message_too_big:
+            return "Tried to write a message exceeding the buffer size";
 
         default:
             return "infinio.rpc error";
