@@ -53,7 +53,7 @@ public:
      *
      * @exception std::system_error In case setting up the epoll descriptor failed
      */
-    EventProcessor(uint64_t pollCycles, size_t fiberCacheSize);
+    EventProcessor(uint64_t pollCycles);
 
     /**
      * @brief Shuts down the event processor
@@ -92,39 +92,6 @@ public:
      */
     void start();
 
-    /**
-     * @brief Queue the function for later execution in the event processor
-     *
-     * Not thread-safe: Can only be called from within the poll thread.
-     *
-     * @param fun The function to execute in the event loop
-     */
-    void execute(std::function<void()> fun) {
-        mTaskQueue.push(std::move(fun));
-    }
-
-    /**
-     * @brief Execute the function as a new fiber
-     *
-     * The function is executed immediately.
-     *
-     * Not thread-safe: Can only be called from within the poll thread.
-     *
-     * @param fun The function to execute in the fiber
-     */
-    void executeFiber(std::function<void(Fiber&)> fun);
-
-    /**
-     * @brief Recycles the fiber for later reuse
-     *
-     * Adds the fiber to the cache.
-     *
-     * Not thread-safe: Can only be called from within the poll thread.
-     *
-     * @param fiber The fiber to recycle
-     */
-    void recycleFiber(Fiber* fiber);
-
 private:
     /**
      * @brief Execute the event loop
@@ -134,9 +101,6 @@ private:
     /// Number of iterations without action to poll until going to epoll sleep
     uint64_t mPollCycles;
 
-    /// Maximum size of the recycled fiber cache
-    size_t mFiberCacheSize;
-
     /// File descriptor for epoll
     int mEpoll;
 
@@ -145,16 +109,12 @@ private:
 
     /// Vector containing all registered event poller
     std::vector<EventPoll*> mPoller;
-
-    /// Local task queue containing locally enqueued tasks
-    std::queue<std::function<void()>> mTaskQueue;
-
-    /// Cache for recycled fibers
-    std::queue<Fiber*> mFiberCache;
 };
 
 /**
  * @brief Event Poller polling a task queue and executing tasks from it
+ *
+ * The associated queue can only be accessed from outside the polling thread.
  */
 class TaskQueue : private EventPoll {
 public:
@@ -190,6 +150,41 @@ private:
 
     /// Whether the event processor is sleeping
     std::atomic<bool> mSleeping;
+};
+
+/**
+ * @brief Event Poller polling a task queue and executing tasks from it
+ *
+ * The associated queue can only be accessed from inside the polling thread.
+ */
+class LocalTaskQueue : private EventPoll {
+public:
+    LocalTaskQueue(EventProcessor& processor);
+
+    ~LocalTaskQueue();
+
+    /**
+     * @brief Queue the function for later execution in the event processor
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fun The function to execute in the event loop
+     */
+    void execute(std::function<void()> fun) {
+        mTaskQueue.push(std::move(fun));
+    }
+
+private:
+    virtual bool poll() final override;
+
+    virtual void prepareSleep() final override;
+
+    virtual void wakeup() final override;
+
+    EventProcessor& mProcessor;
+
+    /// Local task queue containing locally enqueued tasks
+    std::queue<std::function<void()>> mTaskQueue;
 };
 
 } // namespace infinio

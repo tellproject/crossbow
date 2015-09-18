@@ -1,6 +1,6 @@
 #include <crossbow/infinio/Fiber.hpp>
 
-#include <crossbow/infinio/EventProcessor.hpp>
+#include <crossbow/infinio/InfinibandService.hpp>
 #include <crossbow/logger.hpp>
 
 #include <cstdlib>
@@ -22,7 +22,7 @@ void Fiber::entry(intptr_t ptr) {
     LOG_ASSERT(false, "Fiber start function returned");
 }
 
-Fiber::Fiber(EventProcessor& processor)
+Fiber::Fiber(InfinibandProcessor& processor)
         : mProcessor(processor),
           mContext(boost::context::make_fcontext(stackFromFiber(this), STACK_SIZE, &Fiber::entry)),
 #if BOOST_VERSION >= 105600
@@ -43,7 +43,7 @@ void Fiber::operator delete(void* ptr) {
 
 void Fiber::yield() {
     // Enqueue resume of Fiber object
-    mProcessor.execute([this] () {
+    mProcessor.executeLocal([this] () {
         resume();
     });
     wait();
@@ -72,6 +72,12 @@ void Fiber::resume() {
             reinterpret_cast<intptr_t>(this));
 #endif
     LOG_ASSERT(res == reinterpret_cast<intptr_t>(this), "Not returning from wait()");
+}
+
+void Fiber::unblock() {
+    mProcessor.execute([this] () {
+        resume();
+    });
 }
 
 void Fiber::execute(std::function<void (Fiber&)> fun) {
@@ -128,9 +134,8 @@ void ConditionVariable::notify_all() {
     decltype(mWaiting) waiting;
     waiting.swap(mWaiting);
     do {
-        auto fiber = waiting.front();
+        waiting.front()->resume();
         waiting.pop();
-        fiber->resume();
     } while (!waiting.empty());
 }
 

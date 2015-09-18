@@ -2,6 +2,7 @@
 
 #include <crossbow/infinio/Endpoint.hpp>
 #include <crossbow/infinio/ErrorCode.hpp>
+#include <crossbow/infinio/Fiber.hpp>
 #include <crossbow/infinio/InfinibandSocket.hpp>
 #include <crossbow/logger.hpp>
 
@@ -79,13 +80,40 @@ private:
 } // anonymous namespace
 
 InfinibandProcessor::InfinibandProcessor(std::shared_ptr<DeviceContext> device, const InfinibandLimits& limits)
-        : mProcessor(limits.pollCycles, limits.fiberCacheSize),
+        : mFiberCacheSize(limits.fiberCacheSize),
+          mProcessor(limits.pollCycles),
+          mLocalTaskQueue(mProcessor),
           mTaskQueue(mProcessor),
           mContext(new CompletionContext(mProcessor, std::move(device), limits)) {
     mProcessor.start();
 }
 
 InfinibandProcessor::~InfinibandProcessor() = default;
+
+void InfinibandProcessor::executeLocalFiber(std::function<void (Fiber&)> fun) {
+    Fiber* fiber;
+    if (mFiberCache.empty()) {
+        fiber = Fiber::create(*this);
+    } else {
+        fiber = mFiberCache.front();
+        mFiberCache.pop();
+    }
+    fiber->execute(std::move(fun));
+}
+
+void InfinibandProcessor::recycleFiber(Fiber* fiber) {
+    LOG_ASSERT(fiber != nullptr, "Fiber must be non-null");
+    LOG_ASSERT(fiber->empty(), "Fiber to recycle not empty");
+    if (mFiberCache.size() < mFiberCacheSize) {
+        // Add fiber to cache
+        mFiberCache.emplace(fiber);
+    } else {
+        // Queue fiber for delete (recycle function might be called from within the fiber)
+        executeLocal([fiber] () {
+            delete fiber;
+        });
+    }
+}
 
 InfinibandService::InfinibandService(const InfinibandLimits& limits)
         : mLimits(limits),

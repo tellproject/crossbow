@@ -14,7 +14,7 @@
 namespace crossbow {
 namespace infinio {
 
-class EventProcessor;
+class InfinibandProcessor;
 
 class Fiber final : crossbow::non_copyable, crossbow::non_movable {
 public:
@@ -37,22 +37,44 @@ public:
         return !mFun;
     }
 
+    /**
+     * @brief Interrupts execution of the fiber and schedules it for later reexecution
+     *
+     * Must only be called from within the fiber.
+     */
     void yield();
 
+    /**
+     * @brief Interrupts the execution of the fiber without rescheduling it
+     *
+     * Must only be called from within the fiber.
+     */
     void wait();
 
+    /**
+     * @brief Immediately resumes execution of the interrupted fiber
+     *
+     * Must only be called from within the associated polling thread.
+     */
     void resume();
+
+    /**
+     * @brief Schedules a fiber for execution in its associated polling thread
+     *
+     * Must only be called on a interrupted fiber from outside the polling thread.
+     */
+    void unblock();
 
     void execute(std::function<void(Fiber&)> fun);
 
 private:
     static void entry(intptr_t ptr);
 
-    Fiber(EventProcessor& processor);
+    Fiber(InfinibandProcessor& processor);
 
     void start();
 
-    EventProcessor& mProcessor;
+    InfinibandProcessor& mProcessor;
 
     std::function<void(Fiber&)> mFun;
 

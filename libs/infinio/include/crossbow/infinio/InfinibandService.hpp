@@ -32,32 +32,61 @@ public:
     }
 
     void executeLocal(std::function<void()> fun) {
-        mProcessor.execute(std::move(fun));
+        mLocalTaskQueue.execute(std::move(fun));
     }
 
     void executeFiber(std::function<void(Fiber&)> fun) {
         mTaskQueue.execute([this, fun] () {
-            mProcessor.executeFiber(std::move(fun));
+            executeLocalFiber(std::move(fun));
         });
     }
 
-    void executeLocalFiber(std::function<void(Fiber&)> fun) {
-            mProcessor.executeFiber(std::move(fun));
-    }
+    /**
+     * @brief Execute the function as a new fiber
+     *
+     * The function is executed immediately.
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fun The function to execute in the fiber
+     */
+    void executeLocalFiber(std::function<void(Fiber&)> fun);
 
     CompletionContext* context() {
         return mContext.get();
     }
 
 private:
+    friend class Fiber;
+
+    /**
+     * @brief Recycles the fiber for later reuse
+     *
+     * Adds the fiber to the cache.
+     *
+     * Not thread-safe: Can only be called from within the poll thread.
+     *
+     * @param fiber The fiber to recycle
+     */
+    void recycleFiber(Fiber* fiber);
+
+    /// Maximum size of the recycled fiber cache
+    size_t mFiberCacheSize;
+
     /// The event loop processor handling all Infiniband events
     EventProcessor mProcessor;
+
+    /// Task queue to execute functions in the poll thread (only accessible from within the same thread)
+    LocalTaskQueue mLocalTaskQueue;
 
     /// Task queue to execute functions in the poll thread
     TaskQueue mTaskQueue;
 
     /// Completion channel polling for Infiniband events
     std::unique_ptr<CompletionContext> mContext;
+
+    /// Cache for recycled fibers
+    std::queue<Fiber*> mFiberCache;
 };
 
 /**

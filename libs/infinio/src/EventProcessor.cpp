@@ -1,6 +1,5 @@
 #include <crossbow/infinio/EventProcessor.hpp>
 
-#include <crossbow/infinio/Fiber.hpp>
 #include <crossbow/logger.hpp>
 
 #include <algorithm>
@@ -12,9 +11,8 @@
 namespace crossbow {
 namespace infinio {
 
-EventProcessor::EventProcessor(uint64_t pollCycles, size_t fiberCacheSize)
-        : mPollCycles(pollCycles),
-          mFiberCacheSize(fiberCacheSize) {
+EventProcessor::EventProcessor(uint64_t pollCycles)
+        : mPollCycles(pollCycles) {
     LOG_TRACE("Creating epoll file descriptor");
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
@@ -35,11 +33,13 @@ EventProcessor::~EventProcessor() {
 
 void EventProcessor::registerPoll(int fd, EventPoll* poll) {
     LOG_TRACE("Register event poller");
-    struct epoll_event event;
-    event.data.ptr = poll;
-    event.events = EPOLLIN | EPOLLET;
-    if (epoll_ctl(mEpoll, EPOLL_CTL_ADD, fd, &event)) {
-        throw std::system_error(errno, std::generic_category());
+    if (fd != -1) {
+        struct epoll_event event;
+        event.data.ptr = poll;
+        event.events = EPOLLIN | EPOLLET;
+        if (epoll_ctl(mEpoll, EPOLL_CTL_ADD, fd, &event)) {
+            throw std::system_error(errno, std::generic_category());
+        }
     }
 
     mPoller.emplace_back(poll);
@@ -53,7 +53,7 @@ void EventProcessor::deregisterPoll(int fd, EventPoll* poll) {
     }
     mPoller.erase(i);
 
-    if (epoll_ctl(mEpoll, EPOLL_CTL_DEL, fd, nullptr)) {
+    if (fd != -1 && epoll_ctl(mEpoll, EPOLL_CTL_DEL, fd, nullptr)) {
         throw std::system_error(errno, std::generic_category());
     }
 }
@@ -70,46 +70,12 @@ void EventProcessor::start() {
     });
 }
 
-void EventProcessor::executeFiber(std::function<void(Fiber&)> fun) {
-    Fiber* fiber;
-    if (mFiberCache.empty()) {
-        fiber = Fiber::create(*this);
-    } else {
-        fiber = mFiberCache.front();
-        mFiberCache.pop();
-    }
-    fiber->execute(std::move(fun));
-}
-
-void EventProcessor::recycleFiber(Fiber* fiber) {
-    LOG_ASSERT(fiber != nullptr, "Fiber must be non-null");
-    LOG_ASSERT(fiber->empty(), "Fiber to recycle not empty");
-    if (mFiberCache.size() < mFiberCacheSize) {
-        // Add fiber to cache
-        mFiberCache.emplace(fiber);
-    } else {
-        // Queue fiber for delete (recycle function might be called from within the fiber)
-        execute([fiber] () {
-            delete fiber;
-        });
-    }
-}
-
 void EventProcessor::doPoll() {
     for (decltype(mPollCycles) i = 0; i < mPollCycles; ++i) {
         for (auto poller : mPoller) {
             if (poller->poll()) {
                 i = 0;
             }
-        }
-        if (!mTaskQueue.empty()) {
-            decltype(mTaskQueue) taskQueue;
-            taskQueue.swap(mTaskQueue);
-            do {
-                taskQueue.front()();
-                taskQueue.pop();
-            } while (!taskQueue.empty());
-            i = 0;
         }
     }
 
@@ -193,6 +159,40 @@ void TaskQueue::wakeup() {
 
     uint64_t counter = 0;
     read(mInterrupt, &counter, sizeof(uint64_t));
+}
+
+LocalTaskQueue::LocalTaskQueue(EventProcessor& processor)
+        : mProcessor(processor) {
+    mProcessor.registerPoll(-1, this);
+}
+
+LocalTaskQueue::~LocalTaskQueue() {
+    try {
+        mProcessor.deregisterPoll(-1, this);
+    } catch (std::system_error& e) {
+        LOG_ERROR("Failed to deregister from EventProcessor [error = %1% %2%]", e.code(), e.what());
+    }
+}
+
+bool LocalTaskQueue::poll() {
+    if (mTaskQueue.empty()) {
+        return false;
+    }
+
+    decltype(mTaskQueue) taskQueue;
+    taskQueue.swap(mTaskQueue);
+    do {
+        taskQueue.front()();
+        taskQueue.pop();
+    } while (!taskQueue.empty());
+
+    return true;
+}
+
+void LocalTaskQueue::prepareSleep() {
+}
+
+void LocalTaskQueue::wakeup() {
 }
 
 } // namespace infinio
