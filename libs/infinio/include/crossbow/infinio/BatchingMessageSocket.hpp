@@ -37,10 +37,12 @@ protected:
         CONNECTED,
     };
 
-    BatchingMessageSocket(InfinibandSocket socket)
+    BatchingMessageSocket(InfinibandSocket socket, size_t maxBatchSize = std::numeric_limits<size_t>::max())
             : mSocket(std::move(socket)),
+              mMaxBatchSize(maxBatchSize),
               mBuffer(InfinibandBuffer::INVALID_ID),
               mSendBuffer(static_cast<char*>(nullptr), 0),
+              mBatchSize(0),
               mState(ConnectionState::DISCONNECTED),
               mFlush(false) {
         mSocket->setHandler(this);
@@ -144,11 +146,17 @@ private:
      */
     void scheduleFlush();
 
+    /// Maximum number of messages in a batch before sending the current message
+    size_t mMaxBatchSize;
+
     /// The current Infiniband send buffer
     InfinibandBuffer mBuffer;
 
     /// A buffer writer to write data to the current Infiniband buffer
     crossbow::buffer_writer mSendBuffer;
+
+    /// Number of messages in the current batch
+    size_t mBatchSize;
 
     /// The connection state of the socket
     ConnectionState mState;
@@ -209,7 +217,7 @@ template <typename Fun>
 void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t messageType, uint32_t messageLength,
         Fun fun, std::error_code& ec) {
     auto length = HEADER_SIZE + messageLength;
-    if (!mSendBuffer.canWrite(length)) {
+    if (!mSendBuffer.canWrite(length) || mBatchSize >= mMaxBatchSize) {
         // Check if the buffer writer points to the beginning of the send buffer - in this case nothing has been written
         // and the message is too big to fit into a buffer.
         if (mBuffer.valid() && (mSendBuffer.data() == reinterpret_cast<char*>(mBuffer.data()))) {
@@ -222,8 +230,10 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
             return;
         }
 
+        mBatchSize = 0;
         mBuffer = mSocket->acquireSendBuffer();
         if (!mBuffer.valid()) {
+            mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);
             ec = error::invalid_buffer;
             return;
         }
@@ -251,6 +261,7 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
         mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()) + oldOffset,
                 mBuffer.length() - oldOffset);
     }
+    ++mBatchSize;
 }
 
 template <typename Handler>
@@ -326,6 +337,7 @@ void BatchingMessageSocket<Handler>::sendCurrentBuffer(std::error_code& ec) {
     if (ec)  {
         mSocket->releaseSendBuffer(mBuffer);
     }
+    mBatchSize = 0;
     mBuffer = InfinibandBuffer(InfinibandBuffer::INVALID_ID);
     mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);
 }
@@ -344,6 +356,7 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
 
         // Check if buffer has any data written
         if (mSendBuffer.data() == reinterpret_cast<char*>(mBuffer.data())) {
+            LOG_ASSERT(mBatchSize == 0, "Batch size must be 0 for empty messages");
             mSocket->releaseSendBuffer(mBuffer);
             mBuffer = InfinibandBuffer(InfinibandBuffer::INVALID_ID);
             mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);

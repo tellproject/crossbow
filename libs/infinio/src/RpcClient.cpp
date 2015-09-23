@@ -35,8 +35,8 @@ void RpcResponse::complete() {
     notify();
 }
 
-RpcClientSocket::RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses /* = 100u */)
-        : Base(std::move(socket)),
+RpcClientSocket::RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses, size_t maxBatchSize)
+        : Base(std::move(socket), maxBatchSize),
           mUserId(0x0u),
           mMaxPendingResponses(maxPendingResponses) {
     if (mMaxPendingResponses == 0x0u) {

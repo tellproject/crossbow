@@ -106,7 +106,7 @@ public:
 
 protected:
     RpcServerSocket(Manager& manager, InfinibandProcessor& processor, InfinibandSocket socket,
-            const crossbow::string& data);
+            const crossbow::string& data, size_t maxBatchSize = std::numeric_limits<size_t>::max());
 
     template <typename Fun, typename Message>
     bool writeResponse(MessageId messageId, Message messageType, uint32_t length, Fun fun);
@@ -137,8 +137,8 @@ private:
 
 template <typename Manager, typename Socket>
 RpcServerSocket<Manager, Socket>::RpcServerSocket(Manager& manager, InfinibandProcessor& processor,
-        InfinibandSocket socket, const crossbow::string& data)
-        : Base(std::move(socket)),
+        InfinibandSocket socket, const crossbow::string& data, size_t maxBatchSize)
+        : Base(std::move(socket), maxBatchSize),
           mManager(manager) {
     this->accept(data, processor);
 }

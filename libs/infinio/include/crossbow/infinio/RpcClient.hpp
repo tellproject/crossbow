@@ -284,7 +284,8 @@ class RpcClientSocket : protected BatchingMessageSocket<RpcClientSocket> {
     using Base = BatchingMessageSocket<RpcClientSocket>;
 
 public:
-    RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses = std::numeric_limits<size_t>::max());
+    RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses = std::numeric_limits<size_t>::max(),
+        size_t maxBatchSize = std::numeric_limits<size_t>::max());
 
 protected:
     /**
