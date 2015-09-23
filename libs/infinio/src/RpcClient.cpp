@@ -99,13 +99,13 @@ void RpcClientSocket::onSyncResponse(uint32_t userId, uint32_t messageType, cros
         return;
     }
 
-    LOG_ERROR("Received message but no responses were waiting");
+    LOG_TRACE("Received message but no responses were waiting");
 }
 
 void RpcClientSocket::onAsyncResponse(uint32_t userId, uint32_t messageType, crossbow::buffer_reader& message) {
     auto i = mAsyncResponses.find(userId);
     if (i == mAsyncResponses.end()) {
-        LOG_ERROR("Received message but no responses were waiting");
+        LOG_TRACE("Received message but no responses were waiting");
         return;
     }
     auto response = i->second;
