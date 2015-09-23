@@ -38,7 +38,6 @@ void RpcResponse::complete() {
 RpcClientSocket::RpcClientSocket(InfinibandSocket socket, size_t maxPendingResponses /* = 100u */)
         : Base(std::move(socket)),
           mUserId(0x0u),
-          mPendingResponses(0x0u),
           mMaxPendingResponses(maxPendingResponses) {
     if (mMaxPendingResponses == 0x0u) {
         throw std::invalid_argument("Pending responses must be larger than 0");
@@ -47,21 +46,12 @@ RpcClientSocket::RpcClientSocket(InfinibandSocket socket, size_t maxPendingRespo
     mAsyncResponses.set_deleted_key(std::numeric_limits<uint32_t>::max());
 }
 
-bool RpcClientSocket::waitUntilReady(Fiber& fiber) {
-    mWaitingRequests.wait(fiber, [this] () {
-        return (state() != ConnectionState::CONNECTING) && (mPendingResponses < mMaxPendingResponses);
-    });
-
-    return isConnected();
-}
-
 void RpcClientSocket::onSocketConnected(const crossbow::string& data) {
     LOG_TRACE("Resuming waiting requests");
     mWaitingRequests.notify_all();
 }
 
 void RpcClientSocket::onSocketDisconnected() {
-    mPendingResponses = 0x0u;
     mWaitingRequests.notify_all();
 
     while (!mSyncResponses.empty()) {
@@ -80,7 +70,6 @@ void RpcClientSocket::onSocketDisconnected() {
         LOG_TRACE("Aborting waiting async response");
         response->onAbort(std::make_error_code(std::errc::connection_aborted));
     }
-
 }
 
 void RpcClientSocket::onMessage(MessageId messageId, uint32_t messageType, crossbow::buffer_reader& message) {
@@ -98,8 +87,6 @@ void RpcClientSocket::onSyncResponse(uint32_t userId, uint32_t messageType, cros
         std::tie(responseId, response) = std::move(mSyncResponses.front());
         mSyncResponses.pop();
 
-        LOG_ASSERT(mPendingResponses > 0u, "Number of pending responses is 0 despite processing a pending response");
-        --mPendingResponses;
         mWaitingRequests.notify_one();
 
         if (userId != responseId) {
@@ -121,12 +108,7 @@ void RpcClientSocket::onAsyncResponse(uint32_t userId, uint32_t messageType, cro
         LOG_ERROR("Received message but no responses were waiting");
         return;
     }
-    auto response = std::move(i->second);
-    mAsyncResponses.erase(i);
-
-    LOG_ASSERT(mPendingResponses > 0u, "Number of pending responses is 0 despite processing a pending response");
-    --mPendingResponses;
-    mWaitingRequests.notify_one();
+    auto response = i->second;
 
     response->onResponse(messageType, message);
 }

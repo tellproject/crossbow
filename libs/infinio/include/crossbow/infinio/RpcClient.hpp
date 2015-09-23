@@ -304,27 +304,44 @@ protected:
     bool sendRequest(std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length, Fun fun);
 
     /**
-     * @brief Send the asynchronous request to the remote host
+     * @brief Starts a new asynchronous request with the given user ID
+     *
+     * The ID must be unique for all currently running asynchronous requests.
+     *
+     * @param userId The user ID assigned to the asynchronous request
+     * @param response The handler object to invoke when receiving a response
+     */
+    bool startAsyncRequest(uint32_t userId, std::shared_ptr<RpcResponse> response) {
+        return mAsyncResponses.insert(std::make_pair(userId, std::move(response))).second;
+    }
+
+    /**
+     * @brief Send a new asynchronous request to the remote host
      *
      * Blocks the request if the connection is not yet ready - either when not yet connected or the maximum number of
-     * concurrent pending responses has been reached.
+     * concurrent pending responses has been reached. The request must have been started before using startAsyncRequest.
      *
+     * @param userId The user ID assigned to the asynchronous request
      * @param response The handler object to invoke when receiving the response
      * @param messageType The message type of the request to send
      * @param length The length of the message to send
      * @param fun Function writing the request to the given buffer
      */
     template <typename Fun, typename Message>
-    bool sendAsyncRequest(std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length, Fun fun);
+    bool sendAsyncRequest(uint32_t userId, std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length,
+            Fun fun);
+
+    /**
+     * @brief Completes the running asynchronous request
+     *
+     * @param userId The user ID assigned to the asynchronous request
+     */
+    void completeAsyncRequest(uint32_t userId) {
+        mAsyncResponses.erase(userId);
+    }
 
 private:
     friend Base;
-
-    template <typename Fun, typename Message>
-    bool sendInternalRequest(std::shared_ptr<RpcResponse> response, Message messageType, bool async, uint32_t length,
-            Fun fun);
-
-    bool waitUntilReady(Fiber& fiber);
 
     void onSocketConnected(const crossbow::string& data);
 
@@ -338,9 +355,6 @@ private:
 
     /// Current user ID incremented for each request sent
     uint32_t mUserId;
-
-    /// Number of requests pending a response
-    size_t mPendingResponses;
 
     /// Maximum number of concurrent pending responses
     size_t mMaxPendingResponses;
@@ -356,21 +370,24 @@ private:
 };
 
 template <typename Fun, typename Message>
-bool RpcClientSocket::sendInternalRequest(std::shared_ptr<RpcResponse> response, Message messageType, bool async,
-        uint32_t length, Fun fun) {
+bool RpcClientSocket::sendRequest(std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length,
+        Fun fun) {
     static_assert(std::is_same<typename std::underlying_type<Message>::type, uint32_t>::value,
             "Given message type is not of the correct type");
-    LOG_ASSERT(crossbow::to_underlying(messageType) != std::numeric_limits<uint32_t>::max(),
-            "Invalid message tupe");
+    LOG_ASSERT(crossbow::to_underlying(messageType) != std::numeric_limits<uint32_t>::max(), "Invalid message type");
 
-    if (!waitUntilReady(response->fiber())) {
+    mWaitingRequests.wait(response->fiber(), [this] () {
+        return (state() != ConnectionState::CONNECTING) && (mSyncResponses.size() < mMaxPendingResponses);
+    });
+
+    if (!isConnected()) {
         response->onAbort(std::make_error_code(std::errc::connection_aborted));
         return false;
     }
 
     ++mUserId;
 
-    MessageId messageId(mUserId, async);
+    MessageId messageId(mUserId, false);
     std::error_code ec;
     this->writeMessage(messageId, crossbow::to_underlying(messageType), length, std::move(fun), ec);
     if (ec) {
@@ -378,29 +395,34 @@ bool RpcClientSocket::sendInternalRequest(std::shared_ptr<RpcResponse> response,
         return false;
     }
 
+    mSyncResponses.emplace(mUserId, std::move(response));
     return true;
 }
 
 template <typename Fun, typename Message>
-bool RpcClientSocket::sendRequest(std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length,
-        Fun fun) {
-    auto succeeded = sendInternalRequest(response, messageType, false, length, std::move(fun));
-    if (succeeded) {
-        ++mPendingResponses;
-        mSyncResponses.emplace(mUserId, std::move(response));
-    }
-    return succeeded;
-}
+bool RpcClientSocket::sendAsyncRequest(uint32_t userId, std::shared_ptr<RpcResponse> response, Message messageType,
+        uint32_t length, Fun fun) {
+    static_assert(std::is_same<typename std::underlying_type<Message>::type, uint32_t>::value,
+            "Given message type is not of the correct type");
+    LOG_ASSERT(crossbow::to_underlying(messageType) != std::numeric_limits<uint32_t>::max(), "Invalid message type");
 
-template <typename Fun, typename Message>
-bool RpcClientSocket::sendAsyncRequest(std::shared_ptr<RpcResponse> response, Message messageType, uint32_t length,
-        Fun fun) {
-    auto succeeded = sendInternalRequest(response, messageType, true, length, std::move(fun));
-    if (succeeded) {
-        ++mPendingResponses;
-        mAsyncResponses.insert(std::make_pair(mUserId, std::move(response)));
+    mWaitingRequests.wait(response->fiber(), [this] () {
+        return (state() != ConnectionState::CONNECTING);
+    });
+
+    if (!isConnected()) {
+        response->onAbort(std::make_error_code(std::errc::connection_aborted));
+        return false;
     }
-    return succeeded;
+
+    MessageId messageId(userId, true);
+    std::error_code ec;
+    this->writeMessage(messageId, crossbow::to_underlying(messageType), length, std::move(fun), ec);
+    if (ec) {
+        response->onAbort(std::move(ec));
+        return false;
+    }
+    return true;
 }
 
 } // namespace infinio

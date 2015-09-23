@@ -12,6 +12,10 @@ namespace infinio {
  */
 class MessageId {
 public:
+    MessageId()
+            : mId(0u) {
+    }
+
     MessageId(uint64_t id)
             : mId(id) {
     }
