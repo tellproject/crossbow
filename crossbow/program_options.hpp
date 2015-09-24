@@ -20,7 +20,7 @@
  *     Kevin Bocksrocker <kevin.bocksrocker@gmail.com>
  *     Lucas Braun <braunl@inf.ethz.ch>
  */
-﻿#pragma once
+#pragma once
 #include "program_options/exceptions.hpp"
 #include "program_options/parser.hpp"
 #include "program_options/type_printer.hpp"
