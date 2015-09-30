@@ -40,8 +40,17 @@ void* stackFromFiber(Fiber* fiber) {
 
 void Fiber::entry(intptr_t ptr) {
     auto fiber = reinterpret_cast<Fiber*>(ptr);
-    fiber->start();
-    LOG_ASSERT(false, "Fiber start function returned");
+    try {
+        fiber->start();
+    } catch (std::exception& e) {
+        LOG_FATAL("Exception triggered in fiber function [error = %1%]", e.what());
+    } catch (...) {
+        LOG_FATAL("Exception triggered in fiber function");
+    }
+
+    // Only ever reached when catching an unhandled exception
+    // Terminate program
+    std::terminate();
 }
 
 Fiber::Fiber(InfinibandProcessor& processor)
@@ -111,17 +120,11 @@ void Fiber::execute(std::function<void (Fiber&)> fun) {
 
 void Fiber::start() {
     while (true) {
-        try {
-            LOG_TRACE("Invoking fiber function");
-            mFun(*this);
-            LOG_TRACE("Exiting fiber function");
-        } catch (std::exception& e) {
-            LOG_ERROR("Exception triggered in fiber function [error = %1%]", e.what());
-        } catch (...) {
-            LOG_ERROR("Exception triggered in fiber function");
-        }
-        mFun = std::function<void(Fiber&)>();
+        LOG_TRACE("Invoking fiber function");
+        mFun(*this);
+        LOG_TRACE("Exiting fiber function");
 
+        mFun = std::function<void(Fiber&)>();
         mProcessor.recycleFiber(this);
 
         // Return to previous context
