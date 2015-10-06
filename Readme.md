@@ -127,3 +127,17 @@ This is a small replacement for boost::program options. The reason to have an al
 to boost::program_options is mostly because using boost will introduce a link time
 dependency, which crossbow::program_options is header only. A small example on how  to
 use program_options can be found in the test folder.
+
+allocator library
+-----------------
+This library contains two special allocators. The first, called ChunkAllocator, allocates
+memory in chunks. This means, that when instanciated, it will allocate a big (usually
+about 1 MB) chunk of memory. Whenever memory from the pool is request, it will just
+increase a pointer and return a pointer to its allocated chunk. Whenever the chunk is full,
+the pool will allocate a new chunk. On deallocation, the memory won't be freed. As soon as
+the pool gets destroyed, all its memory is free at once. This makes allocation and
+deallocation very cheap whenever a set of object shares the same life time.
+
+The other allocator implements the epoch algorithm and is used for the implementation
+of lock-free data structures.
+

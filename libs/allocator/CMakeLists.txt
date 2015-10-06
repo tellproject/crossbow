@@ -1,6 +1,8 @@
 set(SRCS
     include/crossbow/allocator.hpp
     src/allocator.cpp
+    include/crossbow/ChunkAllocator.hpp
+    src/ChunkAllocator.cpp
 )
 
 # Add the Allocator library
