@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <limits>
 
 namespace crossbow {
 
@@ -99,6 +100,10 @@ public:
 	ChunkAllocator(const ChunkAllocator<U>& other);
 
 	T* allocate(std::size_t n);
+
+        size_t max_size() const {
+            return m_pool->pool_size;
+        }
 
 	void deallocate(T* p, std::size_t n);
 
