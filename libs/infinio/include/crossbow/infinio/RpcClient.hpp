@@ -226,7 +226,7 @@ bool RpcResponseResult<Handler, Result>::waitForResult() {
     }
     LOG_ASSERT(mState != RpcResponseState::UNSET, "State is still unset after completion");
 
-    return (mState == RpcResponseState::SET);
+    return (mState != RpcResponseState::ERROR);
 }
 
 template <typename Handler, typename Result>
@@ -296,6 +296,88 @@ void RpcResponseResult<Handler, Result>::setInternalResult(Args&&... args) {
     new (&mResult) T(std::forward<Args>(args)...);
 
     mState = State;
+    complete();
+}
+
+/**
+ * @brief Class holding a future RPC response
+ */
+template <typename Handler>
+class RpcResponseResult<Handler, void> : public RpcResponse {
+public:
+    RpcResponseResult<Handler, void>(Fiber& fiber)
+            : RpcResponse(fiber) {
+    }
+
+    /**
+     * @brief Suspend the fiber until the response was received
+     *
+     * @return Whether the response is valid (contains an error otherwise)
+     */
+    bool waitForResult();
+
+    /**
+     * @brief The error code if the response completed with an error
+     *
+     * Blocks until the response has been received.
+     */
+    const std::error_code& error();
+
+protected:
+    template <typename... Args>
+    void setError(Args&&... args) {
+        mError = std::error_code(std::forward<Args>(args)...);
+    }
+
+private:
+    virtual void onResponse(uint32_t messageType, crossbow::buffer_reader& message) final override;
+
+    virtual void onAbort(std::error_code ec) final override;
+
+    /// The resulting error code (or empty if successful)
+    std::error_code mError;
+};
+
+template <typename Handler>
+bool RpcResponseResult<Handler, void>::waitForResult() {
+    while (!wait()) {
+    }
+
+    return !mError;
+}
+
+template <typename Handler>
+const std::error_code& RpcResponseResult<Handler, void>::error() {
+    waitForResult();
+    return mError;
+}
+
+template <typename Handler>
+void RpcResponseResult<Handler, void>::onResponse(uint32_t messageType, crossbow::buffer_reader& message) {
+    static_assert(std::is_same<typename std::underlying_type<decltype(Handler::MessageType)>::type,
+                  uint32_t>::value, "Given message type is not of the correct type");
+
+    LOG_ASSERT(!done(), "Response is already done");
+
+    if (messageType == std::numeric_limits<uint32_t>::max()) {
+        onAbort({message.read<uint64_t>(), Handler::errorCategory()});
+        return;
+    }
+
+    if (messageType != crossbow::to_underlying(Handler::MessageType)) {
+        onAbort(error::wrong_type);
+        return;
+    }
+
+    static_cast<Handler*>(this)->processResponse(message);
+    complete();
+}
+
+template <typename Handler>
+void RpcResponseResult<Handler, void>::onAbort(std::error_code ec) {
+    LOG_ASSERT(!done(), "Response is already done");
+
+    mError = std::move(ec);
     complete();
 }
 
