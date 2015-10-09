@@ -360,7 +360,7 @@ void RpcResponseResult<Handler, void>::onResponse(uint32_t messageType, crossbow
     LOG_ASSERT(!done(), "Response is already done");
 
     if (messageType == std::numeric_limits<uint32_t>::max()) {
-        onAbort({message.read<uint64_t>(), Handler::errorCategory()});
+        onAbort(std::error_code(message.read<uint64_t>(), Handler::errorCategory()));
         return;
     }
 
