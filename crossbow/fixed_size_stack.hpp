@@ -20,6 +20,7 @@
  *     Kevin Bocksrocker <kevin.bocksrocker@gmail.com>
  *     Lucas Braun <braunl@inf.ethz.ch>
  */
+
 #pragma once
 
 #include <crossbow/non_copyable.hpp>
@@ -78,8 +79,8 @@ public:
     }
 
     bool push(T element) {
+        auto head = mHead.load();
         while (true) {
-            auto head = mHead.load();
             auto wHead = head.writeHead;
             if (wHead == mVec.size()) return false;
             if (!mHead.compare_exchange_strong(head, Head(head.readHead, head.writeHead + 1)))
@@ -96,6 +97,20 @@ public:
             }
             return true;
         }
+    }
+
+    /**
+     * @brief Number of elements in the stack
+     */
+    size_t size() const {
+        return mHead.load().readHead;
+    }
+
+    /**
+     * @brief Maximum capacity of the stack
+     */
+    size_t capacity() const {
+        return mVec.size();
     }
 };
 
