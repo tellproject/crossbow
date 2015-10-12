@@ -95,6 +95,9 @@ void RpcServerManager<Manager, Socket>::onConnection(InfinibandSocket socket, co
     LOG_TRACE("Adding connection");
     try {
         auto con = static_cast<Manager*>(this)->createConnection(std::move(socket), data);
+        if (con == nullptr) {
+            return;
+        }
 
         typename decltype(mSocketsMutex)::scoped_lock _(mSocketsMutex, false);
         __attribute__((unused)) auto res = mSockets.insert(con);
