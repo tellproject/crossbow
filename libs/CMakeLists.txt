@@ -1,4 +1,7 @@
+set(CROSSBOW_LIB_PUBLIC_HDRS "")
 add_subdirectory(allocator)
 add_subdirectory(infinio)
 add_subdirectory(infinityverbs)
 add_subdirectory(logger)
+message(STATUS "CROSSBOW_LIB_PUBLIC_HDRS: ${CROSSBOW_LIB_PUBLIC_HDRS}")
+set(CROSSBOW_PUBLIC_HDRS "${CROSSBOW_PUBLIC_HDRS} ${CROSSBOW_LIB_PUBLIC_HDRS}" PARENT_SCOPE)

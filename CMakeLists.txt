@@ -33,6 +33,7 @@ set(Crossbow_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "Path to the cr
 # Install Crossbow headers
 install(DIRECTORY crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.hpp")
 
+set(CROSSBOW_PUBLIC_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/crossbow")
 # Build Crossbow libs
 add_subdirectory(libs)
 
@@ -45,3 +46,18 @@ endif()
 # Create cmake config file
 configure_file(CrossbowConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/CrossbowConfig.cmake @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/CrossbowConfig.cmake DESTINATION ${CMAKE_INSTALL_DIR})
+
+# Documentation
+if(BUILD_GLOBAL_DOCS)
+    set(TELL_PUBLIC_HDRS "${TELL_PUBLIC_HDRS} ${CROSSBOW_PUBLIC_HDRS}" PARENT_SCOPE)
+else()
+    find_package(Doxygen)
+    if(DOXYGEN_FOUND)
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+        add_custom_target(doc
+            ${DOXYGEN_EXECUTABLE}
+            ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Generating API documentation")
+    endif()
+endif()

@@ -27,3 +27,6 @@ install(DIRECTORY include/crossbow DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATC
 
 # Install the cmake target
 install(EXPORT CrossbowLoggerTargets DESTINATION ${CMAKE_INSTALL_DIR})
+
+# Documentation
+set(CROSSBOW_LIB_PUBLIC_HDRS "${CROSSBOW_LIB_PUBLIC_HDRS} ${CMAKE_CURRENT_SOURCE_DIR}/include/crossbow" PARENT_SCOPE) 
