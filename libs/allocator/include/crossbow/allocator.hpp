@@ -50,7 +50,7 @@ public:
     }
 
     template <typename T, typename... Args>
-    static typename std::enable_if<alignof(T) == alignof(void*), T*>::type construct(Args&&... args) {
+    static typename std::enable_if<alignof(T) <= alignof(void*), T*>::type construct(Args&&... args) {
         return new (allocator::malloc(sizeof(T))) T(std::forward<Args>(args)...);
     }
 
