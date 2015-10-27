@@ -36,29 +36,27 @@ namespace crossbow {
  * \brief Memory allocator used by the parser stage to allocate temporary objects
  */
 class ChunkMemoryPool {
+    std::size_t mChunkSize = 1 * 1024 * 1024; // 1MB
 public:
-	static const std::size_t pool_size = 1 * 1024 * 1024; // 1MB
 
-	// Disable copy constructor and assignment
-	ChunkMemoryPool();
-	ChunkMemoryPool(const ChunkMemoryPool&) = delete;
-	void operator =(const ChunkMemoryPool&) = delete;
+    // Disable copy constructor and assignment
+    ChunkMemoryPool(size_t chunkSize = 0);
+    ChunkMemoryPool(const ChunkMemoryPool&) = delete;
+    void operator =(const ChunkMemoryPool&) = delete;
 
-	~ChunkMemoryPool();
+    ~ChunkMemoryPool();
 
-	/*!
-	 * \brief Initializes a new memory region
-	 *
-	 * Has to be called at the beginning of the parser stage before creating any ChunkObject objects.
-	 */
-	void init();
+    void* allocate(std::size_t size);
 
-	void* allocate(std::size_t size);
+    size_t chunkSize() const { return mChunkSize; }
 
 private:
-	char* m_start;
-	char* m_end;
-	char* m_current;
+    void appendNewChunk();
+private:
+    std::vector<char*> mChunks;
+    char* m_start;
+    char* m_end;
+    char* m_current;
 };
 
 /*!
@@ -68,11 +66,11 @@ private:
  */
 class ChunkObject {
 public:
-	virtual ~ChunkObject();
+    virtual ~ChunkObject();
 
-	void* operator new(size_t size, ChunkMemoryPool* pool);
+    void* operator new(size_t size, ChunkMemoryPool* pool);
 
-	void operator delete(void* p);
+    void operator delete(void* p);
 };
 
 /*!
@@ -81,90 +79,90 @@ public:
 template <class T>
 class ChunkAllocator {
 public:
-	typedef size_t size_type;
-	typedef ptrdiff_t difference_type;
-	typedef T* pointer;
-	typedef const T* const_pointer;
-	typedef T& reference;
-	typedef const T& const_reference;
-	typedef T value_type;
+    typedef size_t size_type;
+    typedef ptrdiff_t difference_type;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef T value_type;
 
-	template <class U>
-	struct rebind {
-		typedef ChunkAllocator<U> other;
-	};
+    template <class U>
+        struct rebind {
+            typedef ChunkAllocator<U> other;
+        };
 
-	ChunkAllocator(ChunkMemoryPool* pool);
+    ChunkAllocator(ChunkMemoryPool* pool);
 
-	template <class U>
-	ChunkAllocator(const ChunkAllocator<U>& other);
+    template <class U>
+        ChunkAllocator(const ChunkAllocator<U>& other);
 
-	T* allocate(std::size_t n);
+    T* allocate(std::size_t n);
 
-        size_t max_size() const {
-            return m_pool->pool_size;
-        }
+    size_t max_size() const {
+        return std::numeric_limits<size_t>::max();
+    }
 
-	void deallocate(T* p, std::size_t n);
+    void deallocate(T* p, std::size_t n);
 
-	template <class U, class... Args>
-	void construct(U* p, Args&&... args);
+    template <class U, class... Args>
+        void construct(U* p, Args&&... args);
 
-	template <class U>
-	void destroy(U* p);
+    template <class U>
+        void destroy(U* p);
 
 private:
-	template <class T1, class U1>
-	friend bool operator ==(const ChunkAllocator<T1>&, const ChunkAllocator<U1>&);
+    template <class T1, class U1>
+        friend bool operator ==(const ChunkAllocator<T1>&, const ChunkAllocator<U1>&);
 
-	template <class U1>
-	friend class ChunkAllocator;
+    template <class U1>
+        friend class ChunkAllocator;
 
-	ChunkMemoryPool* m_pool;
+    ChunkMemoryPool* m_pool;
 };
 
 template <class T>
 ChunkAllocator<T>::ChunkAllocator(ChunkMemoryPool* pool)
-		: m_pool{pool} {
-}
+    : m_pool{pool} {
+    }
 
 template <class T>
 template <class U>
 ChunkAllocator<T>::ChunkAllocator(const ChunkAllocator<U>& other) {
-	m_pool = other.m_pool;
+    m_pool = other.m_pool;
 }
 
 template <class T>
 T* ChunkAllocator<T>::allocate(std::size_t n) {
-	auto p = m_pool->allocate(sizeof(T) * n);
-	return static_cast<T*>(p);
+    auto p = m_pool->allocate(sizeof(T) * n);
+    return static_cast<T*>(p);
 }
 
 template <class T>
 void ChunkAllocator<T>::deallocate(T*, std::size_t) {
-	// Do nothing
+    // Do nothing
 }
 
 template <class T>
 template <class U, class... Args>
 void ChunkAllocator<T>::construct(U* p, Args&&... args) {
-	::new((void*) p) U(std::forward<Args>(args)...);
+    ::new((void*) p) U(std::forward<Args>(args)...);
 }
 
 template <class T>
 template <class U>
 void ChunkAllocator<T>::destroy(U* p) {
-	p->~U();
+    p->~U();
 }
 
 template <class T, class U>
 inline bool operator ==(const ChunkAllocator<T>& lhs, const ChunkAllocator<U>& rhs) {
-	return lhs.m_pool == rhs.m_pool;
+    return lhs.m_pool == rhs.m_pool;
 }
 
 template <class T, class U>
 inline bool operator !=(const ChunkAllocator<T>& lhs, const ChunkAllocator<U>& rhs) {
-	return !operator ==(lhs, rhs);
+    return !operator ==(lhs, rhs);
 }
 
 } // namespace crossbow

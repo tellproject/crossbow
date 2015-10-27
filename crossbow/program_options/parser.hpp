@@ -24,6 +24,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <crossbow/string.hpp>
 
 namespace crossbow {
 
@@ -31,6 +32,13 @@ namespace program_options {
 
 template<class T>
 struct parser;
+
+template<>
+struct parser<std::string> {
+    std::string operator()(const char* str) const {
+        return str;
+    }
+};
 
 template<>
 struct parser<string> {

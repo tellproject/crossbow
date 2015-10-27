@@ -282,7 +282,7 @@ struct serializer {
     uint8_t* pos;
 
     serializer(std::size_t size) : buffer(new uint8_t[size]), pos(buffer.get()) {}
-    serializer(uint8_t* buf) : buffer(buf) {}
+    serializer(uint8_t* buf) : buffer(buf), pos(buf) {}
 
     template<typename T>
     typename std::enable_if<!has_visit<T>::value, serializer&>::type operator& (const T& obj) {

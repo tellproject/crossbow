@@ -25,29 +25,40 @@
 
 namespace crossbow {
 
-ChunkMemoryPool::ChunkMemoryPool()
-		: m_start{nullptr}, m_end{nullptr}, m_current{nullptr} {
+ChunkMemoryPool::ChunkMemoryPool(size_t chunkSize)
+    : mChunkSize(chunkSize)
+    , mChunks({new char[mChunkSize]})
+    , m_start{mChunks[0]}
+    , m_end{m_start + mChunkSize}
+    , m_current{m_start}
+{
 }
 
 ChunkMemoryPool::~ChunkMemoryPool() {
-	delete m_start;
-}
-
-void ChunkMemoryPool::init() {
-	if (!m_start) {
-		m_start = static_cast<char*>(std::malloc(pool_size));
-	}
-	m_current = m_start;
-	m_end = m_start + pool_size;
+    for (auto c : mChunks) {
+        delete[] c;
+    }
 }
 
 void* ChunkMemoryPool::allocate(std::size_t size) {
-	if ((m_current + size) > m_end) {
-		throw std::bad_alloc{};
-	}
-	auto p = m_current;
-	m_current += size;
-	return p;
+    if ((m_current + size) > m_end) {
+        if (size > mChunkSize) { 
+            auto res = new char[size];
+            mChunks.push_back(res);
+            return res;
+        }
+        appendNewChunk();
+    }
+    auto p = m_current;
+    m_current += size;
+    return p;
+}
+
+void ChunkMemoryPool::appendNewChunk() {
+    mChunks.push_back(new char[mChunkSize]);
+    m_start = mChunks.back();
+    m_end = m_start + mChunkSize;
+    m_current = m_start;
 }
 
 ChunkObject::~ChunkObject() = default;
