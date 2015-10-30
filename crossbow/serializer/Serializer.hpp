@@ -31,6 +31,27 @@
 
 namespace crossbow {
 
+struct is_serializable {};
+
+template<class T>
+struct implements_serializable_impl {
+    template<class C>
+    static constexpr bool test(typename C::is_serializable*) {
+        return true;
+    }
+    template<class>
+    static constexpr bool test(...) {
+        return false;
+    }
+
+    constexpr static bool value = test<T>(nullptr);
+};
+
+template<class T>
+constexpr bool implements_serializable() {
+    return implements_serializable_impl<T>::value;
+}
+
 struct dummy {
     template<typename T>
     dummy& operator& (const T& obj) {
@@ -78,9 +99,21 @@ struct serializable : T
 template<typename Archiver, typename T>
 struct serialize_policy
 {
-    static_assert(std::is_pod<T>::value, "Default serialize policy can only handle PODs");
+    static_assert(std::is_pod<T>::value
+            || implements_serializable<T>(),
+            "Default serialize policy can only handle PODs or objects marked as serialiable");
 
-    uint8_t* operator() (Archiver&, const T& obj, uint8_t* pos) const
+    template<class I = T>
+    typename std::enable_if<implements_serializable<I>(), uint8_t*>::type
+    operator() (Archiver& ar, const T& obj, uint8_t* pos) const
+    {
+        ar & const_cast<T&>(obj);
+        return ar.pos;
+    }
+
+    template<class I = T>
+    typename std::enable_if<!implements_serializable<I>(), uint8_t*>::type
+    operator() (Archiver&, const T& obj, uint8_t* pos) const
     {
         memcpy(pos, &obj, sizeof(T));
         return pos + sizeof(T);
@@ -133,12 +166,31 @@ struct serialize_policy<Archiver, std::tuple<T...> >
     }
 };
 
+template<typename Archiver>
+struct serialize_policy<Archiver, std::tuple<>> {
+    uint8_t* operator() (Archiver& ar, const std::tuple<>& v, uint8_t* pos) const {
+        return ar.pos;
+    }
+};
+
 template<typename Archiver, typename T>
 struct deserialize_policy
 {
-    static_assert(std::is_pod<T>::value, "Default serialize policy can only handle PODs");
+    static_assert(std::is_pod<T>::value
+            || implements_serializable<T>(),
+            "Object not serializable");
 
-    const uint8_t* operator() (Archiver&, T& out, const uint8_t* ptr) const
+    template<class I = T>
+    typename std::enable_if<implements_serializable<I>(), const uint8_t*>::type
+    operator() (Archiver& ar, T& out, const uint8_t*) const
+    {
+        ar & out;
+        return ar.pos;
+    }
+
+    template<class I = T>
+    typename std::enable_if<!implements_serializable<I>(), const uint8_t*>::type
+    operator() (Archiver&, T& out, const uint8_t* ptr) const
     {
         memcpy(&out, ptr, sizeof(T));
         return ptr + sizeof(T);
@@ -193,12 +245,31 @@ struct deserialize_policy<Archiver, std::tuple<T...> >
     }
 };
 
+template<typename Archiver>
+struct deserialize_policy<Archiver, std::tuple<>> {
+    const uint8_t* operator() (Archiver& ar, std::tuple<>& out, const uint8_t* pos) const {
+        return ar.pos;
+    }
+};
+
 template<typename Archiver, typename T>
 struct size_policy
 {
-    static_assert(std::is_pod<T>::value, "Default size policy can only handle PODs");
+    static_assert(std::is_pod<T>::value
+            || implements_serializable<T>(),
+            "Default size policy can only handle PODs");
 
-    std::size_t operator() (Archiver& ar, const T& obj) const
+    template<class I = T>
+    typename std::enable_if<implements_serializable<I>(), size_t>::type
+    operator() (Archiver& ar, const T& obj) const
+    {
+        ar & const_cast<T&>(obj);
+        return ar.size;
+    }
+
+    template<class I = T>
+    typename std::enable_if<!implements_serializable<I>(), size_t>::type
+    operator() (Archiver& ar, const T& obj) const
     {
         return sizeof(T);
     }
