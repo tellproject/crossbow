@@ -820,7 +820,7 @@ public: // search
         while (_begin + count != _end) {
             auto iterA = s;
             auto iterB = _begin;
-            auto matches = 0;
+            decltype(count) matches = 0;
             while (*iterA == *iterB && matches < count) {
                 ++iterA;
                 ++iterB;
