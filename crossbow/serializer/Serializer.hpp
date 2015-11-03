@@ -107,7 +107,7 @@ struct serialize_policy
     typename std::enable_if<implements_serializable<I>(), uint8_t*>::type
     operator() (Archiver& ar, const T& obj, uint8_t* pos) const
     {
-        ar & const_cast<T&>(obj);
+        const_cast<T&>(obj) & ar;
         return ar.pos;
     }
 
@@ -184,7 +184,7 @@ struct deserialize_policy
     typename std::enable_if<implements_serializable<I>(), const uint8_t*>::type
     operator() (Archiver& ar, T& out, const uint8_t*) const
     {
-        ar & out;
+        out & ar;
         return ar.pos;
     }
 
@@ -263,8 +263,8 @@ struct size_policy
     typename std::enable_if<implements_serializable<I>(), size_t>::type
     operator() (Archiver& ar, const T& obj) const
     {
-        ar & const_cast<T&>(obj);
-        return ar.size;
+        const_cast<T&>(obj) & ar;
+        return 0;
     }
 
     template<class I = T>
