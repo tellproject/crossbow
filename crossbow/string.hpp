@@ -815,18 +815,19 @@ public: // search
         auto sz = size();
         if (pos >= sz) return npos;
         auto res = pos;
-        auto _begin = begin();
+        auto _begin = begin() + pos;
         auto _end = end();
         while (_begin + count != _end) {
             auto iterA = s;
             auto iterB = _begin;
             decltype(count) matches = 0;
-            while (*iterA == *iterB && matches < count) {
+            while (matches < count && *iterA == *iterB) {
                 ++iterA;
                 ++iterB;
                 ++matches;
             }
             if (matches == count) return res;
+            ++_begin;
             ++res;
         }
         return npos;
