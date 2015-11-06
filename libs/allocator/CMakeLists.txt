@@ -11,6 +11,9 @@ target_include_directories(crossbow_allocator PUBLIC
         $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
+# Link against Crossbow
+target_include_directories(crossbow_allocator PRIVATE ${Crossbow_INCLUDE_DIRS})
+
 # Install the library
 install(TARGETS crossbow_allocator
         EXPORT CrossbowAllocatorTargets

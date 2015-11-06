@@ -20,17 +20,20 @@
  *     Kevin Bocksrocker <kevin.bocksrocker@gmail.com>
  *     Lucas Braun <braunl@inf.ethz.ch>
  */
+
 #include <crossbow/ChunkAllocator.hpp>
+
+#include <crossbow/alignment.hpp>
+
 #include <cstdlib>
 
 namespace crossbow {
 
 ChunkMemoryPool::ChunkMemoryPool(size_t chunkSize)
     : mChunkSize(chunkSize)
-    , mChunks({new char[mChunkSize]})
-    , m_start{mChunks[0]}
-    , m_end{m_start + mChunkSize}
-    , m_current{m_start}
+    , mCurrent{new char[mChunkSize]}
+    , mEnd{mCurrent + mChunkSize}
+    , mChunks({mCurrent})
 {
 }
 
@@ -41,7 +44,7 @@ ChunkMemoryPool::~ChunkMemoryPool() {
 }
 
 void* ChunkMemoryPool::allocate(std::size_t size) {
-    if ((m_current + size) > m_end) {
+    if ((mCurrent + size) > mEnd) {
         if (size > mChunkSize) { 
             auto res = new char[size];
             mChunks.push_back(res);
@@ -49,27 +52,25 @@ void* ChunkMemoryPool::allocate(std::size_t size) {
         }
         appendNewChunk();
     }
-    auto p = m_current;
-    m_current += size;
+    auto p = mCurrent;
+    mCurrent = crossbow::align(mCurrent + size, 8u);
     return p;
 }
 
 void ChunkMemoryPool::appendNewChunk() {
-    mChunks.push_back(new char[mChunkSize]);
-    m_start = mChunks.back();
-    m_end = m_start + mChunkSize;
-    m_current = m_start;
+    mCurrent = new char[mChunkSize];
+    mEnd = mCurrent + mChunkSize;
+    mChunks.push_back(mCurrent);
 }
 
 ChunkObject::~ChunkObject() = default;
 
 void* ChunkObject::operator new(size_t size, ChunkMemoryPool* pool) {
-	return pool->allocate(size);
+    return pool->allocate(size);
 }
 
 void ChunkObject::operator delete(void *a) {
-	// Do nothing
+    // Do nothing
 }
 
 } // namespace crossbow
-

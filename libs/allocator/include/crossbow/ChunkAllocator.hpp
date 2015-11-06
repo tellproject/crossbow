@@ -36,7 +36,6 @@ namespace crossbow {
  * \brief Memory allocator used by the parser stage to allocate temporary objects
  */
 class ChunkMemoryPool {
-    std::size_t mChunkSize;
 public:
     static constexpr std::size_t DEFAULT_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -54,11 +53,14 @@ public:
 
 private:
     void appendNewChunk();
+
 private:
+    std::size_t mChunkSize;
+
+    char* mCurrent;
+    char* mEnd;
+
     std::vector<char*> mChunks;
-    char* m_start;
-    char* m_end;
-    char* m_current;
 };
 
 /*!
