@@ -131,6 +131,7 @@ private:
 
     /// Vector containing all registered event poller
     std::vector<EventPoll*> mPoller;
+    std::atomic<bool> mShutdown;
 };
 
 /**

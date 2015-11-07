@@ -190,6 +190,9 @@ private:
 template <typename Handler>
 BatchingMessageSocket<Handler>::~BatchingMessageSocket() {
     // TODO Make this less restrictive
+    while (mState == ConnectionState::SHUTDOWN) {
+        std::this_thread::yield();
+    }
     LOG_ASSERT(mState == ConnectionState::DISCONNECTED, "Socket must be disconnected");
 
     try {
@@ -336,7 +339,11 @@ void BatchingMessageSocket<Handler>::onSend(uint32_t userId, const std::error_co
 
 template <typename Handler>
 void BatchingMessageSocket<Handler>::onDisconnect() {
-    shutdown();
+    if (mState == ConnectionState::CONNECTED) {
+        shutdown();
+    } else if (mState == ConnectionState::SHUTDOWN) {
+        mState = ConnectionState::DISCONNECTED;
+    }
 }
 
 template <typename Handler>

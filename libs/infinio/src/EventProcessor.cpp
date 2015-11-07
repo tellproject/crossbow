@@ -34,7 +34,8 @@ namespace crossbow {
 namespace infinio {
 
 EventProcessor::EventProcessor(uint64_t pollCycles)
-        : mPollCycles(pollCycles) {
+        : mPollCycles(pollCycles)
+        , mShutdown(false) {
     LOG_TRACE("Creating epoll file descriptor");
     mEpoll = epoll_create1(EPOLL_CLOEXEC);
     if (mEpoll == -1) {
@@ -46,10 +47,14 @@ EventProcessor::~EventProcessor() {
     // TODO We have to join the poll thread
     // We are not allowed to call join in the same thread as the poll loop is
 
+    mShutdown.store(true);
     LOG_TRACE("Destroying epoll file descriptor");
     if (close(mEpoll)) {
         std::error_code ec(errno, std::generic_category());
         LOG_ERROR("Failed to close the epoll descriptor [error = %1% %2%]", ec, ec.message());
+    }
+    if (mPollThread.joinable()) {
+        mPollThread.join();
     }
 }
 
@@ -86,7 +91,7 @@ void EventProcessor::start() {
         throw std::runtime_error("Poll thread already running");
     }
     mPollThread = std::thread([this] () {
-        while (true) {
+        while (!mShutdown.load()) {
             doPoll();
         }
     });

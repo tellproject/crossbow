@@ -68,9 +68,12 @@ void InfinibandBaseSocket<SocketType>::close() {
         return;
     }
 
-    if (mId->qp != nullptr) {
-        throw std::system_error(std::make_error_code(std::errc::already_connected));
+    while (mId->qp) {
+        std::this_thread::yield();
     }
+    //if (mId->qp != nullptr) {
+    //    throw std::system_error(std::make_error_code(std::errc::already_connected));
+    //}
 
     LOG_TRACE("Close socket");
     if (rdma_destroy_id(mId)) {
