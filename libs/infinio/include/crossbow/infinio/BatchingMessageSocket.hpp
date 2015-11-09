@@ -285,8 +285,9 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
     if (ec) {
         mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()) + oldOffset,
                 mBuffer.length() - oldOffset);
+    } else {
+        ++mBatchSize;
     }
-    ++mBatchSize;
 }
 
 template <typename Handler>
@@ -339,11 +340,7 @@ void BatchingMessageSocket<Handler>::onSend(uint32_t userId, const std::error_co
 
 template <typename Handler>
 void BatchingMessageSocket<Handler>::onDisconnect() {
-    if (mState == ConnectionState::CONNECTED) {
-        shutdown();
-    } else if (mState == ConnectionState::SHUTDOWN) {
-        mState = ConnectionState::DISCONNECTED;
-    }
+    shutdown();
 }
 
 template <typename Handler>
@@ -378,6 +375,8 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
     }
 
     mSocket->processor()->executeLocal([this] () {
+        mFlush = false;
+
         // Check if buffer is valid
         if (!mBuffer.valid()) {
             return;
@@ -398,8 +397,6 @@ void BatchingMessageSocket<Handler>::scheduleFlush() {
             handleSocketError(ec);
             return;
         }
-
-        mFlush = false;
     });
 
     mFlush = true;
