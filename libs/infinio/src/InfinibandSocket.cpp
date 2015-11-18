@@ -203,6 +203,7 @@ void InfinibandSocketImpl::accept(const crossbow::string& data, InfinibandProces
     cm_params.private_data = data.c_str();
     cm_params.private_data_len = data.length();
     cm_params.retry_count = 6;
+    cm_params.rnr_retry_count = 6;
 
     if (rdma_accept(mId, &cm_params)) {
         auto res = errno;
@@ -430,6 +431,7 @@ void InfinibandSocketImpl::onRouteResolved() {
         cm_params.private_data = mData.c_str();
         cm_params.private_data_len = mData.length();
         cm_params.retry_count = 6;
+        cm_params.rnr_retry_count = 6;
 
         if (rdma_connect(mId, &cm_params)) {
             std::error_code ec(errno, std::generic_category());
