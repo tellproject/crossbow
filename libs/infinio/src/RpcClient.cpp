@@ -64,8 +64,8 @@ RpcClientSocket::RpcClientSocket(InfinibandSocket socket, size_t maxPendingRespo
     if (mMaxPendingResponses == 0x0u) {
         throw std::invalid_argument("Pending responses must be larger than 0");
     }
-    mAsyncResponses.set_empty_key(0x0u);
-    mAsyncResponses.set_deleted_key(std::numeric_limits<uint32_t>::max());
+    mAsyncResponses.set_empty_key(std::numeric_limits<uint64_t>::max() - 1);
+    mAsyncResponses.set_deleted_key(std::numeric_limits<uint64_t>::max());
 }
 
 void RpcClientSocket::onSocketConnected(const crossbow::string& data) {

@@ -468,7 +468,7 @@ private:
     std::queue<std::tuple<uint32_t, std::shared_ptr<RpcResponse>>> mSyncResponses;
 
     /// Map containing asynchronous response not yet processed by the remote host
-    google::dense_hash_map<uint32_t, std::shared_ptr<RpcResponse>> mAsyncResponses;
+    google::dense_hash_map<uint64_t, std::shared_ptr<RpcResponse>> mAsyncResponses;
 
     /// Requests waiting for the connection to become ready
     ConditionVariable mWaitingRequests;
