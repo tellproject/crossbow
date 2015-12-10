@@ -72,9 +72,13 @@ class ChunkObject {
 public:
     virtual ~ChunkObject();
 
-    void* operator new(size_t size, ChunkMemoryPool* pool);
+    void* operator new(size_t size, ChunkMemoryPool* pool) {
+        return pool->allocate(size);
+    }
 
-    void operator delete(void* p);
+    void operator delete(void* /* p */) {
+        // Do nothing
+    }
 };
 
 /*!

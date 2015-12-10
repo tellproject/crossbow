@@ -65,12 +65,4 @@ void ChunkMemoryPool::appendNewChunk() {
 
 ChunkObject::~ChunkObject() = default;
 
-void* ChunkObject::operator new(size_t size, ChunkMemoryPool* pool) {
-    return pool->allocate(size);
-}
-
-void ChunkObject::operator delete(void *a) {
-    // Do nothing
-}
-
 } // namespace crossbow
