@@ -76,7 +76,7 @@ RpcServerManager<Manager, Socket>::RpcServerManager(InfinibandService& service, 
 
     Endpoint ep(Endpoint::ipv4(), port);
     mAcceptor->bind(ep);
-    mAcceptor->listen(10);
+    mAcceptor->listen(25);
 }
 
 template <typename Manager, typename Socket>
