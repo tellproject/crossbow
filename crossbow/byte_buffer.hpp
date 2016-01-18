@@ -70,6 +70,10 @@ public:
         return mPos;
     }
 
+    const char* end() const {
+        return mEnd;
+    }
+
     void advance(size_t length) {
         mPos += length;
     }
@@ -133,6 +137,10 @@ public:
 
     char* data() {
         return mPos;
+    }
+
+    const char* end() const {
+        return mEnd;
     }
 
     void advance(size_t length) {
