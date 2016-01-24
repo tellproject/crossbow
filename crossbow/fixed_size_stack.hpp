@@ -80,23 +80,27 @@ public:
 
     bool push(T element) {
         auto head = mHead.load();
-        while (true) {
-            auto wHead = head.writeHead;
-            if (wHead == mVec.size()) return false;
-            if (!mHead.compare_exchange_strong(head, Head(head.readHead, head.writeHead + 1)))
-                continue;
-            mVec[wHead] = element;
-            // element has been inserted, now we need to make sure,
-            // the readhead gets increased
-            head = mHead.load();
-            while (head.readHead <= wHead) {
-                if (head.readHead == wHead) {
-                    mHead.compare_exchange_strong(head, Head(wHead + 1, head.writeHead));
-                }
-                head = mHead.load();
+
+        // Advance the write head by one
+        do {
+            if (head.writeHead == mVec.size()) {
+                return false;
             }
-            return true;
+        } while (!mHead.compare_exchange_strong(head, Head(head.readHead, head.writeHead + 1)));
+        auto wHead = head.writeHead;
+
+        // Store the element
+        mVec[wHead] = element;
+
+        // Wait until the read head points to our write position
+        while (head.readHead != wHead) {
+            head = mHead.load();
         }
+
+        // Advance the read head by one
+        while (!mHead.compare_exchange_strong(head, Head(wHead + 1, head.writeHead)));
+
+        return true;
     }
 
     /**
