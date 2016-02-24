@@ -53,6 +53,9 @@ struct Name ## _Switch {\
     }\
 }
 
+#define SERVER_TYPE_S(Name, Signature) crossbow::protocol::Server<Name ## _Switch, Name, Signature, Impl>
+#define SERVER_TYPE(Name, Impl) crossbow::protocol::Server<Name ## _Switch, Name, Signature, Impl>
+
 
 namespace crossbow {
 namespace protocol {
@@ -203,7 +206,8 @@ template<template <typename> class Cmd_Switch,
          class Command,
          template <Command> class Signature,
          class Implementation>
-class Server : Cmd_Switch<Server<Cmd_Switch, Command, Signature, Implementation>> {
+class Server : public Cmd_Switch<Server<Cmd_Switch, Command, Signature, Implementation>> {
+    friend struct Cmd_Switch<Server<Cmd_Switch, Command, Signature, Implementation>>;
     Implementation& mImpl;
     boost::asio::ip::tcp::socket& mSocket;
     size_t mBufSize = 1024;
