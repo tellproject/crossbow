@@ -142,9 +142,9 @@ struct serialize_policy<Archiver, std::pair<U, V>> {
 template<typename Archiver, typename Tuple, int Index = std::tuple_size<Tuple>::value - 1>
 struct serialize_policy_tuple_impl {
     uint8_t* operator() (Archiver& ar, const Tuple& v, uint8_t* pos) const {
-        ar & std::get<Index>(v);
-        serialize_policy_tuple_impl<Archiver, Tuple, Index -1> ser;
+        serialize_policy_tuple_impl<Archiver, Tuple, Index - 1> ser;
         ser(ar,v,ar.pos);
+        ar & std::get<Index>(v);
         return ar.pos;
     }
 };
@@ -221,9 +221,9 @@ struct deserialize_policy<Archiver, std::pair<U, V>>
 template<typename Archiver, typename Tuple, int Index = std::tuple_size<Tuple>::value - 1>
 struct deserialize_policy_tuple_impl {
     const uint8_t* operator() (Archiver& ar, Tuple& v, const uint8_t* pos) const {
-        ar & std::get<Index>(v);
-        deserialize_policy_tuple_impl<Archiver, Tuple, Index -1> ser;
+        deserialize_policy_tuple_impl<Archiver, Tuple, Index - 1> ser;
         ser(ar,v,ar.pos);
+        ar & std::get<Index>(v);
         return ar.pos;
     }
 };
