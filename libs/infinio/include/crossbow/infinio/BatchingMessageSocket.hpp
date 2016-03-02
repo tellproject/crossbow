@@ -242,7 +242,7 @@ template <typename Fun>
 void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t messageType, uint32_t messageLength,
         Fun fun, std::error_code& ec) {
     auto length = HEADER_SIZE + messageLength;
-    if (!mSendBuffer.canWrite(length)) {
+    if (!mSendBuffer.canWrite(length) || mBatchSize >= mMaxBatchSize) {
         // Check if the buffer writer points to the beginning of the send buffer - in this case nothing has been written
         // and the message is too big to fit into a buffer.
         if (mBuffer.valid() && (mSendBuffer.data() == reinterpret_cast<char*>(mBuffer.data()))) {
@@ -255,6 +255,7 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
             return;
         }
 
+        mBatchSize = 0;
         mBuffer = mSocket->acquireSendBuffer();
         if (!mBuffer.valid()) {
             mSendBuffer = crossbow::buffer_writer(static_cast<char*>(nullptr), 0);
@@ -284,12 +285,8 @@ void BatchingMessageSocket<Handler>::writeMessage(MessageId messageId, uint32_t 
     if (ec) {
         mSendBuffer = crossbow::buffer_writer(reinterpret_cast<char*>(mBuffer.data()) + oldOffset,
                 mBuffer.length() - oldOffset);
-        return;
-    }
-
-    ++mBatchSize;
-    if (mBatchSize == mMaxBatchSize) {
-        sendCurrentBuffer(ec);
+    } else {
+        ++mBatchSize;
     }
 }
 
