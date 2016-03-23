@@ -20,6 +20,12 @@
  *     Kevin Bocksrocker <kevin.bocksrocker@gmail.com>
  *     Lucas Braun <braunl@inf.ethz.ch>
  */
+/*
+ * This class serves as a simple wrapper for RPC calls in Boost Asio. You can
+ * define different classes of commands by calling GEN_COMMANDS(class-name, command-list)
+ * once for each class.
+ *
+ */
 #pragma once
 #include <tuple>
 #include <cstdint>
