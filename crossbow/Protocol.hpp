@@ -20,6 +20,17 @@
  *     Kevin Bocksrocker <kevin.bocksrocker@gmail.com>
  *     Lucas Braun <braunl@inf.ethz.ch>
  */
+/*
+ * This class serves as a simple wrapper for RPC calls in Boost Asio. You can
+ * define different classes of commands by calling GEN_COMMANDS(class-name, command-list)
+ * once for each class. After that you can define the signatures for each command
+ * defining an input and an output type. Input and Output types can either be primitive
+ * or nested types derived from structs or vectors using crossbow::serializable as a
+ * serialization method. This serialization method then creates message buffers in the
+ * form of:
+ * |8 bytes: total buffer size|4 bytes: command-id (>= 1)|command args ...|
+ *
+ */
 #pragma once
 #include <tuple>
 #include <cstdint>
