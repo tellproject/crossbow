@@ -41,6 +41,31 @@ public:
               mEnd(pos + length) {
     }
 
+    buffer_reader(const buffer_reader& other) = default;
+
+    buffer_reader& operator=(const buffer_reader& other) {
+        assert(mPos <= mEnd);
+
+        mPos = other.mPos;
+        mEnd = other.mEnd;
+
+        return *this;
+    }
+
+    buffer_reader(buffer_reader&& other) = default;
+
+    buffer_reader& operator=(buffer_reader&& other) {
+        assert(mPos <= mEnd);
+
+        mPos = other.mPos;
+        other.mPos = nullptr;
+
+        mEnd = other.mEnd;
+        other.mEnd = nullptr;
+
+        return *this;
+    }
+
     ~buffer_reader() {
         assert(mPos <= mEnd);
     }
@@ -105,6 +130,31 @@ public:
 
     buffer_writer(void* pos, size_t length)
             : buffer_writer(reinterpret_cast<char*>(pos), length) {
+    }
+
+    buffer_writer(const buffer_writer& other) = default;
+
+    buffer_writer& operator=(const buffer_writer& other) {
+        assert(mPos <= mEnd);
+
+        mPos = other.mPos;
+        mEnd = other.mEnd;
+
+        return *this;
+    }
+
+    buffer_writer(buffer_writer&& other) = default;
+
+    buffer_writer& operator=(buffer_writer&& other) {
+        assert(mPos <= mEnd);
+
+        mPos = other.mPos;
+        other.mPos = nullptr;
+
+        mEnd = other.mEnd;
+        other.mEnd = nullptr;
+
+        return *this;
     }
 
     ~buffer_writer() {
