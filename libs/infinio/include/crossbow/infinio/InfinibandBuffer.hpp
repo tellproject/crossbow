@@ -42,13 +42,31 @@ class ProtectionDomain;
  *
  * Each buffer has an unique ID associated with itself.
  */
-class InfinibandBuffer {
+class InfinibandBuffer : crossbow::non_copyable {
 public:
     static constexpr uint16_t INVALID_ID = std::numeric_limits<uint16_t>::max();
 
     InfinibandBuffer(uint16_t id)
             : mId(id) {
         memset(&mHandle, 0, sizeof(mHandle));
+    }
+
+    InfinibandBuffer(InfinibandBuffer&& other)
+            : mId(other.mId) {
+        other.mId = INVALID_ID;
+
+        memcpy(&mHandle, &other.mHandle, sizeof(mHandle));
+        memset(&other.mHandle, 0, sizeof(mHandle));
+    }
+
+    InfinibandBuffer& operator=(InfinibandBuffer&& other) {
+        mId = other.mId;
+        other.mId = INVALID_ID;
+
+        memcpy(&mHandle, &other.mHandle, sizeof(mHandle));
+        memset(&other.mHandle, 0, sizeof(mHandle));
+
+        return *this;
     }
 
     uint16_t id() const {
